@@ -1,0 +1,463 @@
+import path from "node:path";
+import { type Context, displayPath } from "../core/context.ts";
+import { type DocFormat, docFormatFor, getAt, type LoadedDoc, loadDoc } from "../core/doc.ts";
+import { inspectPath, type PathState, pathStateHash } from "../core/fsx.ts";
+import { ABSENT, type Absent, hashValue, sha256 } from "../core/hash.ts";
+import type { LoadedProfile } from "../profile/load.ts";
+import type { HarnessId } from "../profile/schema.ts";
+import {
+  type CommandRunner,
+  createSecretResolver,
+  type SecretResolver,
+} from "../secrets/resolve.ts";
+import { createSkillResolver } from "../skills/source.ts";
+import { buildDesired } from "./desired.ts";
+import type { DesiredItem, ItemKind, PathWant, Scope } from "./items.ts";
+import { readState, type State, type StateItem } from "./state.ts";
+
+export type Action = "create" | "update" | "delete" | "noop" | "adopt" | "forget";
+
+export interface Change {
+  readonly key: string;
+  readonly kind: ItemKind;
+  readonly scope: Scope;
+  readonly label: string;
+  readonly action: Action;
+  readonly path: string;
+  readonly writesThrough?: string;
+  readonly before?: string;
+  readonly after?: string;
+  readonly drift: boolean;
+  readonly notes: readonly string[];
+}
+
+export interface PlanSummary {
+  readonly create: number;
+  readonly update: number;
+  readonly delete: number;
+  readonly noop: number;
+  readonly adopt: number;
+  readonly forget: number;
+  readonly drift: number;
+}
+
+export interface Plan {
+  readonly schemaVersion: 1;
+  readonly profileDir: string;
+  readonly home: string;
+  readonly stateDir: string;
+  readonly harnesses: readonly HarnessId[];
+  readonly install: "link" | "copy";
+  readonly changes: readonly Change[];
+  readonly warnings: readonly string[];
+  readonly summary: PlanSummary;
+  readonly fingerprint: string;
+}
+
+export interface PlanOptions {
+  readonly harnesses?: readonly HarnessId[] | undefined;
+  readonly force?: boolean | undefined;
+  readonly offline?: boolean | undefined;
+  readonly resolver?: SecretResolver | undefined;
+  readonly runner?: CommandRunner | undefined;
+}
+
+export interface DocEdit {
+  readonly key: string;
+  readonly pointer: readonly string[];
+  readonly value: unknown | Absent;
+  readonly currentHash: string;
+}
+
+export interface DocStep {
+  readonly path: string;
+  readonly realPath: string;
+  readonly format: DocFormat;
+  readonly edits: DocEdit[];
+  secret: boolean;
+}
+
+export interface PathStep {
+  readonly key: string;
+  readonly path: string;
+  readonly action: "create" | "update" | "delete";
+  readonly want: PathWant | undefined;
+  readonly currentHash: string;
+  readonly phase: number;
+}
+
+export interface StateUpdate {
+  readonly key: string;
+  readonly item: StateItem | undefined;
+}
+
+export interface ComputedPlan {
+  readonly plan: Plan;
+  readonly docSteps: DocStep[];
+  readonly pathSteps: PathStep[];
+  readonly stateUpdates: StateUpdate[];
+  readonly state: State;
+  readonly resolver: SecretResolver;
+}
+
+export function isWriteAction(action: Action): action is "create" | "update" | "delete" {
+  return action === "create" || action === "update" || action === "delete";
+}
+
+export function wantHash(want: PathWant): string {
+  switch (want.type) {
+    case "symlink":
+      return `link:${path.resolve(want.target)}`;
+    case "file":
+      return `file:${want.hash}`;
+    case "dir":
+      return `dir:${want.hash}`;
+  }
+}
+
+interface Decision {
+  readonly action: Action;
+  readonly drift: boolean;
+}
+
+function decide(
+  currentHash: string,
+  desiredHash: string,
+  priorHash: string | undefined,
+  currentAbsent: boolean,
+  desiredAbsent: boolean,
+): Decision {
+  if (currentHash === desiredHash) {
+    return { action: priorHash === desiredHash ? "noop" : "adopt", drift: false };
+  }
+  const drift = priorHash !== undefined && priorHash !== currentHash;
+  if (desiredAbsent) {
+    return { action: "delete", drift };
+  }
+  return { action: currentAbsent ? "create" : "update", drift };
+}
+
+function compact(value: unknown): string {
+  const text = JSON.stringify(value) ?? String(value);
+  return text.length > 80 ? `${text.slice(0, 77)}...` : text;
+}
+
+function describePathState(ctx: Context, state: PathState): string | undefined {
+  switch (state.type) {
+    case "absent":
+      return undefined;
+    case "file":
+      return `file, ${state.size} bytes`;
+    case "symlink":
+      return `link to ${displayPath(ctx, state.target)}`;
+    case "dir":
+      return "directory";
+    case "other":
+      return "special file";
+  }
+}
+
+function describeWant(ctx: Context, want: PathWant): string {
+  switch (want.type) {
+    case "symlink":
+      return `link to ${displayPath(ctx, want.target)}`;
+    case "file":
+      return `file, ${want.content.length} bytes`;
+    case "dir":
+      return `copy of ${displayPath(ctx, want.source)}`;
+  }
+}
+
+function emptySummary(): Record<keyof PlanSummary, number> {
+  return { create: 0, update: 0, delete: 0, noop: 0, adopt: 0, forget: 0, drift: 0 };
+}
+
+export async function computePlan(
+  loaded: LoadedProfile,
+  ctx: Context,
+  options: PlanOptions = {},
+): Promise<ComputedPlan> {
+  const resolver = options.resolver ?? createSecretResolver(loaded.profile, ctx, options.runner);
+  const skills = createSkillResolver(loaded, ctx, {
+    allowFetch: options.offline !== true,
+    ...(options.runner === undefined ? {} : { runner: options.runner }),
+  });
+  const desired = await buildDesired(loaded, ctx, {
+    harnesses: options.harnesses,
+    resolver,
+    skills,
+  });
+  const state = await readState(ctx.stateDir);
+  const now = ctx.now().toISOString();
+  const docs = new Map<string, LoadedDoc>();
+  const loadCached = async (file: string, format: DocFormat): Promise<LoadedDoc> => {
+    const cached = docs.get(file);
+    if (cached !== undefined) {
+      return cached;
+    }
+    const doc = await loadDoc(file, format);
+    docs.set(file, doc);
+    return doc;
+  };
+  const docSteps = new Map<string, DocStep>();
+  const addEdit = (doc: LoadedDoc, edit: DocEdit, secret: boolean): void => {
+    let step = docSteps.get(doc.realPath);
+    if (step === undefined) {
+      step = { path: doc.path, realPath: doc.realPath, format: doc.format, edits: [], secret };
+      docSteps.set(doc.realPath, step);
+    }
+    step.edits.push(edit);
+    step.secret = step.secret || secret;
+  };
+  const changes: Change[] = [];
+  const fingerprintLines: string[] = [];
+  const pathSteps: PathStep[] = [];
+  const stateUpdates: StateUpdate[] = [];
+  const summary = emptySummary();
+  const record = (change: Change, desiredHash: string, currentHash: string): void => {
+    changes.push(change);
+    summary[change.action] += 1;
+    if (change.drift) {
+      summary.drift += 1;
+    }
+    if (change.action !== "noop") {
+      fingerprintLines.push(`${change.key}\t${change.action}\t${desiredHash}\t${currentHash}`);
+    }
+  };
+  const mask = (text: string | undefined): string | undefined =>
+    text === undefined ? undefined : resolver.mask(text);
+
+  const desiredKeys = new Set(desired.items.map((item) => item.key));
+  for (const item of desired.items) {
+    await planDesiredItem(item);
+  }
+
+  async function planDesiredItem(item: DesiredItem): Promise<void> {
+    const prior = state.items[item.key];
+    if (item.type === "doc") {
+      const doc = await loadCached(item.doc.path, item.doc.format);
+      const current = getAt(doc.data, item.pointer);
+      const currentHash = hashValue(current);
+      const desiredHash = hashValue(item.value);
+      const decision = decide(
+        currentHash,
+        desiredHash,
+        prior?.hash,
+        current === undefined,
+        item.value === ABSENT,
+      );
+      record(
+        {
+          key: item.key,
+          kind: item.kind,
+          scope: item.scope,
+          label: item.label,
+          action: decision.action,
+          path: item.doc.path,
+          ...(doc.realPath === path.resolve(item.doc.path) ? {} : { writesThrough: doc.realPath }),
+          ...(current === undefined ? {} : { before: mask(compact(current)) }),
+          ...(item.value === ABSENT ? {} : { after: mask(compact(item.value)) }),
+          drift: decision.drift,
+          notes: item.notes,
+        },
+        desiredHash,
+        currentHash,
+      );
+      if (isWriteAction(decision.action)) {
+        addEdit(
+          doc,
+          { key: item.key, pointer: item.pointer, value: item.value, currentHash },
+          item.secrets.length > 0,
+        );
+      }
+      if (decision.action !== "noop") {
+        stateUpdates.push({
+          key: item.key,
+          item: {
+            kind: item.kind,
+            scope: item.scope,
+            path: item.doc.path,
+            pointer: [...item.pointer],
+            hash: desiredHash,
+            appliedAt: now,
+          },
+        });
+      }
+      return;
+    }
+    const current = await inspectPath(item.path);
+    const currentHash = pathStateHash(current);
+    const desiredHash = wantHash(item.want);
+    let decision = decide(currentHash, desiredHash, prior?.hash, current.type === "absent", false);
+    const notes = [...item.notes];
+    if (
+      (decision.action === "noop" || decision.action === "adopt") &&
+      item.want.type === "file" &&
+      item.want.mode !== undefined &&
+      current.type === "file" &&
+      current.mode !== item.want.mode &&
+      ctx.platform !== "win32"
+    ) {
+      decision = { action: "update", drift: false };
+      notes.push(`Changes the file mode to ${item.want.mode.toString(8)}.`);
+    }
+    const before = describePathState(ctx, current);
+    record(
+      {
+        key: item.key,
+        kind: item.kind,
+        scope: item.scope,
+        label: item.label,
+        action: decision.action,
+        path: item.path,
+        ...(before === undefined ? {} : { before }),
+        after: describeWant(ctx, item.want),
+        drift: decision.drift,
+        notes,
+      },
+      desiredHash,
+      currentHash,
+    );
+    if (isWriteAction(decision.action)) {
+      pathSteps.push({
+        key: item.key,
+        path: item.path,
+        action: decision.action,
+        want: item.want,
+        currentHash,
+        phase: item.phase,
+      });
+    }
+    if (decision.action !== "noop") {
+      stateUpdates.push({
+        key: item.key,
+        item: {
+          kind: item.kind,
+          scope: item.scope,
+          path: item.path,
+          hash: desiredHash,
+          appliedAt: now,
+        },
+      });
+    }
+  }
+
+  const activeScopes = new Set<Scope>(["shared", "home", ...desired.harnesses]);
+  for (const [key, prior] of Object.entries(state.items)) {
+    if (desiredKeys.has(key) || desired.skipped.has(key) || !activeScopes.has(prior.scope)) {
+      continue;
+    }
+    stateUpdates.push({ key, item: undefined });
+    if (prior.pointer !== undefined) {
+      const doc = await loadCached(prior.path, docFormatFor(prior.path) ?? "json");
+      const current = getAt(doc.data, prior.pointer);
+      const currentHash = hashValue(current);
+      const changedOutside = currentHash !== prior.hash;
+      let action: Action = "forget";
+      const notes: string[] = [];
+      if (current !== undefined && (!changedOutside || options.force === true)) {
+        action = "delete";
+        addEdit(doc, { key, pointer: prior.pointer, value: ABSENT, currentHash }, false);
+      } else if (current !== undefined) {
+        notes.push(
+          "The entry changed outside ade. ade leaves it in place. Add --force to delete it.",
+        );
+      }
+      record(
+        {
+          key,
+          kind: prior.kind,
+          scope: prior.scope,
+          label: labelFromKey(key),
+          action,
+          path: prior.path,
+          ...(current === undefined ? {} : { before: mask(compact(current)) }),
+          drift: current !== undefined && changedOutside,
+          notes,
+        },
+        hashValue(ABSENT),
+        currentHash,
+      );
+      continue;
+    }
+    const current = await inspectPath(prior.path);
+    const currentHash = pathStateHash(current);
+    const changedOutside = currentHash !== prior.hash;
+    let action: Action = "forget";
+    const notes: string[] = [];
+    if (current.type !== "absent" && (!changedOutside || options.force === true)) {
+      action = "delete";
+      pathSteps.push({
+        key,
+        path: prior.path,
+        action: "delete",
+        want: undefined,
+        currentHash,
+        phase: prior.scope === "shared" ? 0 : 1,
+      });
+    } else if (current.type !== "absent") {
+      notes.push("The path changed outside ade. ade leaves it in place. Add --force to delete it.");
+    }
+    const before = describePathState(ctx, current);
+    record(
+      {
+        key,
+        kind: prior.kind,
+        scope: prior.scope,
+        label: labelFromKey(key),
+        action,
+        path: prior.path,
+        ...(before === undefined ? {} : { before }),
+        drift: current.type !== "absent" && changedOutside,
+        notes,
+      },
+      "absent",
+      currentHash,
+    );
+  }
+
+  const warnings = [...desired.warnings];
+  for (const step of docSteps.values()) {
+    const doc =
+      docs.get(step.path) ?? [...docs.values()].find((item) => item.realPath === step.realPath);
+    if (doc !== undefined && doc.commentLines > 0) {
+      warnings.push(
+        `Writing ${displayPath(ctx, step.realPath)} removes ${doc.commentLines} comment lines.`,
+      );
+    }
+  }
+
+  const plan: Plan = {
+    schemaVersion: 1,
+    profileDir: loaded.dir,
+    home: ctx.home,
+    stateDir: ctx.stateDir,
+    harnesses: desired.harnesses,
+    install: desired.install,
+    changes,
+    warnings,
+    summary,
+    fingerprint: sha256(fingerprintLines.sort().join("\n")),
+  };
+  return {
+    plan,
+    docSteps: [...docSteps.values()],
+    pathSteps,
+    stateUpdates,
+    state,
+    resolver,
+  };
+}
+
+function labelFromKey(key: string): string {
+  const parts = key.split(":");
+  return parts.slice(2).join(":") || key;
+}
+
+export async function plan(
+  loaded: LoadedProfile,
+  ctx: Context,
+  options: PlanOptions = {},
+): Promise<Plan> {
+  return (await computePlan(loaded, ctx, options)).plan;
+}

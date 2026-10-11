@@ -1,0 +1,45 @@
+{
+  "name": "@woosal1337/ade",
+  "version": "0.1.0",
+  "description": "Plan, apply, and revert one agent development environment across Claude Code, Codex, Cursor, Grok, and Pi. CLI and TypeScript SDK.",
+  "private": true,
+  "license": "UNLICENSED",
+  "type": "module",
+  "bin": {
+    "ade": "dist/cli.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "node --test --test-reporter=dot \"test/**/*.test.ts\"",
+    "format": "biome format --write .",
+    "format:check": "biome format .",
+    "lint": "biome lint --error-on-warnings .",
+    "dev": "node src/cli.ts"
+  },
+  "dependencies": {
+    "smol-toml": "^1.9.1",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.15",
+    "@types/node": "24.19.2",
+    "typescript": "7.0.2",
+    "typescript-api": "npm:typescript@6.0.3",
+    "yaml": "2.9.1"
+  }
+}
