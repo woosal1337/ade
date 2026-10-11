@@ -1,0 +1,101 @@
+{
+  "name": "ade",
+  "board": {
+    "key": "TD",
+    "org": "Personal",
+    "org_id": "019fde50-6654-7c03-81a5-2b4aa937b624",
+    "project": "Todo",
+    "project_id": "019fde50-7546-74f0-bcb2-dc14821839cf",
+    "tool": "elliptic"
+  },
+  "remote": "git@github.com:woosal1337/ade.git",
+  "machines": {
+    "macbook": {
+      "repo": "/Users/ege/Documents/GitHub/ade",
+      "work": "/Users/ege/Documents/work/ade"
+    }
+  },
+  "github": {
+    "owner": "woosal1337",
+    "url": "https://github.com/woosal1337/ade",
+    "description": "Plan, apply, and revert one agent development environment (MCP servers, skills, instructions, settings, and config files) across Claude Code, Codex, Cursor, Grok, and Pi. CLI and TypeScript SDK.",
+    "homepage": "",
+    "topics": [
+      "agent-skills",
+      "ai-agents",
+      "claude-code",
+      "cli",
+      "codex",
+      "cursor",
+      "developer-tools",
+      "dotfiles",
+      "grok",
+      "mcp",
+      "pi-coding-agent",
+      "sdk",
+      "typescript"
+    ],
+    "visibility": "private",
+    "default_branch": "main"
+  },
+  "stack": {
+    "runtime": {
+      "name": "Node.js",
+      "version": ">=22, 24 LTS in development and CI"
+    },
+    "framework": {
+      "name": "TypeScript",
+      "version": "7.0.2"
+    },
+    "package_manager": {
+      "name": "npm",
+      "version": "11.6.2"
+    },
+    "lockfile": "package-lock.json"
+  },
+  "commands": {
+    "test": ["npm", "test", "--silent"],
+    "build": ["npm", "run", "--silent", "build"],
+    "start": ["node", "src/cli.ts", "--help"]
+  },
+  "quality": {
+    "pre_commit_version": "4.6.2",
+    "required": ["typecheck", "build"],
+    "checks": [
+      {
+        "id": "format",
+        "argv": ["npm", "run", "--silent", "format:check"]
+      },
+      {
+        "id": "source-comments",
+        "argv": ["node", "tools/source-policy.mjs"]
+      },
+      {
+        "id": "lint",
+        "argv": ["npm", "run", "--silent", "lint"]
+      },
+      {
+        "id": "typecheck",
+        "argv": ["npm", "run", "--silent", "typecheck"]
+      },
+      {
+        "id": "build",
+        "argv": ["npm", "run", "--silent", "build"]
+      },
+      {
+        "id": "test",
+        "argv": ["npm", "test", "--silent"]
+      }
+    ]
+  },
+  "knowledge": {
+    "vault": "base",
+    "note": "projects/ade/README.md"
+  },
+  "foundation": {
+    "template": "ege-repository-foundation",
+    "version": 1,
+    "workflow_id": "create-repository",
+    "workflow_version": 2
+  }
+}
