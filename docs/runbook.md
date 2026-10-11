@@ -69,6 +69,37 @@ node src/cli.ts apply --profile <profile-dir> --home /tmp/ade-home --yes
    ade apply --profile ~/agent-profile
    ```
 
+## Sync a machine with a published profile
+
+1. Show the plan:
+
+   ```bash
+   ade plan <owner>/<repo>
+   ```
+
+2. Apply the profile. Read the trust summary before you type yes:
+
+   ```bash
+   ade apply <owner>/<repo>
+   ```
+
+3. Make the source the default for later syncs:
+
+   ```bash
+   ade use <owner>/<repo>
+   ```
+
+## Publish a profile
+
+1. Write the publication copy:
+
+   ```bash
+   ade pack --out <dir> --repo <owner>/<repo>
+   ```
+
+2. Read the warnings and the generated README.
+3. Push the folder to a public repository.
+
 ## Undo an apply
 
 ```bash

@@ -61,6 +61,8 @@ export {
   saveLock,
   saveProfile,
 } from "./profile/load.ts";
+export { type PackOptions, type PackResult, packProfile } from "./profile/pack.ts";
+export { type RiskItem, riskSummary } from "./profile/risk.ts";
 export {
   type FileEntry,
   HARNESS_IDS,
@@ -74,6 +76,22 @@ export {
   type SecretSource,
   type Skill,
 } from "./profile/schema.ts";
+export {
+  type ProfileSource,
+  type ResolvedProfile,
+  readDefaultProfile,
+  resolveProfile,
+  writeDefaultProfile,
+} from "./profile/source.ts";
+export { type ProfileSpec, parseProfileSpec } from "./profile/spec.ts";
+export {
+  checkTrust,
+  listTrust,
+  recordTrust,
+  removeTrust,
+  type TrustEntry,
+  type TrustStatus,
+} from "./profile/trust.ts";
 export {
   callRemote,
   type RemoteCaptureResult,
@@ -96,6 +114,7 @@ export {
 export type { RemoteInfo, RemoteOp } from "./remote/protocol.ts";
 export {
   type CommandRunner,
+  createPreviewResolver,
   createSecretResolver,
   type SecretResolver,
 } from "./secrets/resolve.ts";

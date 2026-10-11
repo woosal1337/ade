@@ -43,6 +43,7 @@ import {
   type Skill,
 } from "../profile/schema.ts";
 import { templateHome, templateHomeDeep } from "../secrets/refs.ts";
+import { SCHEME_PREFIX, SENSITIVE_KEY, TOKEN_PATTERN } from "../secrets/scan.ts";
 
 export interface CaptureInclude {
   readonly root: HarnessId | "home";
@@ -74,11 +75,6 @@ export interface CaptureResult {
   readonly secrets: readonly CapturedSecret[];
 }
 
-const TOKEN_PATTERN =
-  /(sk-ant-[A-Za-z0-9_-]{16,}|sk-[A-Za-z0-9_-]{20,}|crsr_[A-Za-z0-9]{16,}|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|xox[abpr]-[A-Za-z0-9-]{10,}|cos_pat_[A-Za-z0-9_-]{10,}|AKIA[0-9A-Z]{16}|eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,})/;
-const SENSITIVE_KEY =
-  /(api[-_]?key|token|secret|password|passwd|credential|cookie|authorization|bearer|private[-_]?key|access[-_]?key)/i;
-const SCHEME_PREFIX = /^(Bearer|Basic|Token)\s+(\S.*)$/i;
 const CONTAINER_KEYS = new Set([
   "headers",
   "http_headers",

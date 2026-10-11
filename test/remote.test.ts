@@ -26,6 +26,7 @@ import {
   SECRET_TOKEN,
   seedMachine,
   tempDir,
+  testGitEnv,
   writeText,
 } from "./helpers.ts";
 
@@ -66,13 +67,7 @@ function git(cwd: string, ...args: string[]): void {
   execFileSync("git", args, {
     cwd,
     stdio: "ignore",
-    env: {
-      ...process.env,
-      GIT_AUTHOR_NAME: "ade test",
-      GIT_AUTHOR_EMAIL: "test@example.com",
-      GIT_COMMITTER_NAME: "ade test",
-      GIT_COMMITTER_EMAIL: "test@example.com",
-    },
+    env: testGitEnv(),
   });
 }
 

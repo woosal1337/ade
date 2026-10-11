@@ -42,6 +42,7 @@ Keep the exclusions narrow. Do not exclude a source directory merely because it 
 Exceptions:
 
 - `package-lock.json` is a generated file. The check skips it.
+- ade writes `ade.json`, `ade.lock.json`, and `ade.schema.json` in `examples/`. Biome does not format them. The source check parses them as JSON.
 - Markdown files are documentation. The check skips them.
 - The `#!/usr/bin/env node` line in `src/cli.ts` is a required directive. The TypeScript parser does not report it as a comment.
 - Any other file type fails the check until it has a parser rule.
@@ -67,6 +68,8 @@ The remote acceptance check on Igris, Linux with Node.js 24.13.0, on 2026-10-11:
 4. `ade remote igris capture` read the real Igris home: 4 harnesses, 3 MCP servers, 1 skill, and no secret value.
 
 The first Windows CI run on 2026-10-11 failed one test. Git wrote CRLF line endings into a Git skill because the runner sets `core.autocrlf=true`. The checkout now sets `core.autocrlf=false` and `core.eol=lf`. A test sets `core.autocrlf=true` through the Git environment and fails without the fix.
+
+A commit on 2026-10-12 failed in the commit hook, but the same tests passed outside it. Git sets `GIT_INDEX_FILE` for a hook. ade passed it to its own Git calls, so a skill checkout wrote into a foreign index. A test with a copy of the repository index lost 90 of 93 entries. ade now removes the variables from `git rev-parse --local-env-vars` before each Git call. The same test now keeps all 93 entries.
 
 The source comment probe on 2026-10-11 added `src/probe.ts` with a line comment. The installed commit hook failed with `src/probe.ts:1: Remove the source comment.` The hook passed after the probe file was removed.
 

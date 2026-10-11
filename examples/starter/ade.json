@@ -1,0 +1,22 @@
+{
+  "$schema": "./ade.schema.json",
+  "version": 1,
+  "name": "starter",
+  "description": "A small public ade profile: global rules, one skill, and one documentation MCP server.",
+  "install": "auto",
+  "instructions": {
+    "file": "AGENTS.md"
+  },
+  "mcp": {
+    "context7": {
+      "transport": "http",
+      "url": "https://mcp.context7.com/mcp",
+      "description": "Current library documentation"
+    }
+  },
+  "skills": {
+    "write-commit": {
+      "path": "skills/write-commit"
+    }
+  }
+}

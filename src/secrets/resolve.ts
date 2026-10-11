@@ -261,3 +261,16 @@ export function expandUserPath(text: string, ctx: Context): string {
   }
   return path.resolve(withHome);
 }
+
+export function previewPresets(profile: Profile): Record<string, string> {
+  return Object.fromEntries(
+    Object.keys(profile.secrets ?? {}).map((name) => [name, `<unresolved secret ${name}>`]),
+  );
+}
+
+export function createPreviewResolver(profile: Profile, ctx: Context): SecretResolver {
+  const refuse: CommandRunner = async () => {
+    throw new AdeError("unsupported", "A preview does not run secret commands.");
+  };
+  return createSecretResolver(profile, ctx, refuse, previewPresets(profile));
+}

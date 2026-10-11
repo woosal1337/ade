@@ -12,7 +12,7 @@ import { status } from "../engine/status.ts";
 import { describeHarnesses } from "../harness/registry.ts";
 import { exportBundle, importBundle } from "../profile/bundle.ts";
 import type { LoadedProfile } from "../profile/load.ts";
-import { createSecretResolver } from "../secrets/resolve.ts";
+import { createPreviewResolver, createSecretResolver } from "../secrets/resolve.ts";
 import { VERSION } from "../version.ts";
 import {
   MIN_NODE_MAJOR,
@@ -59,7 +59,10 @@ async function execute(payload: RemotePayload, ctx: Context): Promise<unknown> {
     force: payload.force === true,
     offline: true,
     copyFiles: true,
-    resolver: createSecretResolver(loaded.profile, ctx, undefined, payload.secrets ?? {}),
+    resolver:
+      payload.previewSecrets === true
+        ? createPreviewResolver(loaded.profile, ctx)
+        : createSecretResolver(loaded.profile, ctx, undefined, payload.secrets ?? {}),
   });
   switch (payload.op) {
     case "info":
@@ -72,6 +75,9 @@ async function execute(payload: RemotePayload, ctx: Context): Promise<unknown> {
         async (loaded) => (await computePlan(loaded, ctx, shared(loaded))).plan,
       );
     case "apply":
+      if (payload.previewSecrets === true) {
+        throw new AdeError("usage", "An apply needs real secret values.");
+      }
       return withProfile(payload, (loaded) =>
         apply(loaded, ctx, {
           ...shared(loaded),
@@ -83,7 +89,11 @@ async function execute(payload: RemotePayload, ctx: Context): Promise<unknown> {
       return withProfile(payload, (loaded) => status(loaded, ctx, shared(loaded)));
     case "doctor":
       return withProfile(payload, (loaded) =>
-        doctor(loaded, ctx, { resolver: shared(loaded).resolver, copyFiles: true }),
+        doctor(loaded, ctx, {
+          resolver: shared(loaded).resolver,
+          copyFiles: true,
+          skipSecrets: payload.previewSecrets === true,
+        }),
       );
     case "revert":
       return revert(ctx, { id: payload.id, force: payload.force === true });

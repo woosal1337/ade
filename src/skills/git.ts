@@ -1,15 +1,62 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import type { Context } from "../core/context.ts";
-import { AdeError } from "../core/errors.ts";
+import { AdeError, errnoCode } from "../core/errors.ts";
 import { ensureDir, isSafeRelative, statOrUndefined, tempSibling } from "../core/fsx.ts";
 import { sha256 } from "../core/hash.ts";
-import { type CommandRunner, runCommand } from "../secrets/resolve.ts";
+import { type CommandResult, type CommandRunner, runCommand } from "../secrets/resolve.ts";
 
-const FULL_COMMIT = /^[0-9a-f]{40}$/;
+export const FULL_COMMIT = /^[0-9a-f]{40}$/;
 
-export interface GitRunner {
-  readonly runner: CommandRunner;
+export const GIT_LOCAL_VARIABLES = [
+  "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+  "GIT_CONFIG",
+  "GIT_CONFIG_PARAMETERS",
+  "GIT_CONFIG_COUNT",
+  "GIT_OBJECT_DIRECTORY",
+  "GIT_DIR",
+  "GIT_WORK_TREE",
+  "GIT_IMPLICIT_WORK_TREE",
+  "GIT_GRAFT_FILE",
+  "GIT_INDEX_FILE",
+  "GIT_NO_REPLACE_OBJECTS",
+  "GIT_REPLACE_REF_BASE",
+  "GIT_PREFIX",
+  "GIT_SHALLOW_FILE",
+  "GIT_COMMON_DIR",
+] as const;
+
+export function isolatedGitEnv(
+  env: Readonly<Record<string, string | undefined>>,
+): Record<string, string | undefined> {
+  const result: Record<string, string | undefined> = { ...env, GIT_TERMINAL_PROMPT: "0" };
+  for (const name of Object.keys(result)) {
+    if (
+      (GIT_LOCAL_VARIABLES as readonly string[]).includes(name) ||
+      /^GIT_CONFIG_(KEY|VALUE)_\d+$/.test(name)
+    ) {
+      delete result[name];
+    }
+  }
+  return result;
+}
+
+async function runGit(
+  ctx: Context,
+  runner: CommandRunner,
+  args: readonly string[],
+  timeoutMs = 120_000,
+): Promise<CommandResult> {
+  try {
+    return await runner(["git", ...args], { env: isolatedGitEnv(ctx.env), timeoutMs });
+  } catch (error) {
+    if (errnoCode(error) === "ENOENT") {
+      throw new AdeError("git-failed", "Git is not installed, or it is not on the PATH.", {
+        hint: "Install Git, then run the command again.",
+      });
+    }
+    throw error;
+  }
 }
 
 async function git(
@@ -18,10 +65,7 @@ async function git(
   args: readonly string[],
   action: string,
 ): Promise<string> {
-  const result = await runner(["git", ...args], {
-    env: { ...ctx.env, GIT_TERMINAL_PROMPT: "0" },
-    timeoutMs: 120_000,
-  });
+  const result = await runGit(ctx, runner, args);
   if (result.code !== 0) {
     throw new AdeError("git-failed", `Git could not ${action}.`, {
       details: result.stderr.trim() === "" ? [] : [result.stderr.trim().split("\n")[0] ?? ""],
@@ -60,7 +104,7 @@ function repoCacheDir(ctx: Context, url: string): string {
 }
 
 export function treeCacheDir(ctx: Context, commit: string, subdir: string | undefined): string {
-  return path.join(ctx.cacheDir, "skills", `${commit}-${sha256(subdir ?? "").slice(0, 12)}`);
+  return path.join(ctx.cacheDir, "trees", `${commit}-${sha256(subdir ?? "").slice(0, 12)}`);
 }
 
 async function hasCommit(
@@ -69,10 +113,12 @@ async function hasCommit(
   repo: string,
   commit: string,
 ): Promise<boolean> {
-  const result = await runner(["git", "-C", repo, "cat-file", "-e", `${commit}^{commit}`], {
-    env: { ...ctx.env, GIT_TERMINAL_PROMPT: "0" },
-    timeoutMs: 30_000,
-  });
+  const result = await runGit(
+    ctx,
+    runner,
+    ["-C", repo, "cat-file", "-e", `${commit}^{commit}`],
+    30_000,
+  );
   return result.code === 0;
 }
 
@@ -86,7 +132,7 @@ export interface GitTreeRequest {
 export async function materializeGitTree(
   ctx: Context,
   request: GitTreeRequest,
-  options: { readonly allowFetch: boolean; readonly runner?: CommandRunner },
+  options: { readonly allowFetch: boolean; readonly runner?: CommandRunner | undefined },
 ): Promise<string> {
   const runner = options.runner ?? runCommand;
   if (request.subdir !== undefined && !isSafeRelative(request.subdir)) {
@@ -101,7 +147,7 @@ export async function materializeGitTree(
     return tree;
   }
   if (!options.allowFetch) {
-    throw new AdeError("not-found", `The Git skill source is not in the cache: ${request.url}.`, {
+    throw new AdeError("not-found", `The Git source is not in the cache: ${request.url}.`, {
       hint: "Run the command without --offline to fetch it.",
     });
   }
@@ -111,10 +157,16 @@ export async function materializeGitTree(
     await git(ctx, runner, ["init", "--quiet", "--bare", repo], "create the cache repository");
   }
   if (!(await hasCommit(ctx, runner, repo, request.commit))) {
-    const byCommit = await runner(
-      ["git", "-C", repo, "fetch", "--quiet", "--depth", "1", request.url, request.commit],
-      { env: { ...ctx.env, GIT_TERMINAL_PROMPT: "0" }, timeoutMs: 120_000 },
-    );
+    const byCommit = await runGit(ctx, runner, [
+      "-C",
+      repo,
+      "fetch",
+      "--quiet",
+      "--depth",
+      "1",
+      request.url,
+      request.commit,
+    ]);
     if (byCommit.code !== 0 || !(await hasCommit(ctx, runner, repo, request.commit))) {
       await git(
         ctx,
@@ -127,7 +179,7 @@ export async function materializeGitTree(
       throw new AdeError(
         "git-failed",
         `The commit ${request.commit} is not reachable from ${request.url}.`,
-        { hint: "Run `ade update` to lock a commit that exists." },
+        { hint: "Use a ref that exists in the repository, then run the command again." },
       );
     }
   }

@@ -7,6 +7,30 @@ import { type Context, createContext } from "../src/core/context.ts";
 
 export const POSIX = process.platform !== "win32";
 
+export function testGitEnv(extra: Record<string, string> = {}): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = {
+    ...process.env,
+    GIT_AUTHOR_NAME: "ade test",
+    GIT_AUTHOR_EMAIL: "test@example.com",
+    GIT_COMMITTER_NAME: "ade test",
+    GIT_COMMITTER_EMAIL: "test@example.com",
+    ...extra,
+  };
+  for (const name of Object.keys(env)) {
+    if (
+      name === "GIT_DIR" ||
+      name === "GIT_WORK_TREE" ||
+      name === "GIT_INDEX_FILE" ||
+      name === "GIT_PREFIX" ||
+      name === "GIT_COMMON_DIR" ||
+      name === "GIT_OBJECT_DIRECTORY"
+    ) {
+      delete env[name];
+    }
+  }
+  return env;
+}
+
 const createdDirs: string[] = [];
 
 process.once("exit", () => {

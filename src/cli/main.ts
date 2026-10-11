@@ -38,6 +38,7 @@ import {
   saveLock,
   saveProfile,
 } from "../profile/load.ts";
+import { packProfile } from "../profile/pack.ts";
 import {
   HARNESS_IDS,
   type HarnessId,
@@ -47,6 +48,22 @@ import {
   profileJsonSchema,
   type SecretSource,
 } from "../profile/schema.ts";
+import {
+  type ResolvedProfile,
+  readDefaultProfile,
+  resolveProfile,
+  sourceLabel,
+  specFor,
+  writeDefaultProfile,
+} from "../profile/source.ts";
+import {
+  checkTrust,
+  listTrust,
+  recordTrust,
+  removeTrust,
+  riskOf,
+  type TrustStatus,
+} from "../profile/trust.ts";
 import {
   type RemoteTarget,
   remoteApply,
@@ -59,6 +76,7 @@ import {
   remoteStatus,
 } from "../remote/client.ts";
 import { REMOTE_OPS, type RemoteInfo } from "../remote/protocol.ts";
+import { createPreviewResolver, type SecretResolver } from "../secrets/resolve.ts";
 import { lockGitSkill } from "../skills/source.ts";
 import { VERSION } from "../version.ts";
 import { type CliIO, createOutput, type Output, padEnd } from "./output.ts";
@@ -86,6 +104,7 @@ const GLOBAL_OPTIONS: OptionSpec = {
   yes: { type: "boolean", short: "y" },
   force: { type: "boolean" },
   offline: { type: "boolean" },
+  trust: { type: "boolean" },
   verbose: { type: "boolean" },
   "no-color": { type: "boolean" },
   help: { type: "boolean", short: "h" },
@@ -102,7 +121,9 @@ interface CommandContext {
   readonly verbose: boolean;
   context(): Context;
   profileDir(): string;
+  profileInput(positional?: string): Promise<string>;
   load(): Promise<LoadedProfile>;
+  resolve(positional?: string): Promise<ResolvedProfile>;
   harnessFilter(): HarnessId[] | undefined;
   emit(result: unknown): void;
   confirm(question: string): Promise<boolean>;
@@ -210,6 +231,131 @@ async function copyIntoProfile(
   return relative;
 }
 
+interface SourceGate {
+  readonly resolved: ResolvedProfile;
+  readonly status: TrustStatus;
+  readonly trusted: boolean;
+}
+
+async function inspectSource(c: CommandContext, positional?: string): Promise<SourceGate> {
+  const resolved = await c.resolve(positional);
+  const status = await checkTrust(c.context(), resolved);
+  return { resolved, status, trusted: status.state === "local" || status.state === "trusted" };
+}
+
+function profileLabel(gate: SourceGate): string | undefined {
+  return gate.resolved.source.kind === "git" ? sourceLabel(gate.resolved.source) : undefined;
+}
+
+function previewResolver(c: CommandContext, gate: SourceGate): SecretResolver | undefined {
+  return gate.trusted
+    ? undefined
+    : createPreviewResolver(gate.resolved.loaded.profile, c.context());
+}
+
+const TRUST_LABEL: Record<TrustStatus["state"], string> = {
+  local: "local",
+  trusted: "trusted",
+  untrusted: "not trusted",
+  changed: "changed since you trusted it",
+};
+
+function sourceHeader(c: CommandContext, gate: SourceGate): void {
+  const { source } = gate.resolved;
+  if (source.kind === "local") {
+    return;
+  }
+  const state = TRUST_LABEL[gate.status.state];
+  c.out.line(
+    `${c.out.style("dim", "Source ")}  ${sourceLabel(source)} (${gate.trusted ? state : c.out.style("yellow", state)})`,
+  );
+  if (!gate.trusted && Object.keys(gate.resolved.loaded.profile.secrets ?? {}).length > 0) {
+    c.out.line(
+      c.out.style(
+        "dim",
+        "         ade did not resolve the secrets of this source. Entries with secrets show as changes.",
+      ),
+    );
+  }
+}
+
+function renderRisk(out: Output, gate: SourceGate): void {
+  const { source } = gate.resolved;
+  const status = gate.status;
+  out.line();
+  if (status.state === "changed") {
+    out.line(
+      `${source.display} changed since you trusted it at ${status.entry.commit.slice(0, 12)}. These items are new or changed:`,
+    );
+    for (const line of status.added) {
+      out.line(`  ${out.style("yellow", "+")} ${line}`);
+    }
+    for (const line of status.removed) {
+      out.line(`  ${out.style("dim", "-")} ${out.style("dim", line)}`);
+    }
+    out.line();
+  }
+  out.line(`${sourceLabel(source)} does these things on this machine:`);
+  for (const item of riskOf(gate.resolved)) {
+    const mark = item.level === "high" ? out.style("red", "!") : " ";
+    out.line(`  ${mark} ${padEnd(item.area, 12)} ${item.text}`);
+  }
+  out.line();
+  out.line(
+    out.style(
+      "dim",
+      "Items with ! run programs, write files, read secrets, or change permissions.",
+    ),
+  );
+}
+
+async function requireTrust(
+  c: CommandContext,
+  gate: SourceGate,
+  explicit = false,
+): Promise<boolean> {
+  const { status, resolved } = gate;
+  const { source } = resolved;
+  const ctx = c.context();
+  if (status.state === "local") {
+    return true;
+  }
+  if (status.state === "trusted" && !explicit) {
+    if (!status.sameCommit) {
+      await recordTrust(ctx, resolved);
+    }
+    return true;
+  }
+  if (!c.json) {
+    renderRisk(c.out, gate);
+  }
+  if (status.state === "trusted" && status.sameCommit) {
+    if (!c.json) {
+      c.out.line(`${sourceLabel(source)} is already trusted.`);
+    }
+    return true;
+  }
+  if (boolFlag(c.flags, "trust") || (explicit && boolFlag(c.flags, "yes"))) {
+    await recordTrust(ctx, resolved);
+    if (!c.json) {
+      c.out.line(`Trusted ${sourceLabel(source)}.`);
+    }
+    return true;
+  }
+  if (c.json || !c.io.stdinIsTTY) {
+    throw new AdeError("untrusted", `The source ${sourceLabel(source)} is not trusted.`, {
+      hint: `Read the summary with \`ade trust ${source.display}\`. Then add --trust to trust it.`,
+    });
+  }
+  if (!(await c.confirm(`Trust ${sourceLabel(source)}?`))) {
+    return false;
+  }
+  await recordTrust(ctx, resolved);
+  c.out.line(`Trusted ${sourceLabel(source)}.`);
+  c.out.line();
+  return true;
+}
+
 const commands: Command[] = [
   {
     name: "init",
@@ -296,9 +442,9 @@ const commands: Command[] = [
     name: "list",
     group: "Profile",
     summary: "List the profile entries.",
-    usage: ["ade list [mcp|skills|settings|secrets|files|instructions]"],
+    usage: ["ade list [mcp|skills|settings|secrets|files|instructions] [--profile <source>]"],
     async run(c) {
-      const loaded = await c.load();
+      const { loaded } = await c.resolve();
       const { profile } = loaded;
       const kind = c.args[0];
       const kinds = ["mcp", "skills", "settings", "secrets", "files", "instructions"];
@@ -793,27 +939,32 @@ const commands: Command[] = [
     name: "plan",
     group: "Machine",
     summary: "Show the changes that apply makes. Plan writes nothing.",
-    usage: ["ade plan [--harness <harnesses>] [--verbose] [--offline]"],
+    usage: [
+      "ade plan [source] [--harness <harnesses>] [--verbose] [--offline]",
+      "The source is a folder, owner/repo[/subdir][@ref] on GitHub, or a Git URL.",
+    ],
     async run(c) {
-      const loaded = await c.load();
+      const gate = await inspectSource(c, c.args[0]);
       const ctx = c.context();
-      const computed = await computePlan(loaded, ctx, {
+      const computed = await computePlan(gate.resolved.loaded, ctx, {
         harnesses: c.harnessFilter(),
         force: boolFlag(c.flags, "force"),
         offline: boolFlag(c.flags, "offline"),
+        resolver: previewResolver(c, gate),
       });
       if (c.json) {
-        c.emit(computed.plan);
+        c.emit({ ...computed.plan, source: gate.resolved.source, trust: gate.status.state });
         return EXIT.ok;
       }
-      renderPlan(c.out, computed.plan, c.verbose);
+      sourceHeader(c, gate);
+      renderPlan(c.out, computed.plan, c.verbose, profileLabel(gate));
       const writes =
         computed.plan.summary.create + computed.plan.summary.update + computed.plan.summary.delete;
       if (writes > 0) {
         c.out.line(
           computed.plan.summary.drift > 0 && !boolFlag(c.flags, "force")
             ? "Next: resolve the changes outside ade, or run `ade apply --force`."
-            : "Next: run `ade apply` to make these changes.",
+            : "Next: run `ade apply` with the same source to make these changes.",
         );
       }
       return EXIT.ok;
@@ -823,10 +974,18 @@ const commands: Command[] = [
     name: "apply",
     group: "Machine",
     summary: "Make the machine match the profile. Each apply keeps a backup.",
-    usage: ["ade apply [--harness <harnesses>] [--yes] [--force] [--offline]"],
+    usage: [
+      "ade apply [source] [--harness <harnesses>] [--yes] [--trust] [--force] [--offline]",
+      "A Git source needs trust before its first apply. ade shows what the source runs and writes.",
+    ],
     async run(c) {
-      const loaded = await c.load();
+      const gate = await inspectSource(c, c.args[0]);
       const ctx = c.context();
+      if (!(await requireTrust(c, gate))) {
+        c.out.line("Nothing changed.");
+        return EXIT.ok;
+      }
+      const loaded = gate.resolved.loaded;
       const options = {
         harnesses: c.harnessFilter(),
         force: boolFlag(c.flags, "force"),
@@ -836,7 +995,8 @@ const commands: Command[] = [
       const plan = computed.plan;
       const writes = plan.summary.create + plan.summary.update + plan.summary.delete;
       if (!c.json) {
-        renderPlan(c.out, plan, c.verbose);
+        sourceHeader(c, gate);
+        renderPlan(c.out, plan, c.verbose, profileLabel(gate));
       }
       if (writes > 0 && !boolFlag(c.flags, "yes")) {
         if (c.json || !c.io.stdinIsTTY) {
@@ -851,12 +1011,14 @@ const commands: Command[] = [
       const result = await apply(loaded, ctx, {
         ...options,
         expectedFingerprint: plan.fingerprint,
+        profileLabel: profileLabel(gate),
       });
       if (c.json) {
         c.emit({
           applyId: result.applyId,
           written: result.written,
           recorded: result.recorded,
+          source: gate.resolved.source,
           plan: result.plan,
         });
         return EXIT.ok;
@@ -886,19 +1048,21 @@ const commands: Command[] = [
     name: "status",
     group: "Machine",
     summary: "Show whether the machine matches the profile, and show drift.",
-    usage: ["ade status [--harness <harnesses>] [--exit-code]"],
+    usage: ["ade status [source] [--harness <harnesses>] [--exit-code]"],
     options: { "exit-code": { type: "boolean" } },
     async run(c) {
-      const loaded = await c.load();
+      const gate = await inspectSource(c, c.args[0]);
       const ctx = c.context();
-      const report = await status(loaded, ctx, {
+      const report = await status(gate.resolved.loaded, ctx, {
         harnesses: c.harnessFilter(),
         offline: boolFlag(c.flags, "offline"),
+        resolver: previewResolver(c, gate),
       });
       if (c.json) {
-        c.emit(report);
+        c.emit({ ...report, source: gate.resolved.source, trust: gate.status.state });
       } else {
-        renderStatus(c.out, report, c.verbose);
+        sourceHeader(c, gate);
+        renderStatus(c.out, report, c.verbose, profileLabel(gate));
       }
       return boolFlag(c.flags, "exit-code") && !report.inSync ? EXIT.pending : EXIT.ok;
     },
@@ -961,13 +1125,17 @@ const commands: Command[] = [
     name: "doctor",
     group: "Machine",
     summary: "Check the profile, the secrets, the skills, and the target files.",
-    usage: ["ade doctor"],
+    usage: ["ade doctor [source]"],
     async run(c) {
-      const loaded = await c.load();
-      const report = await doctor(loaded, c.context());
+      const gate = await inspectSource(c, c.args[0]);
+      const report = await doctor(gate.resolved.loaded, c.context(), {
+        resolver: previewResolver(c, gate),
+        skipSecrets: !gate.trusted,
+      });
       if (c.json) {
-        c.emit(report);
+        c.emit({ ...report, source: gate.resolved.source, trust: gate.status.state });
       } else {
+        sourceHeader(c, gate);
         renderDoctor(c.out, report);
       }
       return report.ok ? EXIT.ok : EXIT.failure;
@@ -994,7 +1162,7 @@ const commands: Command[] = [
     group: "Remote",
     summary: "Run a command on another machine over SSH. The remote needs only Node.js 22.",
     usage: [
-      "ade remote <host> plan|apply|status|doctor [--remote-home <dir>] [--send-secrets] [--keep-links]",
+      "ade remote <host> plan|apply|status|doctor [source] [--remote-home <dir>] [--send-secrets] [--keep-links] [--trust]",
       "ade remote <host> revert [apply-id] [--yes] [--force]",
       "ade remote <host> history|harnesses",
       "ade remote <host> capture [--out <dir>] [--include <root>:<path>]... [--name <name>]",
@@ -1040,29 +1208,48 @@ const commands: Command[] = [
       };
       switch (op) {
         case "plan": {
-          const loaded = await c.load();
-          const response = await remotePlan(loaded, c.context(), { ...base, ...ship });
+          const gate = await inspectSource(c, extra);
+          const loaded = gate.resolved.loaded;
+          const response = await remotePlan(loaded, c.context(), {
+            ...base,
+            ...ship,
+            previewSecrets: !gate.trusted,
+            profileLabel: profileLabel(gate),
+          });
           if (c.json) {
             c.emit({ remote: response.remote, plan: response.result, notes: response.notes });
             return EXIT.ok;
           }
           header(response.remote);
-          renderPlan(c.out, response.result, c.verbose, `${loaded.dir} -> ${host}`);
+          sourceHeader(c, gate);
+          renderPlan(
+            c.out,
+            response.result,
+            c.verbose,
+            `${profileLabel(gate) ?? loaded.dir} -> ${host}`,
+          );
           renderWarnings(c.out, response.notes);
           return EXIT.ok;
         }
         case "apply": {
-          const loaded = await c.load();
+          const gate = await inspectSource(c, extra);
+          const loaded = gate.resolved.loaded;
           const ctx = c.context();
+          if (!(await requireTrust(c, gate))) {
+            c.out.line("Nothing changed.");
+            return EXIT.ok;
+          }
           if (c.json && !boolFlag(c.flags, "yes")) {
             throw usageError("Add --yes to apply without a prompt.");
           }
-          const preview = await remotePlan(loaded, ctx, { ...base, ...ship });
+          const shipped = { ...base, ...ship, profileLabel: profileLabel(gate) };
+          const preview = await remotePlan(loaded, ctx, shipped);
           const plan = preview.result;
           const writes = plan.summary.create + plan.summary.update + plan.summary.delete;
           if (!c.json) {
             header(preview.remote);
-            renderPlan(c.out, plan, c.verbose, `${loaded.dir} -> ${host}`);
+            sourceHeader(c, gate);
+            renderPlan(c.out, plan, c.verbose, `${profileLabel(gate) ?? loaded.dir} -> ${host}`);
             renderWarnings(c.out, preview.notes);
           }
           if (writes > 0 && !boolFlag(c.flags, "yes")) {
@@ -1076,8 +1263,7 @@ const commands: Command[] = [
             }
           }
           const response = await remoteApply(loaded, ctx, {
-            ...base,
-            ...ship,
+            ...shipped,
             expectedFingerprint: plan.fingerprint,
           });
           if (c.json) {
@@ -1103,23 +1289,41 @@ const commands: Command[] = [
           return EXIT.ok;
         }
         case "status": {
-          const loaded = await c.load();
-          const response = await remoteStatus(loaded, c.context(), { ...base, ...ship });
+          const gate = await inspectSource(c, extra);
+          const loaded = gate.resolved.loaded;
+          const response = await remoteStatus(loaded, c.context(), {
+            ...base,
+            ...ship,
+            previewSecrets: !gate.trusted,
+            profileLabel: profileLabel(gate),
+          });
           if (c.json) {
             c.emit({ remote: response.remote, ...response.result });
           } else {
             header(response.remote);
-            renderStatus(c.out, response.result, c.verbose, `${loaded.dir} -> ${host}`);
+            sourceHeader(c, gate);
+            renderStatus(
+              c.out,
+              response.result,
+              c.verbose,
+              `${profileLabel(gate) ?? loaded.dir} -> ${host}`,
+            );
           }
           return boolFlag(c.flags, "exit-code") && !response.result.inSync ? EXIT.pending : EXIT.ok;
         }
         case "doctor": {
-          const loaded = await c.load();
-          const response = await remoteDoctor(loaded, c.context(), { ...base, ...ship });
+          const gate = await inspectSource(c, extra);
+          const response = await remoteDoctor(gate.resolved.loaded, c.context(), {
+            ...base,
+            ...ship,
+            previewSecrets: !gate.trusted,
+            profileLabel: profileLabel(gate),
+          });
           if (c.json) {
             c.emit({ remote: response.remote, ...response.result });
           } else {
             header(response.remote);
+            sourceHeader(c, gate);
             c.out.line();
             renderDoctor(c.out, response.result);
           }
@@ -1221,13 +1425,158 @@ const commands: Command[] = [
     },
   },
   {
+    name: "use",
+    group: "Share",
+    summary: "Set the default profile source for this home.",
+    usage: ["ade use <source>", "ade use --clear", "ade use", "Example: ade use cobanov/agents"],
+    options: { clear: { type: "boolean" } },
+    async run(c) {
+      const ctx = c.context();
+      if (boolFlag(c.flags, "clear")) {
+        await writeDefaultProfile(ctx, undefined);
+        if (c.json) {
+          c.emit({ profile: null });
+        } else {
+          c.out.line("Removed the default profile source. ade uses $ADE_PROFILE or ~/.config/ade.");
+        }
+        return EXIT.ok;
+      }
+      const input = c.args[0];
+      if (input === undefined) {
+        const current = (await readDefaultProfile(ctx)) ?? null;
+        if (c.json) {
+          c.emit({ profile: current });
+        } else {
+          c.out.line(
+            current ?? "No default profile source is set. ade uses $ADE_PROFILE or ~/.config/ade.",
+          );
+        }
+        return EXIT.ok;
+      }
+      const gate = await inspectSource(c, input);
+      await writeDefaultProfile(ctx, gate.resolved.source.canonical);
+      if (c.json) {
+        c.emit({
+          profile: gate.resolved.source.canonical,
+          source: gate.resolved.source,
+          trust: gate.status.state,
+        });
+        return EXIT.ok;
+      }
+      sourceHeader(c, gate);
+      c.out.line(`The default profile source is now ${gate.resolved.source.canonical}.`);
+      c.out.line("Next: run `ade plan` to compare it with this machine.");
+      return EXIT.ok;
+    },
+  },
+  {
+    name: "trust",
+    group: "Share",
+    summary: "Show, trust, or remove the trust of a Git profile source.",
+    usage: ["ade trust", "ade trust <source> [--yes]", "ade trust <source> --remove"],
+    options: { remove: { type: "boolean" } },
+    async run(c) {
+      const ctx = c.context();
+      const input = c.args[0];
+      if (input === undefined) {
+        const entries = await listTrust(ctx);
+        if (c.json) {
+          c.emit(entries);
+          return EXIT.ok;
+        }
+        if (entries.length === 0) {
+          c.out.line("No trusted Git sources exist in this home.");
+        }
+        for (const entry of entries) {
+          c.out.line(
+            `${padEnd(entry.display, 40)} ${entry.commit.slice(0, 12)}  ${entry.trustedAt}`,
+          );
+        }
+        return EXIT.ok;
+      }
+      if (boolFlag(c.flags, "remove")) {
+        const spec = specFor(input, ctx, c.io.cwd);
+        if (spec.kind === "local") {
+          throw usageError("A local profile has no trust entry.");
+        }
+        const removed = await removeTrust(ctx, {
+          kind: "git",
+          display: spec.display,
+          canonical: spec.canonical,
+          url: spec.url,
+          ...(spec.subdir === undefined ? {} : { subdir: spec.subdir }),
+        });
+        if (c.json) {
+          c.emit({ removed });
+        } else {
+          c.out.line(
+            removed
+              ? `Removed the trust of ${spec.display}.`
+              : `${spec.display} has no trust entry.`,
+          );
+        }
+        return EXIT.ok;
+      }
+      const gate = await inspectSource(c, input);
+      if (gate.resolved.source.kind === "local") {
+        throw usageError("A local profile needs no trust.");
+      }
+      const trusted = await requireTrust(c, gate, true);
+      if (c.json) {
+        c.emit({ trusted, source: gate.resolved.source });
+      } else if (!trusted) {
+        c.out.line("Nothing changed.");
+      }
+      return EXIT.ok;
+    },
+  },
+  {
+    name: "pack",
+    group: "Share",
+    summary:
+      "Write a self-contained profile for a public repository. Pack refuses values that look like secrets.",
+    usage: [
+      "ade pack [source] --out <dir> [--repo <owner>/<repo>] [--vendor-git] [--force]",
+      "Then: cd <dir>, git init, commit, and push to a public repository.",
+    ],
+    options: {
+      out: { type: "string", short: "o" },
+      repo: { type: "string" },
+      "vendor-git": { type: "boolean" },
+    },
+    async run(c) {
+      const out = stringFlag(c.flags, "out");
+      if (out === undefined) {
+        throw usageError("Give the output directory with --out.");
+      }
+      const { loaded } = await c.resolve(c.args[0]);
+      const result = await packProfile(loaded, c.context(), c.resolvePath(out), {
+        vendorGit: boolFlag(c.flags, "vendor-git"),
+        force: boolFlag(c.flags, "force"),
+        repo: stringFlag(c.flags, "repo"),
+      });
+      if (c.json) {
+        c.emit(result);
+        return EXIT.ok;
+      }
+      c.out.line(`Wrote a self-contained profile with ${result.files} files to ${result.dir}.`);
+      renderWarnings(c.out, [...result.warnings, ...result.notes]);
+      const repo = stringFlag(c.flags, "repo") ?? "<owner>/<repo>";
+      c.out.line();
+      c.out.line("Next: publish the folder, then others can run:");
+      c.out.line(`  ade plan ${repo}`);
+      c.out.line(`  ade apply ${repo}`);
+      return EXIT.ok;
+    },
+  },
+  {
     name: "export",
     group: "Share",
     summary: "Write the profile into one bundle file. The bundle holds no secret values.",
-    usage: ["ade export [--out <file>]"],
+    usage: ["ade export [source] [--out <file>]"],
     options: { out: { type: "string", short: "o" } },
     async run(c) {
-      const loaded = await c.load();
+      const { loaded } = await c.resolve(c.args[0]);
       const bundle = await exportBundle(loaded);
       const text = `${JSON.stringify(bundle, null, 2)}\n`;
       const out = stringFlag(c.flags, "out");
@@ -1527,8 +1876,38 @@ export async function runCli(argv: readonly string[], io: CliIO = processIO()): 
       const value = stringFlag(flags, "profile");
       return value === undefined ? defaultProfileDir() : resolvePath(value);
     },
-    load() {
-      return loadProfile(commandContext.profileDir());
+    async profileInput(positional) {
+      return (
+        stringFlag(flags, "profile") ??
+        positional ??
+        io.env.ADE_PROFILE ??
+        (await readDefaultProfile(commandContext.context())) ??
+        defaultProfileDir()
+      );
+    },
+    async load() {
+      const input = await commandContext.profileInput();
+      const spec = specFor(input, commandContext.context(), io.cwd);
+      if (spec.kind === "git") {
+        throw new AdeError(
+          "usage",
+          `The profile comes from Git: ${spec.display}. ade cannot edit it.`,
+          {
+            hint: "Edit it in its repository, or copy it with `ade pack <source> --out <dir>` and edit the copy.",
+          },
+        );
+      }
+      return loadProfile(spec.dir);
+    },
+    async resolve(positional) {
+      return resolveProfile(
+        await commandContext.profileInput(positional),
+        commandContext.context(),
+        {
+          cwd: io.cwd,
+          offline: boolFlag(flags, "offline"),
+        },
+      );
     },
     harnessFilter() {
       const value = stringFlag(flags, "harness");

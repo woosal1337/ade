@@ -13,6 +13,15 @@ Status: Version 0.1.0 in development. No release exists. This repository owns th
 | Knowledge | projects/ade/README.md |
 | Metadata | [PROJECT.json](PROJECT.json) |
 
+## Use a published profile
+
+```bash
+ade plan cobanov/agents
+ade apply cobanov/agents
+```
+
+A source is a local folder, `owner/repo[/subfolder][@ref]` on GitHub, or a Git URL. ade asks you to trust a Git source before its first apply. Read [the sources guide](docs/sources.md) to use or publish a profile.
+
 ## Use ade
 
 1. Capture the current machine into a profile:
@@ -72,6 +81,7 @@ ade owns entries, not whole files. It changes only the keys, servers, and paths 
 | `ade revert`, `ade history` | Undo an apply, list the apply records |
 | `ade doctor`, `ade harnesses` | Check the profile, the secrets, and the harness paths |
 | `ade remote <host> <command>` | Run plan, apply, status, doctor, revert, history, harnesses, or capture on another machine |
+| `ade use`, `ade trust`, `ade pack` | Set the default source, trust a Git source, write a profile for publication |
 | `ade export`, `ade import`, `ade schema` | Share a profile, print the JSON Schema |
 
 Every command takes `--json` for a stable machine-readable result. Read [the profile reference](docs/profile.md) for the file format and [the SDK guide](docs/sdk.md) for the TypeScript API.
@@ -103,7 +113,8 @@ node src/cli.ts --help
 | `test/` | Behavior tests in scratch home directories |
 | `tools/` | The source comment check, the quality runner, and the agent build |
 | `research/` | Dated sources |
-| `docs/` | Architecture, profile reference, SDK guide, remote guide, development, quality, runbook, and decisions |
+| `docs/` | Architecture, profile reference, sources guide, SDK guide, remote guide, development, quality, runbook, and decisions |
+| `examples/starter/` | A small published profile |
 | `log/` | Dated work notes |
 
 Read [the architecture](docs/architecture.md) before adding a module.
@@ -113,7 +124,7 @@ Read [the architecture](docs/architecture.md) before adding a module.
 Read [AGENTS.md](AGENTS.md) for agent guidance and [CONTRIBUTING.md](CONTRIBUTING.md) for development rules.
 [Quality gates](docs/quality.md) define the checks for local hooks and continuous integration (CI).
 [Stack research](research/stack.md) records the selected versions and their sources.
-[The first decision](docs/decisions/0001-project-foundation.md) explains the foundation. [The second decision](docs/decisions/0002-entry-ownership.md) explains the ownership model. [The third decision](docs/decisions/0003-remote-agent.md) explains the remote agent.
+[The first decision](docs/decisions/0001-project-foundation.md) explains the foundation. [The second decision](docs/decisions/0002-entry-ownership.md) explains the ownership model. [The third decision](docs/decisions/0003-remote-agent.md) explains the remote agent. [The fourth decision](docs/decisions/0004-git-sources-and-trust.md) explains Git sources and trust.
 [The runbook](docs/runbook.md) gives operational commands.
 
 ## Delivery state

@@ -36,6 +36,7 @@ export interface DoctorOptions {
   readonly runner?: CommandRunner | undefined;
   readonly resolver?: SecretResolver | undefined;
   readonly copyFiles?: boolean | undefined;
+  readonly skipSecrets?: boolean | undefined;
 }
 
 function frontmatter(text: string): Record<string, string> {
@@ -93,7 +94,15 @@ export async function doctor(
 
   const resolver = options.resolver ?? createSecretResolver(profile, ctx, options.runner);
   const referenced = findSecretRefs([profile.mcp, profile.settings]);
-  for (const name of Object.keys(profile.secrets ?? {})) {
+  if (options.skipSecrets === true && Object.keys(profile.secrets ?? {}).length > 0) {
+    add(
+      "warn",
+      "secret",
+      "ade did not resolve the secrets, because the source is not trusted.",
+      "Run `ade trust <source>` to check them.",
+    );
+  }
+  for (const name of options.skipSecrets === true ? [] : Object.keys(profile.secrets ?? {})) {
     try {
       await resolver.resolve(name);
       add("ok", "secret", `The secret ${name} resolves.`);

@@ -63,6 +63,22 @@ if (report.drift > 0) {
 await revert(ctx);
 ```
 
+## Git sources and trust
+
+```ts
+import { checkTrust, recordTrust, resolveProfile, riskSummary } from "@woosal1337/ade";
+
+const resolved = await resolveProfile("cobanov/agents", ctx);
+const trust = await checkTrust(ctx, resolved);
+if (trust.state === "untrusted" || trust.state === "changed") {
+  console.log(riskSummary(resolved.loaded.profile));
+  await recordTrust(ctx, resolved);
+}
+await apply(resolved.loaded, ctx);
+```
+
+The engine functions do not check trust. A host that applies a Git source must call `checkTrust` and show `riskSummary` before the apply. Use `createPreviewResolver` for a plan before trust.
+
 ## Remote machines
 
 ```ts
@@ -90,6 +106,7 @@ Expected failures throw `AdeError`. Each error has a `code`, a `message`, `detai
 | `revert-blocked` | An entry changed after the apply |
 | `locked` | Another apply holds the state lock |
 | `remote-failed` | The SSH session failed, or the remote has no Node.js |
+| `untrusted` | A Git source needs trust before the apply |
 
 ## Other harnesses
 

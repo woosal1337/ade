@@ -10,6 +10,9 @@ ade reads a profile, builds the desired state for each harness, and compares it 
 | `src/core/doc.ts`, `merge.ts` | JSON and TOML documents, key paths, and JSON merge patches |
 | `src/core/fsx.ts` | Path inspection, tree hashes, atomic writes, links, copies, and path guards |
 | `src/profile/` | The zod schema, validation, load and save, pure edit functions, and bundles |
+| `src/profile/spec.ts`, `source.ts` | Source parsing, Git source fetch, and the default source |
+| `src/profile/risk.ts`, `trust.ts` | The risk summary and the trust store |
+| `src/profile/pack.ts` | The bundle build for remote and pack, and the publication copy |
 | `src/secrets/` | `${secret:NAME}` and `${home}` references, secret providers, and masks |
 | `src/harness/` | One adapter for each harness: paths, MCP format, settings file, and capture rules |
 | `src/skills/` | Path, Git, and link skill sources, and the Git cache |
@@ -41,8 +44,8 @@ Each entry has a stable key, for example `mcp:claude:elliptic`, `setting:pi:/def
 |---|---|
 | The profile directory | `ade.json`, `ade.lock.json`, `ade.schema.json`, `AGENTS.md`, `skills/`, and `files/` |
 | `~/.agents/` | The shared store: `AGENTS.md` and `skills/<name>` |
-| The state directory | `state.json`, the `lock` file, and `applies/<id>/` with `record.json` and backups |
-| The cache directory | `git/` cache repositories and `skills/` trees of locked commits |
+| The state directory | `state.json`, `trust.json`, `sources.json`, `settings.json`, the `lock` file, and `applies/<id>/` with `record.json` and backups |
+| The cache directory | `git/` cache repositories and `trees/` with one checkout for each commit and subfolder |
 
 The state directory is `$ADE_STATE_DIR`, or `$XDG_STATE_HOME/ade`, or `~/.local/state/ade`. On Windows it is `%LOCALAPPDATA%\ade\state`. The cache directory follows the same rules with `cache`. A custom `--home` puts both directories under that home.
 
@@ -52,6 +55,6 @@ ade runs on the machine that it configures, or it sends its engine to another ma
 
 ## Decisions
 
-Read [the foundation decision](decisions/0001-project-foundation.md), [the ownership decision](decisions/0002-entry-ownership.md), [the remote decision](decisions/0003-remote-agent.md), and [the stack research](../research/stack.md).
+Read [the foundation decision](decisions/0001-project-foundation.md), [the ownership decision](decisions/0002-entry-ownership.md), [the remote decision](decisions/0003-remote-agent.md), [the sources decision](decisions/0004-git-sources-and-trust.md), and [the stack research](../research/stack.md).
 Add a decision record when a choice changes a boundary or creates a lasting tradeoff.
 Keep operational steps in [the runbook](runbook.md).

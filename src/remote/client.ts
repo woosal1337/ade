@@ -10,11 +10,11 @@ import type { RecordSummary, RevertResult } from "../engine/history.ts";
 import type { Plan } from "../engine/plan.ts";
 import type { StatusReport } from "../engine/status.ts";
 import type { HarnessRow } from "../harness/registry.ts";
-import { type Bundle, type BundleFile, dirToBundleFiles, exportBundle } from "../profile/bundle.ts";
-import { LOCK_FILE, type LoadedProfile, PROFILE_FILE, profileText } from "../profile/load.ts";
-import { type HarnessId, isGitSkill, isLinkSkill, type Profile } from "../profile/schema.ts";
+import type { Bundle } from "../profile/bundle.ts";
+import type { LoadedProfile } from "../profile/load.ts";
+import { buildProfileBundle } from "../profile/pack.ts";
+import type { HarnessId } from "../profile/schema.ts";
 import { type CommandRunner, createSecretResolver } from "../secrets/resolve.ts";
-import { createSkillResolver } from "../skills/source.ts";
 import { VERSION } from "../version.ts";
 import {
   PAYLOAD_GLOBAL,
@@ -200,6 +200,8 @@ export async function callRemote<T>(
 export interface ShipOptions {
   readonly keepLinks?: boolean | undefined;
   readonly sendSecrets?: boolean | undefined;
+  readonly previewSecrets?: boolean | undefined;
+  readonly profileLabel?: string | undefined;
   readonly runner?: CommandRunner | undefined;
 }
 
@@ -214,45 +216,14 @@ export async function shipProfile(
   ctx: Context,
   options: ShipOptions = {},
 ): Promise<ShippedProfile> {
-  const base = await exportBundle(loaded, ctx.now());
-  const skills = createSkillResolver(loaded, ctx, {
-    allowFetch: true,
-    ...(options.runner === undefined ? {} : { runner: options.runner }),
-  });
-  const notes: string[] = [];
-  const extra: BundleFile[] = [];
-  const profile: Profile = structuredClone(loaded.profile);
-  for (const [name, skill] of Object.entries(loaded.profile.skills ?? {})) {
-    if (!isGitSkill(skill) && !(isLinkSkill(skill) && options.keepLinks !== true)) {
-      continue;
-    }
-    const source = await skills.resolve(name, skill);
-    if (source.missing) {
-      notes.push(
-        `The skill ${name} links to a path that does not exist here. The remote keeps the link.`,
-      );
-      continue;
-    }
-    const prefix = `vendor/skills/${name}`;
-    extra.push(...(await dirToBundleFiles(source.dir, prefix)));
-    const harnesses = skill.harnesses === undefined ? {} : { harnesses: skill.harnesses };
-    const skillsField = profile.skills ?? {};
-    skillsField[name] = isGitSkill(skill)
-      ? {
-          path: prefix,
-          origin: {
-            git: skill.git,
-            ...(skill.subdir === undefined ? {} : { subdir: skill.subdir }),
-            ...(skill.ref === undefined ? {} : { ref: skill.ref }),
-          },
-          ...harnesses,
-        }
-      : { path: prefix, ...harnesses };
-    profile.skills = skillsField;
+  if (options.sendSecrets === true && options.previewSecrets === true) {
+    throw new AdeError("usage", "A preview cannot send secret values.");
   }
-  const files = base.files
-    .filter((file) => file.path !== PROFILE_FILE && file.path !== LOCK_FILE)
-    .concat(extra, [{ path: PROFILE_FILE, encoding: "utf8", content: profileText(profile) }]);
+  const built = await buildProfileBundle(loaded, ctx, {
+    vendorGit: true,
+    vendorLinks: options.keepLinks !== true,
+    runner: options.runner,
+  });
   let secrets: Record<string, string> | undefined;
   if (options.sendSecrets === true) {
     const resolver = createSecretResolver(loaded.profile, ctx, options.runner);
@@ -262,9 +233,9 @@ export async function shipProfile(
     }
   }
   return {
-    bundle: { ...base, files },
+    bundle: built.bundle,
     ...(secrets === undefined ? {} : { secrets }),
-    notes,
+    notes: built.notes,
   };
 }
 
@@ -280,8 +251,9 @@ function profilePayload(
 ) {
   return {
     bundle: shipped.bundle,
-    profileLabel: `${loaded.dir} (sent by ade remote)`,
+    profileLabel: `${options.profileLabel ?? loaded.dir} (sent by ade remote)`,
     ...(shipped.secrets === undefined ? {} : { secrets: shipped.secrets }),
+    ...(options.previewSecrets === true ? { previewSecrets: true } : {}),
     ...(options.harnesses === undefined ? {} : { harnesses: options.harnesses }),
     ...(options.force === true ? { force: true } : {}),
   };

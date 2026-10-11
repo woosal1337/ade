@@ -9,20 +9,13 @@ import { apply } from "../src/engine/apply.ts";
 import { plan } from "../src/engine/plan.ts";
 import { updateSkills } from "../src/engine/update.ts";
 import { loadProfile, saveProfile } from "../src/profile/load.ts";
-import { contextFor, POSIX, tempDir, writeText } from "./helpers.ts";
+import { contextFor, POSIX, tempDir, testGitEnv, writeText } from "./helpers.ts";
 
 function git(cwd: string, ...args: string[]): string {
   return execFileSync("git", args, {
     cwd,
     encoding: "utf8",
-    env: {
-      ...process.env,
-      GIT_AUTHOR_NAME: "ade test",
-      GIT_AUTHOR_EMAIL: "test@example.com",
-      GIT_COMMITTER_NAME: "ade test",
-      GIT_COMMITTER_EMAIL: "test@example.com",
-      GIT_CONFIG_GLOBAL: path.join(cwd, ".no-global-config"),
-    },
+    env: testGitEnv({ GIT_CONFIG_GLOBAL: path.join(cwd, ".no-global-config") }),
   }).trim();
 }
 
@@ -43,11 +36,9 @@ describe("git skills", () => {
   test("update locks a commit, and apply installs that content", async () => {
     const { url, repo } = await skillRepo();
     const home = await tempDir();
-    const ctx = contextFor(home, {
-      GIT_CONFIG_COUNT: "1",
-      GIT_CONFIG_KEY_0: "core.autocrlf",
-      GIT_CONFIG_VALUE_0: "true",
-    });
+    const gitConfig = path.join(home, "windows-like.gitconfig");
+    await writeText(gitConfig, "[core]\n\tautocrlf = true\n");
+    const ctx = contextFor(home, { GIT_CONFIG_GLOBAL: gitConfig });
     const dir = await tempDir("ade-profile-");
     await saveProfile(dir, {
       version: 1,

@@ -34,6 +34,7 @@ export interface RemotePayload {
   readonly expectedFingerprint?: string;
   readonly id?: string;
   readonly secrets?: Readonly<Record<string, string>>;
+  readonly previewSecrets?: boolean;
   readonly capture?: {
     readonly include: readonly CaptureInclude[];
     readonly name?: string;

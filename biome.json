@@ -6,7 +6,14 @@
     "useIgnoreFile": true
   },
   "files": {
-    "includes": ["**", "!package-lock.json", "!dist"]
+    "includes": [
+      "**",
+      "!package-lock.json",
+      "!dist",
+      "!examples/**/ade.json",
+      "!examples/**/ade.schema.json",
+      "!examples/**/ade.lock.json"
+    ]
   },
   "formatter": {
     "enabled": true,
