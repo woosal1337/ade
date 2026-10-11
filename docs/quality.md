@@ -69,6 +69,12 @@ The remote acceptance check on Igris, Linux with Node.js 24.13.0, on 2026-10-11:
 
 The first Windows CI run on 2026-10-11 failed one test. Git wrote CRLF line endings into a Git skill because the runner sets `core.autocrlf=true`. The checkout now sets `core.autocrlf=false` and `core.eol=lf`. A test sets `core.autocrlf=true` through the Git environment and fails without the fix.
 
+The Git source check against GitHub on 2026-10-12:
+
+1. The SSH URL with `//examples/starter` and the shorthand `woosal1337/ade/examples/starter` fetched commit `dd5a4e7`.
+2. Apply without trust stopped with the `untrusted` error. Apply with `--trust` made 7 changes. A second plan showed 0 changes.
+3. `ade remote igris apply` with the same source made 4 changes in a scratch home on Igris. A second plan showed 0 changes, and revert restored the home.
+
 A commit on 2026-10-12 failed in the commit hook, but the same tests passed outside it. Git sets `GIT_INDEX_FILE` for a hook. ade passed it to its own Git calls, so a skill checkout wrote into a foreign index. A test with a copy of the repository index lost 90 of 93 entries. ade now removes the variables from `git rev-parse --local-env-vars` before each Git call. The same test now keeps all 93 entries.
 
 The source comment probe on 2026-10-11 added `src/probe.ts` with a line comment. The installed commit hook failed with `src/probe.ts:1: Remove the source comment.` The hook passed after the probe file was removed.

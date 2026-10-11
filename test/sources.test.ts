@@ -195,6 +195,8 @@ describe("cli sources", () => {
     const applied = await run(root, ["apply", url, "--home", home, "--yes", "--trust"]);
     assert.equal(applied.code, EXIT.ok, applied.err);
     assert.match(applied.out, /does these things on this machine/);
+    assert.match(applied.out, /@ [0-9a-f]{12} \(trusted\)/);
+    assert.doesNotMatch(applied.out, /not trusted/);
     assert.deepEqual(await readJson(path.join(home, ".pi", "agent", "settings.json")), {
       defaultModel: "claude-opus-5-5",
     });

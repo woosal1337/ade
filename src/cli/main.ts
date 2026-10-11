@@ -356,6 +356,13 @@ async function requireTrust(
   return true;
 }
 
+async function trustedGate(c: CommandContext, gate: SourceGate): Promise<SourceGate> {
+  if (gate.resolved.source.kind === "local") {
+    return gate;
+  }
+  return { ...gate, status: await checkTrust(c.context(), gate.resolved), trusted: true };
+}
+
 const commands: Command[] = [
   {
     name: "init",
@@ -979,12 +986,13 @@ const commands: Command[] = [
       "A Git source needs trust before its first apply. ade shows what the source runs and writes.",
     ],
     async run(c) {
-      const gate = await inspectSource(c, c.args[0]);
+      const checked = await inspectSource(c, c.args[0]);
       const ctx = c.context();
-      if (!(await requireTrust(c, gate))) {
+      if (!(await requireTrust(c, checked))) {
         c.out.line("Nothing changed.");
         return EXIT.ok;
       }
+      const gate = await trustedGate(c, checked);
       const loaded = gate.resolved.loaded;
       const options = {
         harnesses: c.harnessFilter(),
@@ -1232,13 +1240,14 @@ const commands: Command[] = [
           return EXIT.ok;
         }
         case "apply": {
-          const gate = await inspectSource(c, extra);
-          const loaded = gate.resolved.loaded;
+          const checked = await inspectSource(c, extra);
           const ctx = c.context();
-          if (!(await requireTrust(c, gate))) {
+          if (!(await requireTrust(c, checked))) {
             c.out.line("Nothing changed.");
             return EXIT.ok;
           }
+          const gate = await trustedGate(c, checked);
+          const loaded = gate.resolved.loaded;
           if (c.json && !boolFlag(c.flags, "yes")) {
             throw usageError("Add --yes to apply without a prompt.");
           }
