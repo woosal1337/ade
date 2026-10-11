@@ -78,7 +78,9 @@ describe("ADE.md format", () => {
     assert.match(markdown, /Team \| rules/);
     assert.match(markdown, /encoding="base64"/);
     assert.match(markdown, /eol="none"/);
-    assert.match(markdown, /mode="755"/);
+    if (POSIX) {
+      assert.match(markdown, /mode="755"/);
+    }
     const parsed = parseMarkdown(markdown, "ADE.md");
     const original = await exportBundle(await loadProfile(dir));
     const bytes = (files: typeof original.files) =>
@@ -91,10 +93,12 @@ describe("ADE.md format", () => {
           ]),
       );
     assert.deepEqual(bytes(parsed.bundle.files), bytes(original.files));
-    assert.equal(
-      parsed.bundle.files.find((file) => file.path === "files/run.sh")?.executable,
-      true,
-    );
+    if (POSIX) {
+      assert.equal(
+        parsed.bundle.files.find((file) => file.path === "files/run.sh")?.executable,
+        true,
+      );
+    }
     assert.equal(parsed.digest, parsed.meta.digest);
   });
 
