@@ -7,25 +7,25 @@
 1. Check the route and the remote harnesses:
 
    ```bash
-   ade remote igris harnesses
+   ade remote devbox harnesses
    ```
 
 2. Show the plan for the remote home. The plan writes nothing on the remote:
 
    ```bash
-   ade remote igris plan --profile ~/agent-profile
+   ade remote devbox plan --profile ~/agent-profile
    ```
 
 3. Apply the profile. ade shows the plan and asks before it writes:
 
    ```bash
-   ade remote igris apply --profile ~/agent-profile
+   ade remote devbox apply --profile ~/agent-profile
    ```
 
 4. Undo the last remote apply:
 
    ```bash
-   ade remote igris revert
+   ade remote devbox revert
    ```
 
 ## Commands

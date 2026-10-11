@@ -1,57 +1,59 @@
 # ade
 
-Plan, apply, and revert one agent development environment (MCP servers, skills, instructions, settings, plugins, and config files) across 10 coding agents. CLI and TypeScript SDK.
+**Own your agent setup.** ade captures the MCP servers, skills, instructions, settings, and plugins of 10 coding agents into one profile. It plans each change, applies it with a backup, and shares the whole setup as one `ADE.md` file.
 
-Supported harnesses: Claude Code, Codex, Cursor (CLI and IDE), Grok, Pi, Gemini CLI, OpenCode, Zed, Claude Desktop, and Antigravity.
+[![Checks](https://github.com/woosal1337/ade/actions/workflows/checks.yml/badge.svg)](https://github.com/woosal1337/ade/actions/workflows/checks.yml)
+![Node.js 22+](https://img.shields.io/badge/node-%3E%3D22-3c873a)
+![macOS, Linux, Windows](https://img.shields.io/badge/os-macOS%20%7C%20Linux%20%7C%20Windows-555)
+![Version 0.1.0](https://img.shields.io/badge/version-0.1.0-555)
 
-Status: Version 0.1.0 in development. No release exists. This repository owns the production files.
+[Install](#install) · [Quick start](#quick-start) · [Share a setup](#share-a-setup) · [Harnesses](#supported-harnesses) · [Commands](#commands) · [Docs](#documentation)
 
-| Record | Value |
+![The ade landing page: an ade apply run with a trust prompt and a plan](docs/assets/ade-site.png)
+
+## Why ade
+
+| Problem | What ade does |
 |---|---|
-| Repository | [woosal1337/ade](https://github.com/woosal1337/ade) |
-| Website | Not published |
-| Topics | agent-skills, ai-agents, claude-code, cli, codex, cursor, developer-tools, dotfiles, grok, mcp, pi-coding-agent, sdk, typescript |
-| Task board | [Todo](https://elliptic.sh/app/019fde50-6654-7c03-81a5-2b4aa937b624) |
-| Knowledge | projects/ade/README.md |
-| Metadata | [PROJECT.json](PROJECT.json) |
+| Each agent keeps its own config format in its own folder | One profile writes the native format of each agent |
+| A setup drifts between your machines | `ade plan` and `ade status` show each difference before a write |
+| A shared setup is a list of manual steps | `ADE.md` holds the whole setup, and `ade apply <owner>/<repo>` copies it 1:1 |
+| A config change is hard to undo | Each apply keeps backups, and `ade revert` restores them |
 
-## Use a published profile
+ade changes only the entries that the profile declares: one server, one key, one skill. Every other key in a config file stays as it is.
+
+## Install
+
+ade needs Node.js 22 or later and Git.
 
 ```bash
-ade plan cobanov/agents
-ade apply cobanov/agents
+npm install -g github:woosal1337/ade
 ```
 
-A source is a local folder, an `ADE.md` file, `owner/repo[/subfolder][@ref]` on GitHub, or a Git URL. ade asks you to trust a Git source before its first apply. Read [the sources guide](docs/sources.md) to use or publish a profile.
+One command can also install ade and set up a machine from a shared setup:
 
-## Share your setup
+| Platform | Command |
+|---|---|
+| macOS and Linux | `curl -fsSL https://raw.githubusercontent.com/woosal1337/ade/main/scripts/install.sh \| sh -s -- <owner>/<repo>` |
+| Windows (PowerShell) | `$env:ADE_SOURCE = "<owner>/<repo>"; irm https://raw.githubusercontent.com/woosal1337/ade/main/scripts/install.ps1 \| iex` |
 
-1. Write one Markdown file with your complete setup:
+The scripts install ade, show the plan, and ask before the apply.
 
-   ```bash
-   ade share --profile ~/agent-profile --repo <owner>/<repo>
-   ```
+## Quick start
 
-2. Commit `ADE.md` to the repository.
-3. Others run `ade apply <owner>/<repo>`, and get the same setup 1:1.
-
-`ADE.md` holds the use steps, a summary of what the setup runs and writes, the secret names, and every file with its SHA-256 hash. GitHub shows it as a normal page. `ade verify ADE.md` checks it in CI. Read [the ADE.md standard](docs/ade-md.md).
-
-## Use ade
-
-1. Capture the current machine into a profile:
+1. Capture the setup of this machine into a profile folder:
 
    ```bash
    ade capture --out ~/agent-profile
    ```
 
-2. Compare the profile with a machine. Plan writes nothing:
+2. Show what ade would change. A plan never writes:
 
    ```bash
    ade plan --profile ~/agent-profile
    ```
 
-3. Make the machine match the profile. Each apply keeps a backup:
+3. Apply the profile to a machine. ade asks before it writes:
 
    ```bash
    ade apply --profile ~/agent-profile
@@ -63,99 +65,152 @@ A source is a local folder, an `ADE.md` file, `owner/repo[/subfolder][@ref]` on 
    ade revert
    ```
 
-5. Apply the same profile to another machine over SSH:
+Run `ade inventory` to see each file of each agent on your machine, and which files ade syncs.
+
+## Share a setup
+
+1. Write one Markdown file with the whole setup:
 
    ```bash
-   ade remote igris apply --profile ~/agent-profile
+   ade share --profile ~/agent-profile --repo you/agents
    ```
 
-Put the profile directory in Git to share it, or move it with `ade export` and `ade import`. A profile holds secret references, never secret values. Read [the remote guide](docs/remote.md) for SSH targets.
+2. Read the file, then commit `ADE.md` to the repository.
+3. Others apply it:
 
-## What ade manages
+   ```bash
+   ade apply you/agents
+   ```
 
-| Kind | Profile field | Examples |
-|---|---|---|
-| MCP servers | `mcp` | Each harness gets its own format, including local-scope Claude Code servers |
-| Skills | `skills` | `~/.agents/skills/<name>`, with links where a harness needs them |
-| Global instructions | `instructions` | `~/.agents/AGENTS.md`, linked from each harness |
-| Settings | `settings` | Each key of each settings file, including Cursor IDE and Zed settings with comments |
-| Subagents, commands, hooks, rules, themes | `files` | `~/.claude/agents/`, `~/.codex/prompts/`, `~/.grok/hooks/`, `~/.pi/agent/extensions/` |
-| Plugins, extensions, marketplaces | `plugins` | Claude Code, Codex, Grok, Gemini CLI, Cursor IDE, and Zed |
-| Pi packages | `settings`, `patches` | The `packages` list, and local changes to package code |
-| Other files | `files` | Any file under a root, as a copy, a link, a template, or a seed |
-| Secrets | `secrets` | Values come from the environment, a file, a command, or the macOS Keychain |
+GitHub shows `ADE.md` as a normal page: the install steps, what the setup runs and writes, the secret names, and every file. Each file has a SHA-256 hash, so `ade verify ADE.md` fails on a hand edit. Use it in CI:
 
-Read [the harness support list](docs/harnesses.md) for each file of each harness. `ade inventory` shows the files on your machine and their sync status. ade never syncs sign-ins, tokens, sessions, history, or caches.
+```yaml
+- run: npx -y github:woosal1337/ade verify ADE.md
+```
 
-ade owns entries, not whole files. It changes only the keys, servers, and paths that the profile declares. It records a content hash for each entry, so `ade status` can find changes made outside ade.
+A source can be a local folder, an `ADE.md` file, `owner/repo[/subfolder][@ref]` on GitHub, or any Git URL. Read [the ADE.md standard](docs/ade-md.md) and [the sources guide](docs/sources.md).
+
+## Supported harnesses
+
+| Harness | Instructions | MCP servers | Skills | Settings | Plugins | Also synced |
+|---|:---:|:---:|:---:|:---:|:---:|---|
+| Claude Code | ● | ● | ● | ● | ● | agents, commands, hooks, output styles, local MCP servers |
+| Codex | ● | ● | ● | ● | ● | prompts, rules, agents, hooks |
+| Cursor | | ● | ● | ● | ● | CLI and IDE settings, hooks, agents, commands, rules |
+| Grok | ● | ● | ● | ● | ● | hooks, agents, commands, local plugins |
+| Pi | ● | ● | ● | ● | ● | packages, extensions, prompts, themes, package patches |
+| Gemini CLI | ● | ● | ● | ● | ● | agents, commands, policies |
+| OpenCode | ● | ● | ● | ● | ◐ | agents, commands, modes, tools, themes |
+| Zed | | ● | | ● | ● | key map, tasks, snippets, themes |
+| Claude Desktop | | ◐ | | ● | ◐ | desktop extensions |
+| Antigravity | ● | ● | ● | ● | | hooks, global workflows |
+
+● synced. ◐ partly: Claude Desktop takes only stdio MCP servers, and OpenCode and Claude Desktop plugins sync as settings or files. Cursor keeps user rules in the Cursor account, so no file exists to sync.
+
+ade never syncs sign-ins, tokens, sessions, history, or caches. Read [the harness support list](docs/harnesses.md) for each file of each harness.
+
+## How it works
+
+```text
+machine ──capture──▶ profile ──plan──▶ changes ──apply──▶ machine
+                        │                                    │
+                        └──share──▶ ADE.md        revert ◀───┘
+```
+
+1. A profile is a folder with `ade.json`, the instructions, the skills, and the extra files.
+2. The plan compares three states for each entry: the profile, the machine, and the last apply.
+3. Apply writes atomic changes with backups, and records a content hash for each entry.
+4. A later plan uses the hashes to find drift: a change made outside ade.
+
+Read [the architecture](docs/architecture.md) for the modules and the data flow.
 
 ## Commands
 
 | Command | Use |
 |---|---|
-| `ade init`, `ade capture` | Create a profile |
+| `ade capture`, `ade init` | Make a profile from this machine, or an empty profile |
 | `ade add`, `ade remove`, `ade set`, `ade unset`, `ade list` | Edit and read the profile |
-| `ade update` | Lock the current commits of Git skills |
-| `ade plan`, `ade apply`, `ade status` | Compare and apply |
+| `ade plan`, `ade apply`, `ade status` | Compare, apply, and show drift |
 | `ade revert`, `ade history` | Undo an apply, list the apply records |
-| `ade doctor`, `ade harnesses` | Check the profile, the secrets, and the harness paths |
-| `ade inventory` | List each file of each harness, and show which files ade syncs |
-| `ade remote <host> <command>` | Run plan, apply, status, doctor, revert, history, harnesses, or capture on another machine |
-| `ade share`, `ade verify` | Write an `ADE.md`, check an `ADE.md` or a profile |
-| `ade use`, `ade trust`, `ade pack` | Set the default source, trust a Git source, write a profile folder for publication |
-| `ade import`, `ade export`, `ade schema` | Copy a source into an editable folder, write a JSON bundle, print the JSON Schema |
+| `ade inventory`, `ade harnesses`, `ade doctor` | List harness files, show harness paths, check the profile |
+| `ade share`, `ade verify`, `ade import` | Write and check `ADE.md`, copy a source into a folder |
+| `ade use`, `ade trust`, `ade update` | Set the default source, trust a Git source, lock Git skills |
+| `ade remote <host> <command>` | Run plan, apply, status, revert, or capture on another machine over SSH |
 
-Every command takes `--json` for a stable machine-readable result. Read [the profile reference](docs/profile.md) for the file format and [the SDK guide](docs/sdk.md) for the TypeScript API.
+Every command takes `--json`. Run `ade help <command>` for its options.
 
-## Start development
+## Safety
 
-Read [the development guide](docs/development.md) for the exact tool versions and setup commands.
+- **Plan first.** `ade apply` shows the plan and asks before it writes. `--yes` skips the question.
+- **Trust.** A Git source needs your trust before its first apply. ade lists the programs it runs, the files it writes, and the secrets it reads. A new program or file needs trust again.
+- **Secrets.** A profile holds `${secret:NAME}` references, never values. ade reads the values at apply time from the environment, a file, a command, or the macOS Keychain. `ade share` refuses values that look like tokens.
+- **Backups.** Each apply keeps backups and a record. A failed apply rolls back. `ade revert` restores one apply.
+- **Drift.** ade stops when an entry changed outside ade. `--force` overwrites it.
+
+## Remote machines
+
+```bash
+ade remote devbox plan --profile ~/agent-profile
+ade remote devbox apply --profile ~/agent-profile
+```
+
+ade sends its engine and the profile over SSH. The other machine needs only Node.js 22. Read [the remote guide](docs/remote.md).
+
+## SDK
+
+```ts
+import { apply, createContext, plan, resolveProfile } from "@woosal1337/ade";
+
+const ctx = createContext();
+const { loaded } = await resolveProfile("you/agents", ctx);
+const preview = await plan(loaded, ctx);
+await apply(loaded, ctx, { expectedFingerprint: preview.fingerprint });
+```
+
+The CLI uses the same engine. Read [the SDK guide](docs/sdk.md).
+
+## Documentation
+
+| Document | Content |
+|---|---|
+| [ADE.md standard](docs/ade-md.md) | The shared file format |
+| [Harness support](docs/harnesses.md) | Each file of each harness |
+| [Profile reference](docs/profile.md) | The `ade.json` format |
+| [Sources](docs/sources.md) | Git sources, trust, and publication |
+| [Remote machines](docs/remote.md) | Commands over SSH |
+| [SDK](docs/sdk.md) | The TypeScript API |
+| [Architecture](docs/architecture.md) | Modules, data flow, and storage |
+| [Runbook](docs/runbook.md) | Moves, recovery, and publication steps |
+| [Decisions](docs/decisions) | The design decisions and their reasons |
+
+## Status
+
+Version 0.1.0. ade is not on npm yet. Known limits:
+
+- A JSON write removes the comments of the file. The plan warns before the write.
+- A shared setup applies to every harness that it names, also on a machine without that harness.
+- A setup has no rules for each operating system. A shell hook from macOS also goes to Windows.
+
+## Development
 
 ```bash
 npm ci
+npm ci --prefix site
 python3 tools/quality.py hooks-install
 python3 tools/quality.py check
-node src/cli.ts --help
 ```
 
-## Source map
-
-| Path | Owner |
+| Path | Content |
 |---|---|
-| `src/core/` | Context, errors, hashes, documents, and file operations |
-| `src/profile/` | Profile schema, load and save, edits, and bundles |
-| `src/secrets/` | Secret references and their providers |
-| `src/harness/` | One adapter for each harness |
-| `src/skills/` | Skill sources and the Git cache |
-| `src/engine/` | Desired state, plan, apply, status, revert, capture, and doctor |
-| `src/remote/` | The SSH client, the protocol, and the remote agent |
-| `src/cli/` | Command parsing and output |
-| `src/index.ts` | The public SDK |
-| `test/` | Behavior tests in scratch home directories |
-| `tools/` | The source comment check, the quality runner, and the agent build |
-| `scripts/` | `install.sh` and `install.ps1`: install ade, then plan and apply a source |
-| `research/` | Dated sources |
-| `docs/` | Architecture, harness support, profile reference, the ADE.md standard, sources guide, SDK guide, remote guide, development, quality, runbook, and decisions |
-| `examples/starter/` | A small published profile folder |
-| `examples/single-file/` | The same profile as one `ADE.md` |
-| `log/` | Dated work notes |
+| `src/` | The engine, the CLI, and the SDK |
+| `test/` | Tests that run in scratch home folders |
+| `site/` | The landing page: Next.js, Tailwind CSS, and motion |
+| `scripts/` | The install scripts |
+| `examples/` | A sample profile folder and a sample `ADE.md` |
+| `docs/` | Guides and decision records |
 
-Read [the architecture](docs/architecture.md) before adding a module.
+Run the landing page with `npm --prefix site run dev`. Read [CONTRIBUTING.md](CONTRIBUTING.md) and [the quality gates](docs/quality.md) before a change.
 
-## Project rules
+## License
 
-Read [AGENTS.md](AGENTS.md) for agent guidance and [CONTRIBUTING.md](CONTRIBUTING.md) for development rules.
-[Quality gates](docs/quality.md) define the checks for local hooks and continuous integration (CI).
-[Stack research](research/stack.md) records the selected versions and their sources.
-[The first decision](docs/decisions/0001-project-foundation.md) explains the foundation. [The second decision](docs/decisions/0002-entry-ownership.md) explains the ownership model. [The third decision](docs/decisions/0003-remote-agent.md) explains the remote agent. [The fourth decision](docs/decisions/0004-git-sources-and-trust.md) explains Git sources and trust. [The fifth decision](docs/decisions/0005-full-coverage.md) explains the coverage rules. [The sixth decision](docs/decisions/0006-ade-md.md) explains the ADE.md format.
-[The runbook](docs/runbook.md) gives operational commands.
-
-## Delivery state
-
-The private GitHub repository holds the code. CI runs the checks on Ubuntu, and the tests on macOS, Windows, and Node.js 22. No npm release exists. The package stays private until a release decision. To install it from Git:
-
-```bash
-npm install -g git+ssh://git@github.com/woosal1337/ade.git
-```
-
-The install scripts and the use steps in each `ADE.md` name `github:woosal1337/ade`. They work for other users only after the repository is public or the npm package is published.
+The license is not chosen yet.

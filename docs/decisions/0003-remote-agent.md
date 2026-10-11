@@ -6,7 +6,7 @@ Status: Accepted for version 0.1.0.
 
 ## Context
 
-A move of a setup needs a plan and an apply on another machine. Most lab machines have SSH and Node.js. They do not all have ade, GitHub access to the private repository, or the skill sources. One target, Sukuna, runs Windows with the `cmd.exe` shell.
+A move of a setup needs a plan and an apply on another machine. Most lab machines have SSH and Node.js. They do not all have ade, GitHub access to the private repository, or the skill sources. One target machine runs Windows with the `cmd.exe` shell.
 
 ## Decision
 

@@ -31,7 +31,7 @@ A profile source is a local folder or a Git repository that holds an `ade.json` 
 5. Apply the same source to another machine:
 
    ```bash
-   ade remote igris apply cobanov/agents
+   ade remote devbox apply cobanov/agents
    ```
 
 ## Source forms

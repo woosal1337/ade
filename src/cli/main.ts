@@ -1354,7 +1354,7 @@ const commands: Command[] = [
       "ade remote <host> history|harnesses",
       "ade remote <host> capture [--out <dir>] [--include <root>:<path>]... [--name <name>]",
       "SSH options: --node <path> --ssh <program> --ssh-option <option>...",
-      "Example: ade remote igris plan --profile ~/agent-profile",
+      "Example: ade remote devbox plan --profile ~/agent-profile",
     ],
     options: {
       "remote-home": { type: "string" },

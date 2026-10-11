@@ -118,7 +118,7 @@ import { createContext, loadProfile, remoteApply, remotePlan } from "@woosal1337
 
 const ctx = createContext();
 const profile = await loadProfile("/Users/me/agent-profile");
-const target = { host: "igris" };
+const target = { host: "devbox" };
 const preview = await remotePlan(profile, ctx, { target });
 await remoteApply(profile, ctx, { target, expectedFingerprint: preview.result.fingerprint });
 ```
