@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import type { CliIO } from "../src/cli/output.ts";
 import { type Context, createContext } from "../src/core/context.ts";
+import { type CommandRunner, runCommand } from "../src/secrets/resolve.ts";
 
 export const POSIX = process.platform !== "win32";
 
@@ -175,4 +176,73 @@ export function fakeIO(cwd: string, answers: string[] = []): FakeIO {
     output: () => stdout,
     errors: () => stderr,
   };
+}
+
+export const offlineRunner: CommandRunner = async (argv, options) => {
+  if (argv[0] === "git") {
+    return runCommand(argv, options);
+  }
+  throw Object.assign(new Error(`spawn ${argv[0]} ENOENT`), { code: "ENOENT" });
+};
+
+export interface FakeClaude {
+  readonly runner: CommandRunner;
+  readonly calls: string[];
+  readonly settingsSeen: boolean[];
+}
+
+export function fakeClaude(marketplaceNames: Record<string, string>): FakeClaude {
+  const calls: string[] = [];
+  const settingsSeen: boolean[] = [];
+  const runner: CommandRunner = async (argv, options) => {
+    if (argv[0] === "git") {
+      return runCommand(argv, options);
+    }
+    if (argv[0] !== "claude") {
+      throw Object.assign(new Error(`spawn ${argv[0]} ENOENT`), { code: "ENOENT" });
+    }
+    const home = options.env.HOME ?? "";
+    const plugins = path.join(home, ".claude", "plugins");
+    const read = async (file: string): Promise<Record<string, unknown>> => {
+      try {
+        return JSON.parse(await fs.readFile(path.join(plugins, file), "utf8")) as Record<
+          string,
+          unknown
+        >;
+      } catch {
+        return {};
+      }
+    };
+    const write = async (file: string, value: unknown): Promise<void> => {
+      await writeJson(path.join(plugins, file), value);
+    };
+    if (argv[1] === "--version") {
+      return { code: 0, stdout: "2.0.0 (Claude Code)\n", stderr: "" };
+    }
+    calls.push(argv.slice(1).join(" "));
+    settingsSeen.push(await exists(path.join(home, ".claude", "settings.json")));
+    const [, , action, subject] = argv;
+    if (argv[2] === "marketplace") {
+      const known = await read("known_marketplaces.json");
+      const target = argv[4] ?? "";
+      if (argv[3] === "add") {
+        const name = marketplaceNames[target] ?? target;
+        known[name] = { source: { source: "github", repo: target } };
+      } else {
+        delete known[target];
+      }
+      await write("known_marketplaces.json", known);
+      return { code: 0, stdout: "", stderr: "" };
+    }
+    const registry = await read("installed_plugins.json");
+    const installed = (registry.plugins ?? {}) as Record<string, unknown>;
+    if (action === "install" && subject !== undefined) {
+      installed[subject] = [{ scope: "user" }];
+    } else if (action === "uninstall" && subject !== undefined) {
+      delete installed[subject];
+    }
+    await write("installed_plugins.json", { version: 2, plugins: installed });
+    return { code: 0, stdout: "", stderr: "" };
+  };
+  return { runner, calls, settingsSeen };
 }

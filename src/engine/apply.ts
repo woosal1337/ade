@@ -54,7 +54,19 @@ export async function apply(
         step.action === "delete" ? 1 - step.phase : 2 + step.phase;
       return rank(left) - rank(right);
     });
-    const written = pathSteps.length + computed.docSteps.length;
+    const pluginSteps = [...computed.pluginSteps].sort((left, right) => {
+      const rank = (step: (typeof computed.pluginSteps)[number]): number =>
+        step.action === "delete"
+          ? step.target === "plugin"
+            ? 0
+            : 1
+          : step.target === "marketplace"
+            ? 2
+            : 3;
+      return rank(left) - rank(right);
+    });
+    const written =
+      pathSteps.length + computed.docSteps.length + pluginSteps.length + computed.patchSteps.length;
     const profileLabel = options.profileLabel ?? loaded.dir;
     const items: Record<string, StateItem> = { ...computed.state.items };
     for (const update of computed.stateUpdates) {
@@ -74,13 +86,19 @@ export async function apply(
       }
       return { plan, applyId: undefined, written: 0, recorded: computed.stateUpdates.length };
     }
-    const journal = await Journal.begin(ctx);
+    const journal = await Journal.begin(ctx, computed.runner);
     try {
+      for (const step of pluginSteps) {
+        await journal.applyPlugin(step);
+      }
       for (const step of pathSteps) {
         await journal.applyPath(step);
       }
       for (const step of computed.docSteps) {
         await journal.applyDoc(step);
+      }
+      for (const step of computed.patchSteps) {
+        await journal.applyPatch(step);
       }
     } catch (error) {
       const failures = await journal.rollback();

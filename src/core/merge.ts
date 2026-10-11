@@ -53,13 +53,23 @@ export function mergeDiff(
 
 export type Leaf = readonly [pointer: readonly string[], value: unknown];
 
-export function listLeaves(patch: Record<string, unknown>, prefix: readonly string[] = []): Leaf[] {
+export const ATOMIC_PARENTS: ReadonlySet<string> = new Set([
+  "mcpServers",
+  "mcp_servers",
+  "context_servers",
+]);
+
+export function listLeaves(
+  patch: Record<string, unknown>,
+  prefix: readonly string[] = [],
+  atomic = false,
+): Leaf[] {
   const leaves: Leaf[] = [];
   for (const [key, value] of Object.entries(patch)) {
     const pointer = [...prefix, key];
-    if (isPlainObject(value)) {
+    if (!atomic && isPlainObject(value)) {
       if (Object.keys(value).length > 0) {
-        leaves.push(...listLeaves(value, pointer));
+        leaves.push(...listLeaves(value, pointer, ATOMIC_PARENTS.has(key)));
       }
       continue;
     }

@@ -10,6 +10,7 @@ import { apply } from "../engine/apply.ts";
 import { type CaptureInclude, capture, writeCapture } from "../engine/capture.ts";
 import { doctor } from "../engine/doctor.ts";
 import { listApplies, revert } from "../engine/history.ts";
+import { inventory } from "../engine/inventory.ts";
 import { readRecord } from "../engine/journal.ts";
 import { computePlan } from "../engine/plan.ts";
 import { status } from "../engine/status.ts";
@@ -17,13 +18,18 @@ import { updateSkills } from "../engine/update.ts";
 import {
   describeHarnesses,
   getAdapter,
+  isHarnessId,
+  isRootId,
   parseHarnessList,
   parseSettingsKey,
+  rootDir,
 } from "../harness/registry.ts";
 import { exportBundle, importBundle } from "../profile/bundle.ts";
 import {
   addFile,
+  addMarketplace,
   addMcpServer,
+  addPlugin,
   addSecret,
   addSkill,
   type EntryKind,
@@ -40,12 +46,12 @@ import {
 } from "../profile/load.ts";
 import { packProfile } from "../profile/pack.ts";
 import {
-  HARNESS_IDS,
   type HarnessId,
   isGitSkill,
   isLinkSkill,
   type McpServer,
   profileJsonSchema,
+  ROOT_IDS,
   type SecretSource,
 } from "../profile/schema.ts";
 import {
@@ -84,6 +90,7 @@ import {
   renderDoctor,
   renderHarnesses,
   renderHistory,
+  renderInventory,
   renderPlan,
   renderStatus,
   renderWarnings,
@@ -184,21 +191,13 @@ function parseRootTarget(value: string | undefined): CaptureInclude {
   const index = value.indexOf(":");
   const root = value.slice(0, index);
   const target = value.slice(index + 1);
-  if (
-    index <= 0 ||
-    target === "" ||
-    !(root === "home" || (HARNESS_IDS as readonly string[]).includes(root))
-  ) {
+  if (index <= 0 || target === "" || !isRootId(root)) {
     throw usageError(
       `The file reference is not valid: ${value}.`,
-      `Use home or one of ${HARNESS_IDS.join(", ")} as the root.`,
+      `Use one of ${ROOT_IDS.join(", ")} as the root.`,
     );
   }
-  return { root: root as HarnessId | "home", target: target.replaceAll("\\", "/") };
-}
-
-function rootDir(ctx: Context, root: HarnessId | "home"): string {
-  return root === "home" ? ctx.home : getAdapter(root).home(ctx);
+  return { root, target: target.replaceAll("\\", "/") };
 }
 
 async function copyIntoProfile(
@@ -454,7 +453,16 @@ const commands: Command[] = [
       const { loaded } = await c.resolve();
       const { profile } = loaded;
       const kind = c.args[0];
-      const kinds = ["mcp", "skills", "settings", "secrets", "files", "instructions"];
+      const kinds = [
+        "mcp",
+        "skills",
+        "settings",
+        "secrets",
+        "files",
+        "plugins",
+        "patches",
+        "instructions",
+      ];
       if (kind !== undefined && !kinds.includes(kind)) {
         throw usageError(`The kind is not known: ${kind}.`, `Use one of: ${kinds.join(", ")}.`);
       }
@@ -541,12 +549,44 @@ const commands: Command[] = [
           out.line("  none");
         }
         for (const entry of entries) {
-          const flags = [entry.template ? "template" : "", entry.mode ? `mode ${entry.mode}` : ""]
+          const flags = [
+            entry.template ? "template" : "",
+            entry.mode ? `mode ${entry.mode}` : "",
+            entry.once ? "only when absent" : "",
+            entry.symlink ? `link to ${entry.symlink}` : "",
+          ]
             .filter(Boolean)
             .join(", ");
           out.line(
-            `  ${padEnd(`${entry.root}:${entry.target}`, 40)} ${entry.source}${flags ? out.style("dim", `  ${flags}`) : ""}`,
+            `  ${padEnd(`${entry.root}:${entry.target}`, 40)} ${entry.source ?? ""}${flags ? out.style("dim", `  ${flags}`) : ""}`,
           );
+        }
+      }
+      if (show("plugins")) {
+        out.line(out.style("bold", "plugins"));
+        const entries = Object.entries(profile.plugins ?? {});
+        if (entries.length === 0) {
+          out.line("  none");
+        }
+        for (const [harness, set] of entries) {
+          for (const [marketplace, source] of Object.entries(set?.marketplaces ?? {})) {
+            out.line(
+              `  ${padEnd(harness, 16)} marketplace ${marketplace}  ${out.style("dim", source)}`,
+            );
+          }
+          for (const id of set?.install ?? []) {
+            out.line(`  ${padEnd(harness, 16)} ${id}`);
+          }
+        }
+      }
+      if (show("patches")) {
+        out.line(out.style("bold", "patches"));
+        const entries = profile.patches ?? [];
+        if (entries.length === 0) {
+          out.line("  none");
+        }
+        for (const entry of entries) {
+          out.line(`  ${padEnd(`${entry.root}:${entry.target}`, 40)} ${entry.source}`);
         }
       }
       return EXIT.ok;
@@ -568,6 +608,8 @@ const commands: Command[] = [
       "ade add secret <name> --from command -- <command> [args...]",
       "ade add file <root>:<path> [--source <file>] [--template] [--mode 600]",
       "ade add instructions <file> [--target <harnesses>]",
+      "ade add plugin <harness> <plugin>",
+      "ade add marketplace <harness> <name> <source>",
     ],
     options: {
       url: { type: "string" },
@@ -791,8 +833,42 @@ const commands: Command[] = [
           message = `Set the instructions to ${relative}.`;
           break;
         }
+        case "plugin": {
+          const [, harness, id] = c.args;
+          if (harness === undefined || id === undefined || !isHarnessId(harness)) {
+            throw usageError(
+              "Give the harness and the plugin, for example: ade add plugin claude code-review@claude-plugins-official.",
+            );
+          }
+          const support = getAdapter(harness).plugins;
+          if (support === undefined) {
+            throw usageError(`ade has no plugin support for ${getAdapter(harness).label}.`);
+          }
+          profile = addPlugin(profile, harness, id);
+          message = `Added the ${support.noun} ${id} for ${getAdapter(harness).label}.`;
+          break;
+        }
+        case "marketplace": {
+          const [, harness, marketplace, source] = c.args;
+          if (
+            harness === undefined ||
+            marketplace === undefined ||
+            source === undefined ||
+            !isHarnessId(harness)
+          ) {
+            throw usageError("Give the harness, the marketplace name, and its source.");
+          }
+          if (getAdapter(harness).plugins?.marketplaces !== true) {
+            throw usageError(`${getAdapter(harness).label} has no marketplace command.`);
+          }
+          profile = addMarketplace(profile, harness, marketplace, source, replace);
+          message = `Added the marketplace ${marketplace} for ${getAdapter(harness).label}.`;
+          break;
+        }
         default:
-          throw usageError("Give the kind: mcp, skill, secret, file, or instructions.");
+          throw usageError(
+            "Give the kind: mcp, skill, secret, file, instructions, plugin, or marketplace.",
+          );
       }
       await saveProfile(loaded.dir, profile);
       if (c.json) {
@@ -808,11 +884,25 @@ const commands: Command[] = [
     name: "remove",
     group: "Profile",
     summary: "Remove an entry from the profile. The next apply removes it from the machine.",
-    usage: ["ade remove <mcp|skill|secret|file|instructions> <name> [--purge]"],
+    usage: [
+      "ade remove <mcp|skill|secret|file|instructions> <name> [--purge]",
+      "ade remove plugin <harness>:<plugin>",
+      "ade remove marketplace <harness>:<name>",
+      "ade remove patch <root>:<target> [--purge]",
+    ],
     options: { purge: { type: "boolean" } },
     async run(c) {
       const [kind, name] = c.args;
-      const kinds: EntryKind[] = ["mcp", "skill", "secret", "file", "instructions"];
+      const kinds: EntryKind[] = [
+        "mcp",
+        "skill",
+        "secret",
+        "file",
+        "instructions",
+        "plugin",
+        "marketplace",
+        "patch",
+      ];
       if (kind === undefined || !(kinds as string[]).includes(kind)) {
         throw usageError(`Give the kind: ${kinds.join(", ")}.`);
       }
@@ -837,9 +927,10 @@ const commands: Command[] = [
           purged.push(dir);
         }
       }
-      if (kind === "file" && boolFlag(c.flags, "purge")) {
-        const entry = before.files?.find((item) => `${item.root}:${item.target}` === entryName);
-        if (entry !== undefined) {
+      if ((kind === "file" || kind === "patch") && boolFlag(c.flags, "purge")) {
+        const list = kind === "file" ? (before.files ?? []) : (before.patches ?? []);
+        const entry = list.find((item) => `${item.root}:${item.target}` === entryName);
+        if (entry?.source !== undefined) {
           const file = safeJoin(loaded.dir, entry.source, "the profile directory");
           await removePath(file);
           purged.push(file);
@@ -1147,6 +1238,25 @@ const commands: Command[] = [
         renderDoctor(c.out, report);
       }
       return report.ok ? EXIT.ok : EXIT.failure;
+    },
+  },
+  {
+    name: "inventory",
+    group: "Machine",
+    summary: "List every file of each harness, and show which files ade syncs.",
+    usage: [
+      "ade inventory [--harness <harnesses>] [--all]",
+      "Without --all, the list hides private and runtime files and shows their counts.",
+    ],
+    options: { all: { type: "boolean" } },
+    async run(c) {
+      const report = await inventory(c.context(), { harnesses: c.harnessFilter() });
+      if (c.json) {
+        c.emit(report);
+      } else {
+        renderInventory(c.out, report, boolFlag(c.flags, "all"));
+      }
+      return EXIT.ok;
     },
   },
   {

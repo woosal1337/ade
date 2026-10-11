@@ -20,11 +20,12 @@ import { mergeDiff } from "../core/merge.ts";
 import {
   detectHarnesses,
   getAdapter,
+  rootDir,
   sharedInstructionsPath,
   sharedRoot,
   sharedSkillsDir,
 } from "../harness/registry.ts";
-import type { ResolvedMcpServer } from "../harness/types.ts";
+import type { AssetRule, ResolvedMcpServer } from "../harness/types.ts";
 import {
   type LoadedProfile,
   loadProfile,
@@ -38,15 +39,22 @@ import {
   HARNESS_IDS,
   type HarnessId,
   type McpServer,
+  type PatchEntry,
+  type PluginSet,
   type Profile,
+  ROOT_IDS,
+  type RootId,
   type SecretSource,
   type Skill,
 } from "../profile/schema.ts";
 import { templateHome, templateHomeDeep } from "../secrets/refs.ts";
+import { type CommandRunner, runCommand } from "../secrets/resolve.ts";
 import { SCHEME_PREFIX, SENSITIVE_KEY, TOKEN_PATTERN } from "../secrets/scan.ts";
+import { isolatedGitEnv } from "../skills/git.ts";
+import { capturableFiles, inventory, piPackageAssets } from "./inventory.ts";
 
 export interface CaptureInclude {
-  readonly root: HarnessId | "home";
+  readonly root: RootId;
   readonly target: string;
 }
 
@@ -54,6 +62,7 @@ export interface CaptureOptions {
   readonly harnesses?: readonly HarnessId[] | undefined;
   readonly include?: readonly CaptureInclude[] | undefined;
   readonly name?: string | undefined;
+  readonly runner?: CommandRunner | undefined;
 }
 
 export interface CapturedFile {
@@ -61,6 +70,8 @@ export interface CapturedFile {
   readonly kind: "file" | "dir";
   readonly source?: string;
   readonly content?: Buffer;
+  readonly mode?: number;
+  readonly filtered?: boolean;
 }
 
 export interface CapturedSecret {
@@ -75,6 +86,9 @@ export interface CaptureResult {
   readonly secrets: readonly CapturedSecret[];
 }
 
+const MAX_REFERENCED_BYTES = 1024 * 1024;
+const REFERENCE_PATH = /\$\{home\}([\\/][^\s'"`;,)\]]+)/g;
+
 const CONTAINER_KEYS = new Set([
   "headers",
   "http_headers",
@@ -85,6 +99,11 @@ const CONTAINER_KEYS = new Set([
   "cursor",
   "grok",
   "pi",
+  "gemini",
+  "opencode",
+  "zed",
+  "claude-desktop",
+  "antigravity",
 ]);
 
 class SecretCollector {
@@ -291,10 +310,55 @@ function pickMajority<T>(entries: readonly { harness: HarnessId; key: string; va
   return best;
 }
 
+async function hasCapturableFiles(dir: string): Promise<boolean> {
+  return (await capturableFiles(dir)).length > 0;
+}
+
+function rootFor(ctx: Context, file: string): { root: RootId; target: string } | undefined {
+  const candidates = ROOT_IDS.map((root) => ({ root, dir: rootDir(ctx, root) })).sort(
+    (left, right) => right.dir.length - left.dir.length,
+  );
+  for (const { root, dir } of candidates) {
+    const relative = path.relative(dir, file);
+    if (relative !== "" && !relative.startsWith("..") && !path.isAbsolute(relative)) {
+      return { root, target: relative.split(path.sep).join("/") };
+    }
+  }
+  return undefined;
+}
+
+function collectStrings(value: unknown, into: string[]): void {
+  if (typeof value === "string") {
+    into.push(value);
+  } else if (Array.isArray(value)) {
+    for (const item of value) {
+      collectStrings(item, into);
+    }
+  } else if (isPlainObject(value)) {
+    for (const item of Object.values(value)) {
+      collectStrings(item, into);
+    }
+  }
+}
+
+function packageCheckout(source: string): string | undefined {
+  if (!source.startsWith("git:")) {
+    return undefined;
+  }
+  let rest = source.slice(4).replace(/^[a-z+]+:\/\//, "");
+  const at = rest.lastIndexOf("@");
+  if (at > rest.indexOf("/")) {
+    rest = rest.slice(0, at);
+  }
+  rest = rest.replace(/\.git$/, "");
+  return rest.split("/").every((part) => part !== "" && part !== "..") ? rest : undefined;
+}
+
 export async function capture(ctx: Context, options: CaptureOptions = {}): Promise<CaptureResult> {
   const warnings: string[] = [];
   const files: CapturedFile[] = [];
   const secrets = new SecretCollector();
+  const runner = options.runner ?? runCommand;
   const detections = await detectHarnesses(ctx);
   const harnesses =
     options.harnesses === undefined
@@ -310,6 +374,61 @@ export async function capture(ctx: Context, options: CaptureOptions = {}): Promi
     description: `Captured on ${ctx.now().toISOString().slice(0, 10)}.`,
     ...(harnesses.length > 0 ? { harnesses: [...harnesses] } : {}),
     install: "auto",
+  };
+  const capturedPaths: string[] = [];
+  const fileEntries: FileEntry[] = [];
+  const addFileEntry = async (
+    root: RootId,
+    target: string,
+    source: string,
+    once: boolean,
+  ): Promise<void> => {
+    const stat = await statOrUndefined(source);
+    const link = await lstatOrUndefined(source);
+    const linkTarget = link?.isSymbolicLink() === true ? await readLinkAbsolute(source) : undefined;
+    const symlink =
+      linkTarget === undefined || once ? {} : { symlink: templateHome(linkTarget, ctx.home) };
+    const relative = path.posix.join("files", root, target);
+    if (stat?.isDirectory()) {
+      const inner = await capturableFiles(source);
+      const innerLinks: string[] = [];
+      if (linkTarget === undefined) {
+        for (const item of inner) {
+          if ((await lstatOrUndefined(path.join(source, ...item.split("/"))))?.isSymbolicLink()) {
+            innerLinks.push(item);
+          }
+        }
+      }
+      if (innerLinks.length > 0) {
+        for (const item of inner) {
+          await addFileEntry(
+            root,
+            `${target}/${item}`,
+            path.join(source, ...item.split("/")),
+            false,
+          );
+        }
+        return;
+      }
+      files.push({ path: relative, kind: "dir", source, filtered: true });
+    } else if (stat?.isFile()) {
+      files.push({
+        path: relative,
+        kind: "file",
+        content: await fs.readFile(source),
+        mode: stat.mode & 0o777,
+      });
+    } else {
+      return;
+    }
+    capturedPaths.push(source);
+    fileEntries.push({
+      root,
+      target,
+      source: relative,
+      ...symlink,
+      ...(once ? { once: true } : {}),
+    });
   };
 
   const instructionVotes: { harness: HarnessId; key: string; value: Buffer }[] = [];
@@ -373,13 +492,17 @@ export async function capture(ctx: Context, options: CaptureOptions = {}): Promi
         warnings.push(`${adapter.label} MCP server ${name}: ${parsed.reason} ade skips it.`);
         continue;
       }
-      const reproduced = adapter.toNativeMcp(parsed.server).value;
+      const core = { ...parsed.server } as Record<string, unknown>;
+      delete core.description;
+      delete core.enabled;
+      const coreServer = core as unknown as ResolvedMcpServer;
+      const reproduced = adapter.toNativeMcp(coreServer).value ?? {};
       const override = isPlainObject(native) ? mergeDiff(reproduced, native) : undefined;
       const list = servers.get(name) ?? [];
       list.push({
         harness: id,
-        key: hashValue(parsed.server),
-        value: parsed.server,
+        key: hashValue(coreServer),
+        value: coreServer,
         ...(override === undefined ? {} : { override }),
       });
       servers.set(name, list);
@@ -423,10 +546,10 @@ export async function capture(ctx: Context, options: CaptureOptions = {}): Promi
     file: string,
     format: "json" | "toml",
     exclude: readonly (readonly string[])[],
-  ): Promise<void> => {
+  ): Promise<boolean> => {
     const doc = await loadDoc(file, format);
     if (!doc.exists) {
-      return;
+      return false;
     }
     const data = cloneValue(doc.data);
     for (const pointer of exclude) {
@@ -441,59 +564,178 @@ export async function capture(ctx: Context, options: CaptureOptions = {}): Promi
     ) as Record<string, unknown>;
     if (Object.keys(scrubbed).length > 0) {
       settings[key] = scrubbed;
+      return true;
     }
+    return false;
   };
+  const capturedDocs = new Set<string>();
   for (const id of harnesses) {
     const adapter = getAdapter(id);
     const location = adapter.settingsLocation(ctx);
+    if (capturedDocs.has(location.path)) {
+      continue;
+    }
+    capturedDocs.add(location.path);
     const reserved = adapter.reservedSettingsKeys.map((key) => [key]);
+    const mcpLocation = adapter.mcpLocation(ctx);
+    const mcpPointer = mcpLocation.path === location.path ? [mcpLocation.pointer] : [];
     await captureSettings(id, location.path, location.format, [
       ...adapter.captureExclude,
       ...reserved,
+      ...mcpPointer,
     ]);
   }
 
-  const fileEntries: FileEntry[] = [];
+  if (harnesses.includes("claude")) {
+    const location = getAdapter("claude").mcpLocation(ctx);
+    const doc = await loadDoc(location.path, location.format);
+    const projects = isPlainObject(doc.data.projects) ? doc.data.projects : {};
+    const local: Record<string, unknown> = {};
+    for (const [project, entry] of Object.entries(projects)) {
+      if (
+        isPlainObject(entry) &&
+        isPlainObject(entry.mcpServers) &&
+        Object.keys(entry.mcpServers).length > 0
+      ) {
+        local[templateHome(project, ctx.home)] = { mcpServers: entry.mcpServers };
+      }
+    }
+    const key = rootFor(ctx, location.path);
+    if (Object.keys(local).length > 0 && key !== undefined) {
+      const docKey = `${key.root}:${key.target}`;
+      settings[docKey] = secrets.scrub(
+        templateHomeDeep({ projects: local }, ctx.home),
+        undefined,
+        "claude_project",
+        `settings.${docKey}`,
+      ) as Record<string, unknown>;
+    }
+  }
+
+  const assetRules: { harness: HarnessId; rule: AssetRule }[] = [];
+  for (const id of harnesses) {
+    for (const rule of getAdapter(id).assets) {
+      assetRules.push({ harness: id, rule });
+    }
+    if (id === "pi") {
+      assetRules.push(...(await piPackageAssets(ctx)).map((rule) => ({ harness: id, rule })));
+    }
+  }
+  for (const { harness, rule } of assetRules) {
+    const root = rule.root ?? harness;
+    const source = path.join(rootDir(ctx, root), ...rule.path.split("/"));
+    const stat = await statOrUndefined(source);
+    if (stat === undefined) {
+      continue;
+    }
+    if (rule.kind === "doc" && stat.isFile()) {
+      const format = docFormatFor(rule.path) ?? "json";
+      try {
+        if (await captureSettings(`${root}:${rule.path}`, source, format, [])) {
+          capturedPaths.push(source);
+        }
+      } catch (error) {
+        warnings.push(
+          `${rule.path}: ${error instanceof Error ? error.message : String(error)} ade skips it.`,
+        );
+      }
+      continue;
+    }
+    if (rule.kind === "dir" && stat.isDirectory() && (await hasCapturableFiles(source))) {
+      await addFileEntry(root, rule.path, source, false);
+      continue;
+    }
+    if (rule.kind === "file" && stat.isFile()) {
+      await addFileEntry(root, rule.path, source, rule.once === true);
+    }
+  }
+
+  const extras = await inventory(ctx, { harnesses });
+  for (const row of extras.rows) {
+    if (row.status !== "extra" || row.root === undefined) {
+      continue;
+    }
+    const format = docFormatFor(row.name);
+    if (format !== undefined) {
+      try {
+        if (await captureSettings(`${row.root}:${row.name}`, row.path, format, [])) {
+          capturedPaths.push(row.path);
+        }
+        continue;
+      } catch {
+        warnings.push(
+          `${row.display} is not valid ${format.toUpperCase()}. ade captures it as a file.`,
+        );
+      }
+    }
+    await addFileEntry(row.root, row.name, row.path, false);
+  }
+
   for (const include of options.include ?? []) {
-    if (include.root !== "home" && !harnesses.includes(include.root)) {
+    const root = include.root;
+    const owner = root === "home" ? undefined : root === "cursor-user" ? "cursor" : root;
+    if (owner !== undefined && !harnesses.includes(owner)) {
       warnings.push(
         `The include ${include.root}:${include.target} names a harness that ade does not capture.`,
       );
       continue;
     }
-    const root = include.root === "home" ? ctx.home : getAdapter(include.root).home(ctx);
-    const source = safeJoin(root, include.target, "its target root");
-    const format = docFormatFor(include.target);
-    if (format !== undefined && include.root !== "home") {
-      const key = `${include.root}:${include.target.replaceAll("\\", "/")}`;
-      await captureSettings(key, source, format, []);
-      if (settings[key] === undefined) {
+    const target = include.target.replaceAll("\\", "/");
+    const source = safeJoin(rootDir(ctx, root), target, "its target root");
+    const format = docFormatFor(target);
+    if (format !== undefined && root !== "home") {
+      const key = `${root}:${target}`;
+      if (!(await captureSettings(key, source, format, []))) {
         warnings.push(`The include ${key} does not exist or is empty.`);
       }
+      capturedPaths.push(source);
       continue;
     }
-    const content = await readIfFile(source);
-    if (content === undefined) {
-      warnings.push(`The include ${include.root}:${include.target} is not a file.`);
+    if ((await statOrUndefined(source)) === undefined) {
+      warnings.push(`The include ${include.root}:${include.target} does not exist.`);
       continue;
     }
-    const relative = path.posix.join("files", include.root, include.target.replaceAll("\\", "/"));
-    files.push({ path: relative, kind: "file", content });
-    fileEntries.push({
-      root: include.root,
-      target: include.target.replaceAll("\\", "/"),
-      source: relative,
-    });
-  }
-  if (Object.keys(settings).length > 0) {
-    profile.settings = settings as Profile["settings"];
+    await addFileEntry(root, target, source, false);
   }
 
-  const origins = await readSkillOrigins(ctx);
   const skillDirs = [sharedSkillsDir(ctx)];
   for (const id of harnesses) {
     skillDirs.push(...getAdapter(id).captureSkillDirs(ctx));
+    const dir = getAdapter(id).skillsDir(ctx);
+    if (dir !== undefined) {
+      skillDirs.push(dir);
+    }
   }
+
+  const referenced = new Set<string>();
+  const strings: string[] = [];
+  collectStrings(settings, strings);
+  for (const text of strings) {
+    for (const match of text.matchAll(REFERENCE_PATH)) {
+      referenced.add(path.join(ctx.home, ...(match[1] ?? "").split(/[\\/]/).filter(Boolean)));
+    }
+  }
+  for (const file of [...referenced].sort()) {
+    if (
+      capturedPaths.some((captured) => isInside(file, captured)) ||
+      skillDirs.some((dir) => isInside(file, dir)) ||
+      isInside(file, sharedRoot(ctx))
+    ) {
+      continue;
+    }
+    const stat = await statOrUndefined(file);
+    if (!stat?.isFile() || stat.size > MAX_REFERENCED_BYTES) {
+      continue;
+    }
+    const content = await fs.readFile(file);
+    const location = rootFor(ctx, file);
+    if (content.includes(0) || location === undefined) {
+      continue;
+    }
+    await addFileEntry(location.root, location.target, file, false);
+  }
+
+  const origins = await readSkillOrigins(ctx);
   const chosenSkills = new Map<string, SkillCandidate>();
   for (const dir of skillDirs) {
     for (const candidate of await listSkillCandidates(dir)) {
@@ -509,22 +751,128 @@ export async function capture(ctx: Context, options: CaptureOptions = {}): Promi
   }
   const skills: Record<string, Skill> = {};
   const sharedDir = sharedSkillsDir(ctx);
+  const linkHarnesses = harnesses.filter((id) => {
+    const adapter = getAdapter(id);
+    return !adapter.readsSharedSkills && adapter.skillsDir(ctx) !== undefined;
+  });
+  const readers = harnesses.filter((id) => getAdapter(id).readsSharedSkills);
+  const skillTargets = async (name: string): Promise<{ harnesses?: HarnessId[] }> => {
+    const have: HarnessId[] = [];
+    for (const id of linkHarnesses) {
+      const dir = getAdapter(id).skillsDir(ctx) as string;
+      if ((await statOrUndefined(path.join(dir, name, "SKILL.md")))?.isFile()) {
+        have.push(id);
+      }
+    }
+    if (have.length === linkHarnesses.length) {
+      return {};
+    }
+    const targets = [...have, ...readers];
+    return targets.length === 0
+      ? {}
+      : { harnesses: HARNESS_IDS.filter((id) => targets.includes(id)) };
+  };
   for (const candidate of [...chosenSkills.values()].sort((a, b) => compareText(a.name, b.name))) {
     if (
       path.dirname(candidate.location) === sharedDir &&
       candidate.linkTarget !== undefined &&
       !isInside(candidate.linkTarget, sharedDir)
     ) {
-      skills[candidate.name] = { link: templateHome(candidate.linkTarget, ctx.home) };
+      skills[candidate.name] = {
+        link: templateHome(candidate.linkTarget, ctx.home),
+        ...(await skillTargets(candidate.name)),
+      };
       continue;
     }
     const relative = `skills/${candidate.name}`;
     files.push({ path: relative, kind: "dir", source: candidate.real });
     const origin = origins[candidate.name];
-    skills[candidate.name] = { path: relative, ...(origin === undefined ? {} : { origin }) };
+    skills[candidate.name] = {
+      path: relative,
+      ...(origin === undefined ? {} : { origin }),
+      ...(await skillTargets(candidate.name)),
+    };
   }
   if (Object.keys(skills).length > 0) {
     profile.skills = skills;
+  }
+
+  const plugins: Partial<Record<HarnessId, PluginSet>> = {};
+  for (const id of harnesses) {
+    const support = getAdapter(id).plugins;
+    if (support === undefined) {
+      continue;
+    }
+    try {
+      const list = await support.list(ctx, runner);
+      const marketplaces = support.marketplaces ? { ...list.marketplaces } : {};
+      const install = Object.keys(list.installed).sort(compareText);
+      if (Object.keys(marketplaces).length > 0 || install.length > 0) {
+        plugins[id] = {
+          ...(Object.keys(marketplaces).length > 0 ? { marketplaces } : {}),
+          ...(install.length > 0 ? { install } : {}),
+        };
+      }
+    } catch (error) {
+      if (errnoCode(error) !== "ENOENT") {
+        warnings.push(`ade could not list the ${getAdapter(id).label} ${support.noun}s.`);
+      }
+    }
+  }
+  if (Object.keys(plugins).length > 0) {
+    profile.plugins = plugins;
+  }
+
+  const patches: PatchEntry[] = [];
+  if (harnesses.includes("pi")) {
+    const piSettings = await loadDoc(getAdapter("pi").settingsLocation(ctx).path, "json");
+    const packages = Array.isArray(piSettings.data.packages) ? piSettings.data.packages : [];
+    for (const item of packages) {
+      const source =
+        typeof item === "string"
+          ? item
+          : isPlainObject(item) && typeof item.source === "string"
+            ? item.source
+            : undefined;
+      const checkout = source === undefined ? undefined : packageCheckout(source);
+      if (checkout === undefined) {
+        continue;
+      }
+      const target = `git/${checkout}`;
+      const dir = path.join(rootDir(ctx, "pi"), ...target.split("/"));
+      if (!(await statOrUndefined(path.join(dir, ".git")))) {
+        continue;
+      }
+      const diff = await runner(
+        [
+          "git",
+          "-C",
+          dir,
+          "diff",
+          "--binary",
+          "HEAD",
+          "--",
+          ".",
+          ":(exclude)package-lock.json",
+          ":(exclude)**/package-lock.json",
+          ":(exclude)node_modules",
+        ],
+        { env: isolatedGitEnv(ctx.env), timeoutMs: 60_000 },
+      );
+      if (diff.code !== 0 || diff.stdout.trim() === "") {
+        continue;
+      }
+      const relative = `patches/pi/${checkout}.patch`;
+      files.push({ path: relative, kind: "file", content: Buffer.from(diff.stdout, "utf8") });
+      patches.push({ root: "pi", target, source: relative });
+    }
+  }
+  if (patches.length > 0) {
+    profile.patches = patches;
+  }
+
+  if (Object.keys(settings).length > 0) {
+    profile.settings = settings as Profile["settings"];
   }
   if (fileEntries.length > 0) {
     profile.files = fileEntries;
@@ -537,6 +885,16 @@ export async function capture(ctx: Context, options: CaptureOptions = {}): Promi
 
 export interface WriteCaptureOptions {
   readonly force?: boolean | undefined;
+}
+
+async function copyCapturable(source: string, target: string): Promise<void> {
+  for (const relative of await capturableFiles(source)) {
+    const from = path.join(source, ...relative.split("/"));
+    const to = path.join(target, ...relative.split("/"));
+    await ensureDir(path.dirname(to));
+    await fs.copyFile(from, to);
+    await fs.chmod(to, (await fs.stat(from)).mode & 0o777);
+  }
 }
 
 export async function writeCapture(
@@ -555,11 +913,19 @@ export async function writeCapture(
     const target = safeJoin(root, file.path, "the profile directory");
     await removePath(target);
     if (file.kind === "dir" && file.source !== undefined) {
-      await ensureDir(path.dirname(target));
-      await copyTree(file.source, target);
+      if (file.filtered === true) {
+        await ensureDir(target);
+        await copyCapturable(file.source, target);
+      } else {
+        await ensureDir(path.dirname(target));
+        await copyTree(file.source, target);
+      }
     } else if (file.content !== undefined) {
       await ensureDir(path.dirname(target));
-      await fs.writeFile(target, file.content);
+      await fs.writeFile(target, file.content, { mode: file.mode ?? 0o644 });
+      if (file.mode !== undefined) {
+        await fs.chmod(target, file.mode);
+      }
     }
   }
   await saveProfile(root, result.profile);

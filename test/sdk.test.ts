@@ -17,6 +17,9 @@ describe("sdk", () => {
   test("exports the local and remote operations", () => {
     for (const name of [
       "capture",
+      "inventory",
+      "addPlugin",
+      "addMarketplace",
       "plan",
       "apply",
       "status",

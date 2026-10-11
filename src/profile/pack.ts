@@ -4,7 +4,7 @@ import type { Context } from "../core/context.ts";
 import { AdeError } from "../core/errors.ts";
 import { countFiles, isEmptyDir, safeJoin, statOrUndefined } from "../core/fsx.ts";
 import { compareText } from "../core/hash.ts";
-import type { CommandRunner } from "../secrets/resolve.ts";
+import { type CommandRunner, expandUserPath } from "../secrets/resolve.ts";
 import { findTokens, type TokenFinding } from "../secrets/scan.ts";
 import { createSkillResolver } from "../skills/source.ts";
 import {
@@ -87,6 +87,36 @@ export async function buildProfileBundle(
       skillsField[name] = { path: prefix, ...harnesses };
     }
     profile.skills = skillsField;
+  }
+  const entries = [...(profile.files ?? [])];
+  for (const [index, entry] of entries.entries()) {
+    if (entry.symlink === undefined || !options.vendorLinks) {
+      continue;
+    }
+    const target = expandUserPath(entry.symlink, ctx);
+    const stat = await statOrUndefined(target);
+    if (stat === undefined) {
+      notes.push(
+        `The link ${entry.root}:${entry.target} points to a path that does not exist here. ade keeps the link.`,
+      );
+      continue;
+    }
+    const prefix = `vendor/files/${entry.root}/${entry.target}`;
+    if (stat.isDirectory()) {
+      extra.push(...(await dirToBundleFiles(target, prefix)));
+    } else {
+      const content = await fs.readFile(target);
+      extra.push({
+        path: prefix,
+        ...(content.includes(0)
+          ? { encoding: "base64" as const, content: content.toString("base64") }
+          : { encoding: "utf8" as const, content: content.toString("utf8") }),
+      });
+    }
+    entries[index] = { root: entry.root, target: entry.target, source: prefix };
+  }
+  if (profile.files !== undefined) {
+    profile.files = entries;
   }
   const kept = Object.keys(lock.skills).filter((name) => {
     const skill = profile.skills?.[name];

@@ -3,27 +3,31 @@ import path from "node:path";
 import type { Context } from "../core/context.ts";
 import { docFormatFor, encodePointer, formatPointer } from "../core/doc.ts";
 import { AdeError, errnoCode } from "../core/errors.ts";
-import { safeJoin } from "../core/fsx.ts";
+import { listFiles, safeJoin, statOrUndefined } from "../core/fsx.ts";
 import { ABSENT, sha256 } from "../core/hash.ts";
 import { applyMergePatch, listLeaves } from "../core/merge.ts";
 import {
   detectHarnesses,
   getAdapter,
   parseSettingsKey,
+  rootDir,
+  rootOwner,
   sharedInstructionsPath,
   sharedSkillsDir,
 } from "../harness/registry.ts";
 import type { ResolvedMcpServer } from "../harness/types.ts";
 import type { LoadedProfile } from "../profile/load.ts";
 import {
+  type FileEntry,
   HARNESS_IDS,
   type HarnessId,
   type InstallMode,
   type McpServer,
+  type RootId,
 } from "../profile/schema.ts";
-import type { SecretResolver } from "../secrets/resolve.ts";
+import { expandUserPath, runCommand, type SecretResolver } from "../secrets/resolve.ts";
 import type { SkillResolver } from "../skills/source.ts";
-import type { DesiredItem, PathWant, Scope } from "./items.ts";
+import { type DesiredItem, type PathWant, patchFiles, type Scope } from "./items.ts";
 
 export interface DesiredOptions {
   readonly harnesses?: readonly HarnessId[] | undefined;
@@ -115,6 +119,15 @@ function baseServer(server: McpServer): ResolvedMcpServer {
   return copy as ResolvedMcpServer;
 }
 
+function scopeOf(root: RootId): Scope {
+  return rootOwner(root) ?? "home";
+}
+
+function rootActive(root: RootId, harnesses: readonly HarnessId[]): boolean {
+  const owner = rootOwner(root);
+  return owner === undefined || harnesses.includes(owner);
+}
+
 export async function buildDesired(
   loaded: LoadedProfile,
   ctx: Context,
@@ -144,17 +157,23 @@ export async function buildDesired(
       notes: [],
       secrets: [],
     });
+    const written = new Set<string>();
     for (const id of targetsOf(profile.instructions.harnesses)) {
       const adapter = getAdapter(id);
       const target = adapter.instructionsPath(ctx);
       if (target === undefined) {
         if (profile.instructions.harnesses?.includes(id) === true) {
           warnings.push(
-            `${adapter.label} keeps user rules in its account. ade does not write them.`,
+            `${adapter.label} keeps user rules outside files. ade does not write them.`,
           );
         }
         continue;
       }
+      if (written.has(target)) {
+        skipped.add(`instructions:${id}`);
+        continue;
+      }
+      written.add(target);
       items.push({
         type: "path",
         key: `instructions:${id}`,
@@ -241,6 +260,13 @@ export async function buildDesired(
           secrets.add(secret);
         }
         const native = adapter.toNativeMcp(expanded.value);
+        if (native.value === undefined) {
+          warnings.push(
+            `${native.unsupported ?? `${adapter.label} cannot use this server.`} ade skips ${name}.`,
+          );
+          skipped.add(`mcp:${id}:${name}`);
+          continue;
+        }
         if (native.dropped.length > 0) {
           notes.push(`${adapter.label} does not use: ${native.dropped.join(", ")}.`);
         }
@@ -270,19 +296,19 @@ export async function buildDesired(
   }
 
   for (const [docKey, patch] of Object.entries(profile.settings ?? {})) {
-    const { harness, file } = parseSettingsKey(docKey);
-    if (!harnesses.includes(harness)) {
+    const { root, harness, file } = parseSettingsKey(docKey);
+    if (!rootActive(root, harnesses)) {
       continue;
     }
-    const adapter = getAdapter(harness);
     const location =
-      file === undefined
-        ? adapter.settingsLocation(ctx)
+      file === undefined && harness !== undefined
+        ? getAdapter(harness).settingsLocation(ctx)
         : {
-            path: safeJoin(adapter.home(ctx), file, `the ${adapter.label} home`),
-            format: docFormatFor(file) ?? "json",
+            path: safeJoin(rootDir(ctx, root), file ?? "", `the ${root} root`),
+            format: docFormatFor(file ?? "") ?? "json",
           };
-    for (const [pointer, value] of listLeaves(patch)) {
+    for (const [rawPointer, value] of listLeaves(patch)) {
+      const pointer = rawPointer.map((segment) => segment.replaceAll("${home}", ctx.home));
       let desired: unknown = ABSENT;
       const secrets: string[] = [];
       if (value !== null) {
@@ -292,10 +318,11 @@ export async function buildDesired(
       }
       items.push({
         type: "doc",
-        key: `setting:${docKey}:${encodePointer(pointer)}`,
+        key: `setting:${docKey}:${encodePointer(rawPointer)}`,
         kind: "setting",
-        scope: harness,
-        label: file === undefined ? formatPointer(pointer) : `${file}: ${formatPointer(pointer)}`,
+        scope: scopeOf(root),
+        label:
+          file === undefined ? formatPointer(rawPointer) : `${file}: ${formatPointer(rawPointer)}`,
         doc: location,
         pointer,
         value: desired,
@@ -306,22 +333,175 @@ export async function buildDesired(
   }
 
   for (const entry of profile.files ?? []) {
-    let root: string;
-    let scope: Scope;
-    if (entry.root === "home") {
-      root = ctx.home;
-      scope = "home";
-    } else {
-      if (!harnesses.includes(entry.root)) {
-        continue;
-      }
-      root = getAdapter(entry.root).home(ctx);
-      scope = entry.root;
+    if (!rootActive(entry.root, harnesses)) {
+      continue;
     }
-    const target = safeJoin(root, entry.target, "its target root");
+    items.push(...(await fileItems(loaded, ctx, entry, install, options, skipped, warnings)));
+  }
+
+  for (const [id, set] of Object.entries(profile.plugins ?? {})) {
+    const harness = id as HarnessId;
+    const support = getAdapter(harness).plugins;
+    if (!harnesses.includes(harness) || support === undefined || set === undefined) {
+      continue;
+    }
+    if (support.settingsKey !== undefined) {
+      const installed = (await support.list(ctx, runCommand)).installed;
+      const location = getAdapter(harness).settingsLocation(ctx);
+      for (const plugin of set.install ?? []) {
+        const key = `plugin:${harness}:${plugin}`;
+        if (installed[plugin] !== undefined) {
+          skipped.add(key);
+          continue;
+        }
+        items.push({
+          type: "doc",
+          key,
+          kind: "plugin",
+          scope: harness,
+          label: plugin,
+          doc: location,
+          pointer: [support.settingsKey, plugin],
+          value: true,
+          notes: [`${getAdapter(harness).label} installs the ${support.noun} on its next start.`],
+          secrets: [],
+        });
+      }
+      continue;
+    }
+    const label = getAdapter(harness).label;
+    const registry = path.join(getAdapter(harness).home(ctx), support.registryFiles[0] ?? "");
+    for (const [name, source] of Object.entries(set.marketplaces ?? {})) {
+      items.push({
+        type: "plugin",
+        key: `plugin:${harness}:marketplace:${name}`,
+        kind: "plugin",
+        scope: harness,
+        label: `marketplace ${name}`,
+        harness,
+        target: "marketplace",
+        id: name,
+        source,
+        path: registry,
+        notes: [`${label} adds the marketplace from ${source}.`],
+        secrets: [],
+      });
+    }
+    for (const plugin of set.install ?? []) {
+      items.push({
+        type: "plugin",
+        key: `plugin:${harness}:${plugin}`,
+        kind: "plugin",
+        scope: harness,
+        label: plugin,
+        harness,
+        target: "plugin",
+        id: plugin,
+        path: registry,
+        notes: [],
+        secrets: [],
+      });
+    }
+  }
+
+  for (const entry of profile.patches ?? []) {
+    if (!rootActive(entry.root, harnesses)) {
+      continue;
+    }
     const source = safeJoin(loaded.dir, entry.source, "the profile directory");
-    const raw = await readRequired(source, "file source");
-    const mode = entry.mode === undefined ? undefined : Number.parseInt(entry.mode, 8);
+    const patch = await readRequired(source, "patch file");
+    items.push({
+      type: "patch",
+      key: `patch:${entry.root}:${entry.target}`,
+      kind: "patch",
+      scope: scopeOf(entry.root),
+      label: path.posix.basename(entry.target),
+      path: safeJoin(rootDir(ctx, entry.root), entry.target, `the ${entry.root} root`),
+      patch,
+      hash: sha256(patch),
+      files: patchFiles(patch.toString("utf8")),
+      notes: [],
+      secrets: [],
+    });
+  }
+
+  return { items, skipped, harnesses, warnings: [...new Set(warnings)], install };
+}
+
+async function fileItems(
+  loaded: LoadedProfile,
+  ctx: Context,
+  entry: FileEntry,
+  install: "link" | "copy",
+  options: DesiredOptions,
+  skipped: Set<string>,
+  warnings: string[],
+): Promise<DesiredItem[]> {
+  const root = rootDir(ctx, entry.root);
+  const base = safeJoin(root, entry.target, "its target root");
+  const targetKey = entry.target.replaceAll("\\", "/");
+  let linkSource: string | undefined;
+  if (entry.symlink !== undefined) {
+    const linkTarget = expandUserPath(entry.symlink, ctx);
+    const linkStat = await statOrUndefined(linkTarget);
+    if (linkStat !== undefined && install === "link" && options.copyFiles !== true) {
+      return [
+        {
+          type: "path",
+          key: `file:${entry.root}:${targetKey}`,
+          kind: "file",
+          scope: scopeOf(entry.root),
+          label: targetKey,
+          path: base,
+          want: { type: "symlink", target: linkTarget, dir: linkStat.isDirectory() },
+          phase: 1,
+          notes: [],
+          secrets: [],
+        },
+      ];
+    }
+    if (entry.source === undefined) {
+      if (linkStat === undefined) {
+        skipped.add(`file:${entry.root}:${targetKey}`);
+        warnings.push(
+          `The link ${entry.root}:${targetKey} points to a path that does not exist: ${linkTarget}. ade skips it.`,
+        );
+        return [];
+      }
+      linkSource = linkTarget;
+    }
+  }
+  const sourceBase =
+    linkSource ?? safeJoin(loaded.dir, entry.source ?? "", "the profile directory");
+  const stat = await statOrUndefined(sourceBase);
+  if (stat === undefined) {
+    throw new AdeError("not-found", `The file source does not exist: ${sourceBase}.`, {
+      hint: "Create the file or correct its path in the profile.",
+    });
+  }
+  const pairs: { source: string; target: string; key: string; label: string }[] = [];
+  if (stat.isDirectory()) {
+    for (const relative of await listFiles(sourceBase)) {
+      pairs.push({
+        source: path.join(sourceBase, ...relative.split("/")),
+        target: path.join(base, ...relative.split("/")),
+        key: `file:${entry.root}:${targetKey}/${relative}`,
+        label: `${targetKey}/${relative}`,
+      });
+    }
+  } else {
+    pairs.push({
+      source: sourceBase,
+      target: base,
+      key: `file:${entry.root}:${targetKey}`,
+      label: targetKey,
+    });
+  }
+  const fixedMode = entry.mode === undefined ? undefined : Number.parseInt(entry.mode, 8);
+  const items: DesiredItem[] = [];
+  for (const pair of pairs) {
+    const raw = await readRequired(pair.source, "file source");
+    const sourceMode = (await fs.stat(pair.source)).mode & 0o777;
     const secrets: string[] = [];
     let want: PathWant;
     if (entry.template === true) {
@@ -329,31 +509,33 @@ export async function buildDesired(
       secrets.push(...expanded.secrets);
       want = fileWant(
         Buffer.from(expanded.value, "utf8"),
-        mode ?? (expanded.secrets.size > 0 ? 0o600 : undefined),
+        fixedMode ?? (expanded.secrets.size > 0 ? 0o600 : sourceMode),
       );
     } else if (
+      entry.link === true &&
       install === "link" &&
       options.copyFiles !== true &&
-      mode === undefined &&
-      !(await sameLocation(source, target))
+      entry.once !== true &&
+      fixedMode === undefined &&
+      !(await sameLocation(pair.source, pair.target))
     ) {
-      want = { type: "symlink", target: source, dir: false };
+      want = { type: "symlink", target: pair.source, dir: false };
     } else {
-      want = fileWant(raw, mode);
+      want = fileWant(raw, fixedMode ?? sourceMode);
     }
     items.push({
       type: "path",
-      key: `file:${entry.root}:${entry.target.replaceAll("\\", "/")}`,
+      key: pair.key,
       kind: "file",
-      scope,
-      label: entry.target,
-      path: target,
+      scope: scopeOf(entry.root),
+      label: pair.label,
+      path: pair.target,
       want,
       phase: 1,
-      notes: [],
+      ...(entry.once === true ? { once: true } : {}),
+      notes: entry.once === true ? ["ade writes this file only when it does not exist."] : [],
       secrets,
     });
   }
-
-  return { items, skipped, harnesses, warnings: [...new Set(warnings)], install };
+  return items;
 }

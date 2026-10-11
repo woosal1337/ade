@@ -2,11 +2,59 @@ import path from "node:path";
 import { type Context, displayPath } from "../core/context.ts";
 import { AdeError } from "../core/errors.ts";
 import { statOrUndefined } from "../core/fsx.ts";
-import { HARNESS_IDS, type HarnessId } from "../profile/schema.ts";
-import { claude, codex, cursor, grok, pi } from "./adapters.ts";
+import { HARNESS_IDS, type HarnessId, ROOT_IDS, type RootId } from "../profile/schema.ts";
+import {
+  antigravity,
+  claude,
+  claudeDesktop,
+  codex,
+  cursor,
+  gemini,
+  grok,
+  opencode,
+  pi,
+  zed,
+} from "./adapters.ts";
+import { cursorUserDir } from "./paths.ts";
 import type { HarnessAdapter } from "./types.ts";
 
-const adapters: Readonly<Record<HarnessId, HarnessAdapter>> = { claude, codex, cursor, grok, pi };
+const adapters: Readonly<Record<HarnessId, HarnessAdapter>> = {
+  claude,
+  codex,
+  cursor,
+  grok,
+  pi,
+  gemini,
+  opencode,
+  zed,
+  "claude-desktop": claudeDesktop,
+  antigravity,
+};
+
+export function isHarnessId(value: string): value is HarnessId {
+  return (HARNESS_IDS as readonly string[]).includes(value);
+}
+
+export function isRootId(value: string): value is RootId {
+  return (ROOT_IDS as readonly string[]).includes(value);
+}
+
+export function rootDir(ctx: Context, root: RootId): string {
+  if (root === "home") {
+    return ctx.home;
+  }
+  if (root === "cursor-user") {
+    return cursorUserDir(ctx);
+  }
+  return getAdapter(root).home(ctx);
+}
+
+export function rootOwner(root: RootId): HarnessId | undefined {
+  if (root === "home") {
+    return undefined;
+  }
+  return root === "cursor-user" ? "cursor" : root;
+}
 
 export function listAdapters(): HarnessAdapter[] {
   return HARNESS_IDS.map((id) => adapters[id]);
@@ -61,17 +109,46 @@ export function sharedInstructionsPath(ctx: Context): string {
 }
 
 export interface SettingsKey {
-  readonly harness: HarnessId;
+  readonly root: RootId;
+  readonly harness: HarnessId | undefined;
   readonly file: string | undefined;
 }
 
 export function parseSettingsKey(key: string): SettingsKey {
   const index = key.indexOf(":");
-  const harness = (index === -1 ? key : key.slice(0, index)) as HarnessId;
-  if (!(HARNESS_IDS as readonly string[]).includes(harness)) {
-    throw new AdeError("usage", `The settings key does not start with a harness name: ${key}.`);
+  const root = index === -1 ? key : key.slice(0, index);
+  if (!isRootId(root)) {
+    throw new AdeError(
+      "usage",
+      `The settings key does not start with a harness or root name: ${key}.`,
+      {
+        hint: `Use one of: ${ROOT_IDS.join(", ")}.`,
+      },
+    );
   }
-  return { harness, file: index === -1 ? undefined : key.slice(index + 1) };
+  const file = index === -1 ? undefined : key.slice(index + 1);
+  if (file === undefined && !isHarnessId(root)) {
+    throw new AdeError(
+      "usage",
+      `The settings key ${key} needs a file, for example ${root}:settings.json.`,
+    );
+  }
+  return { root, harness: rootOwner(root), file };
+}
+
+export function settingsKeyFor(ctx: Context, file: string): string | undefined {
+  const candidates: { root: RootId; dir: string }[] = [];
+  for (const root of ROOT_IDS) {
+    candidates.push({ root, dir: rootDir(ctx, root) });
+  }
+  candidates.sort((left, right) => right.dir.length - left.dir.length);
+  for (const { root, dir } of candidates) {
+    const relative = path.relative(dir, file);
+    if (relative !== "" && !relative.startsWith("..") && !path.isAbsolute(relative)) {
+      return `${root}:${relative.split(path.sep).join("/")}`;
+    }
+  }
+  return undefined;
 }
 
 export interface HarnessRow extends Detection {

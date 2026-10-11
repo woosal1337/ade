@@ -16,6 +16,7 @@ import { type LoadedProfile, loadProfile, saveProfile } from "../src/profile/loa
 import {
   contextFor,
   exists,
+  offlineRunner,
   POSIX,
   readJson,
   SECRET_TOKEN,
@@ -31,7 +32,7 @@ async function capturedProfile(): Promise<{ home: string; loaded: LoadedProfile 
   const home = await tempDir("ade-home-");
   await seedMachine(home);
   const ctx = contextFor(home, SECRET_ENV);
-  const result = await capture(ctx);
+  const result = await capture(ctx, { runner: offlineRunner });
   const loaded = await writeCapture(path.join(await tempDir("ade-profile-"), "profile"), result);
   return { home, loaded };
 }

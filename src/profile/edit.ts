@@ -1,8 +1,64 @@
 import { cloneValue, deleteAt, getAt, isPlainObject, setAt } from "../core/doc.ts";
 import { AdeError } from "../core/errors.ts";
-import type { FileEntry, McpServer, Profile, SecretSource, Skill } from "./schema.ts";
+import {
+  type FileEntry,
+  HARNESS_IDS,
+  type HarnessId,
+  type McpServer,
+  type Profile,
+  type SecretSource,
+  type Skill,
+} from "./schema.ts";
 
-export type EntryKind = "mcp" | "skill" | "secret" | "file" | "instructions";
+export type EntryKind =
+  | "mcp"
+  | "skill"
+  | "secret"
+  | "file"
+  | "instructions"
+  | "plugin"
+  | "marketplace"
+  | "patch";
+
+function splitHarness(name: string): { harness: HarnessId; id: string } {
+  const index = name.indexOf(":");
+  const harness = name.slice(0, index);
+  if (index <= 0 || !(HARNESS_IDS as readonly string[]).includes(harness)) {
+    throw new AdeError("usage", `Give the entry as <harness>:<name>: ${name}.`);
+  }
+  return { harness: harness as HarnessId, id: name.slice(index + 1) };
+}
+
+export function addPlugin(profile: Profile, harness: HarnessId, id: string): Profile {
+  const next = copy(profile);
+  const plugins = { ...(next.plugins ?? {}) };
+  const set = { ...(plugins[harness] ?? {}) };
+  const install = [...(set.install ?? [])];
+  if (install.includes(id)) {
+    throw new AdeError("conflict", `The profile already installs ${id} for ${harness}.`);
+  }
+  install.push(id);
+  set.install = install.sort();
+  plugins[harness] = set;
+  next.plugins = plugins;
+  return next;
+}
+
+export function addMarketplace(
+  profile: Profile,
+  harness: HarnessId,
+  name: string,
+  source: string,
+  replace = false,
+): Profile {
+  const next = copy(profile);
+  const plugins = { ...(next.plugins ?? {}) };
+  const set = { ...(plugins[harness] ?? {}) };
+  set.marketplaces = withEntry(set.marketplaces, name, source, "marketplace", replace);
+  plugins[harness] = set;
+  next.plugins = plugins;
+  return next;
+}
 
 function copy(profile: Profile): Profile {
   return cloneValue(profile);
@@ -125,6 +181,47 @@ export function removeEntry(profile: Profile, kind: EntryKind, name: string): Pr
       }
       delete next.instructions;
       break;
+    case "plugin":
+    case "marketplace": {
+      const { harness, id } = splitHarness(name);
+      const set = { ...(next.plugins?.[harness] ?? {}) };
+      if (kind === "plugin") {
+        if (!(set.install ?? []).includes(id)) {
+          missing();
+        }
+        set.install = (set.install ?? []).filter((item) => item !== id);
+        if (set.install.length === 0) {
+          delete set.install;
+        }
+      } else {
+        if (set.marketplaces === undefined || !Object.hasOwn(set.marketplaces, id)) {
+          missing();
+        }
+        set.marketplaces = Object.fromEntries(
+          Object.entries(set.marketplaces ?? {}).filter(([key]) => key !== id),
+        );
+        if (Object.keys(set.marketplaces).length === 0) {
+          delete set.marketplaces;
+        }
+      }
+      const plugins = { ...(next.plugins ?? {}) };
+      if (Object.keys(set).length === 0) {
+        delete plugins[harness];
+      } else {
+        plugins[harness] = set;
+      }
+      next.plugins = plugins;
+      break;
+    }
+    case "patch": {
+      const patches = next.patches ?? [];
+      const remaining = patches.filter((item) => `${item.root}:${item.target}` !== name);
+      if (remaining.length === patches.length) {
+        missing();
+      }
+      next.patches = remaining;
+      break;
+    }
   }
   return prune(next);
 }
@@ -180,7 +277,7 @@ function pruneEmptyObjects(value: Record<string, unknown>): void {
 
 function prune(profile: Profile): Profile {
   const next = { ...profile };
-  for (const key of ["mcp", "skills", "secrets", "settings"] as const) {
+  for (const key of ["mcp", "skills", "secrets", "settings", "plugins"] as const) {
     const value = next[key];
     if (value !== undefined && Object.keys(value).length === 0) {
       delete next[key];
@@ -188,6 +285,9 @@ function prune(profile: Profile): Profile {
   }
   if (next.files !== undefined && next.files.length === 0) {
     delete next.files;
+  }
+  if (next.patches !== undefined && next.patches.length === 0) {
+    delete next.patches;
   }
   return next;
 }

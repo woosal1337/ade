@@ -1,13 +1,31 @@
 import { z } from "zod";
 import { isSafeRelative } from "../core/fsx.ts";
 
-export const HARNESS_IDS = ["claude", "codex", "cursor", "grok", "pi"] as const;
+export const HARNESS_IDS = [
+  "claude",
+  "codex",
+  "cursor",
+  "grok",
+  "pi",
+  "gemini",
+  "opencode",
+  "zed",
+  "claude-desktop",
+  "antigravity",
+] as const;
 export const HarnessIdSchema = z.enum(HARNESS_IDS);
 export type HarnessId = z.infer<typeof HarnessIdSchema>;
 
+export const EXTRA_ROOT_IDS = ["home", "cursor-user"] as const;
+export const ROOT_IDS = [...HARNESS_IDS, ...EXTRA_ROOT_IDS] as const;
+export const RootIdSchema = z.enum(ROOT_IDS);
+export type RootId = z.infer<typeof RootIdSchema>;
+
 export const ENTRY_NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_.-]*$/;
 export const SECRET_NAME_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
-export const SETTINGS_KEY_PATTERN = /^(claude|codex|cursor|grok|pi)(:[^:\\]+)?$/;
+export const SETTINGS_KEY_PATTERN = new RegExp(
+  `^(${ROOT_IDS.map((id) => id.replace(/[-]/g, "\\-")).join("|")})(:[^:\\\\]+)?$`,
+);
 
 const entryName = z
   .string()
@@ -98,10 +116,13 @@ export const InstructionsSchema = z.strictObject({
 });
 
 export const FileEntrySchema = z.strictObject({
-  root: z.union([HarnessIdSchema, z.literal("home")]),
+  root: RootIdSchema,
   target: relativePath,
-  source: relativePath,
+  source: relativePath.optional(),
+  symlink: z.string().min(1).optional(),
   template: z.boolean().optional(),
+  once: z.boolean().optional(),
+  link: z.boolean().optional(),
   mode: z
     .string()
     .regex(/^[0-7]{3,4}$/, "Use an octal mode such as 600 or 644.")
@@ -118,6 +139,17 @@ export const SettingsSchema = z.record(
   jsonObject,
 );
 
+export const PluginSetSchema = z.strictObject({
+  marketplaces: z.record(z.string().min(1), z.string().min(1)).optional(),
+  install: z.array(z.string().min(1)).optional(),
+});
+
+export const PatchEntrySchema = z.strictObject({
+  root: RootIdSchema,
+  target: relativePath,
+  source: relativePath,
+});
+
 export const InstallModeSchema = z.enum(["auto", "link", "copy"]);
 
 export const ProfileSchema = z.strictObject({
@@ -132,6 +164,8 @@ export const ProfileSchema = z.strictObject({
   skills: z.record(entryName, SkillSchema).optional(),
   settings: SettingsSchema.optional(),
   files: z.array(FileEntrySchema).optional(),
+  plugins: z.partialRecord(HarnessIdSchema, PluginSetSchema).optional(),
+  patches: z.array(PatchEntrySchema).optional(),
   secrets: z.record(secretName, SecretSourceSchema).optional(),
 });
 
@@ -158,6 +192,8 @@ export type Skill = z.infer<typeof SkillSchema>;
 export type SecretSource = z.infer<typeof SecretSourceSchema>;
 export type Instructions = z.infer<typeof InstructionsSchema>;
 export type FileEntry = z.infer<typeof FileEntrySchema>;
+export type PluginSet = z.infer<typeof PluginSetSchema>;
+export type PatchEntry = z.infer<typeof PatchEntrySchema>;
 export type InstallMode = z.infer<typeof InstallModeSchema>;
 export type Profile = z.infer<typeof ProfileSchema>;
 export type LockedSkill = z.infer<typeof LockedSkillSchema>;

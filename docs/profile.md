@@ -54,8 +54,22 @@ A profile is a directory. Its `ade.json` file declares the environment. The othe
 | `mcp` | MCP servers by name |
 | `skills` | Skills by name |
 | `settings` | Settings patches by harness and file |
-| `files` | Other files |
+| `files` | Other files and folders |
+| `plugins` | Plugins, extensions, and marketplaces by harness |
+| `patches` | Local changes to installed package code |
 | `secrets` | Secret sources by name |
+
+Read [the harness support list](harnesses.md) for the files of each harness.
+
+## Roots
+
+A root names the folder under which a file or a settings key lives:
+
+| Root | Folder |
+|---|---|
+| A harness name | The home of that harness, for example `~/.claude` or `~/.pi/agent` |
+| `home` | The user home |
+| `cursor-user` | The Cursor IDE user folder |
 
 ## MCP servers
 
@@ -85,7 +99,7 @@ Codex, Cursor, Grok, and Pi read `~/.agents/skills` directly. Claude Code gets a
 
 ## Settings
 
-A settings key is a harness name, or a harness name, a colon, and a JSON or TOML file in the harness home:
+A settings key is a harness name, or a root name, a colon, and a JSON or TOML file under that root:
 
 | Key | File |
 |---|---|
@@ -95,6 +109,10 @@ A settings key is a harness name, or a harness name, a colon, and a JSON or TOML
 | `grok` | `~/.grok/config.toml` |
 | `pi` | `~/.pi/agent/settings.json` |
 | `pi:claude-bridge.json` | `~/.pi/agent/claude-bridge.json` |
+| `home:.claude.json` | `~/.claude.json`, for example its local-scope MCP servers |
+| `cursor-user:settings.json` | The Cursor IDE settings |
+
+ade reads JSON files with comments. A write removes the comments, and the plan warns before the write.
 
 ade manages each leaf value of a patch as one entry. Objects merge. Arrays and scalars replace. A `null` leaf deletes the key. Put MCP servers in the `mcp` section, not in settings.
 
@@ -102,11 +120,48 @@ ade manages each leaf value of a patch as one entry. Objects merge. Arrays and s
 
 | Field | Use |
 |---|---|
-| `root` | `home` or a harness name |
+| `root` | A root name |
 | `target` | The path under the root |
-| `source` | The path in the profile |
+| `source` | The file or folder in the profile. A folder becomes one entry for each file |
+| `symlink` | A link target, with `${home}`. Apply makes the link when the target exists, and copies `source` when it does not |
+| `link` | `true` links the target to the profile file. Without it, ade copies the file |
+| `once` | `true` writes the file only when it does not exist, for example a model catalog |
 | `template` | `true` replaces secret and home references. A file with a secret gets mode 600 |
-| `mode` | An octal file mode, for example `600` |
+| `mode` | An octal file mode, for example `600`. Without it, ade keeps the mode of the source |
+
+## Plugins
+
+```json
+"plugins": {
+  "claude": {
+    "marketplaces": { "claude-plugins-official": "anthropics/claude-plugins-official" },
+    "install": ["code-review@claude-plugins-official"]
+  },
+  "gemini": { "install": ["https://github.com/gemini-cli-extensions/security"] },
+  "zed": { "install": ["html"] }
+}
+```
+
+| Harness | `install` value | Command |
+|---|---|---|
+| `claude` | `<plugin>@<marketplace>` | `claude plugin install` |
+| `codex` | `<plugin>@<marketplace>` | `codex plugin add` |
+| `grok` | `<plugin>@<marketplace>` | `grok plugin install --trust` |
+| `gemini` | A Git URL, with an optional `#<ref>` | `gemini extensions install` |
+| `cursor` | `<publisher>.<extension>@<version>` | `cursor --install-extension` |
+| `zed` | An extension ID | `auto_install_extensions` in the Zed settings |
+
+Only `claude` and `codex` have `marketplaces`. Apply runs the commands before it writes files. A revert runs the reverse commands.
+
+## Patches
+
+```json
+"patches": [
+  { "root": "pi", "target": "git/github.com/acme/tool", "source": "patches/pi/github.com/acme/tool.patch" }
+]
+```
+
+A patch is the output of `git diff` in a Git checkout under a root. `ade capture` writes one for each Pi Git package with local changes. Apply runs `git apply` after the harness installs the package. A revert restores the files that the patch changed.
 
 ## References in values
 

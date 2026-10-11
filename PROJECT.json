@@ -18,7 +18,7 @@
   "github": {
     "owner": "woosal1337",
     "url": "https://github.com/woosal1337/ade",
-    "description": "Plan, apply, and revert one agent development environment (MCP servers, skills, instructions, settings, and config files) across Claude Code, Codex, Cursor, Grok, and Pi. CLI and TypeScript SDK.",
+    "description": "Plan, apply, and revert one agent development environment (MCP servers, skills, instructions, settings, plugins, and config files) across 10 coding agents. CLI and TypeScript SDK.",
     "homepage": "",
     "topics": [
       "agent-skills",

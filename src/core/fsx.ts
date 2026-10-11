@@ -275,3 +275,24 @@ export async function isEmptyDir(dir: string): Promise<boolean> {
     throw error;
   }
 }
+
+export async function listFiles(root: string): Promise<string[]> {
+  const files: string[] = [];
+  const walk = async (dir: string, relative: string): Promise<void> => {
+    for (const name of (await fs.readdir(dir)).sort()) {
+      if (IGNORED_NAMES.has(name)) {
+        continue;
+      }
+      const full = path.join(dir, name);
+      const child = relative === "" ? name : `${relative}/${name}`;
+      const stat = await statOrUndefined(full);
+      if (stat?.isDirectory()) {
+        await walk(full, child);
+      } else if (stat?.isFile()) {
+        files.push(child);
+      }
+    }
+  };
+  await walk(root, "");
+  return files;
+}

@@ -4,7 +4,7 @@ import { type Context, displayPath } from "../core/context.ts";
 import { loadDoc } from "../core/doc.ts";
 import { AdeError, errorMessage, isAdeError } from "../core/errors.ts";
 import { lstatOrUndefined, safeJoin, statOrUndefined } from "../core/fsx.ts";
-import { getAdapter, parseSettingsKey, sharedSkillsDir } from "../harness/registry.ts";
+import { getAdapter, parseSettingsKey, rootDir, sharedSkillsDir } from "../harness/registry.ts";
 import type { LoadedProfile } from "../profile/load.ts";
 import { isGitSkill, isLinkSkill } from "../profile/schema.ts";
 import { findSecretRefs } from "../secrets/refs.ts";
@@ -172,9 +172,22 @@ export async function doctor(
   }
 
   for (const entry of profile.files ?? []) {
+    if (entry.symlink !== undefined) {
+      const target = expandUserPath(entry.symlink, ctx);
+      if ((await statOrUndefined(target)) === undefined) {
+        add(
+          "warn",
+          "file",
+          `The link ${entry.root}:${entry.target} points to a path that does not exist: ${displayPath(ctx, target)}.`,
+        );
+      } else {
+        add("ok", "file", `The link ${entry.root}:${entry.target} has its target.`);
+      }
+      continue;
+    }
     try {
-      const source = safeJoin(loaded.dir, entry.source, "the profile directory");
-      if (!(await statOrUndefined(source))?.isFile()) {
+      const source = safeJoin(loaded.dir, entry.source ?? "", "the profile directory");
+      if ((await statOrUndefined(source)) === undefined) {
         throw new AdeError("not-found", `The file source does not exist: ${entry.source}.`);
       }
       add("ok", "file", `The file ${entry.root}:${entry.target} has its source.`);
@@ -192,9 +205,9 @@ export async function doctor(
     documents.set(settings.path, settings.format);
   }
   for (const key of Object.keys(profile.settings ?? {})) {
-    const { harness, file } = parseSettingsKey(key);
-    if (file !== undefined && active.harnesses.includes(harness)) {
-      const target = path.join(getAdapter(harness).home(ctx), file);
+    const { root, harness, file } = parseSettingsKey(key);
+    if (file !== undefined && (harness === undefined || active.harnesses.includes(harness))) {
+      const target = path.join(rootDir(ctx, root), file);
       documents.set(target, file.endsWith(".toml") ? "toml" : "json");
     }
   }

@@ -4,6 +4,7 @@ import { getAt, loadDoc } from "../core/doc.ts";
 import { AdeError } from "../core/errors.ts";
 import { inspectPath, pathStateHash } from "../core/fsx.ts";
 import { hashValue } from "../core/hash.ts";
+import { type CommandRunner, runCommand } from "../secrets/resolve.ts";
 import {
   type ApplyRecord,
   afterRefHash,
@@ -45,11 +46,6 @@ export async function listApplies(ctx: Context): Promise<RecordSummary[]> {
   return summaries.reverse();
 }
 
-export interface RevertOptions {
-  readonly id?: string | undefined;
-  readonly force?: boolean | undefined;
-}
-
 export interface RevertResult {
   readonly reverted: string;
   readonly revertId: string;
@@ -72,6 +68,9 @@ async function latestRevertable(ctx: Context): Promise<ApplyRecord> {
 export async function findRevertBlockers(record: ApplyRecord): Promise<string[]> {
   const blockers: string[] = [];
   for (const op of record.ops) {
+    if (op.type === "command") {
+      continue;
+    }
     if (op.type === "path") {
       const current = pathStateHash(await inspectPath(op.path));
       if (current !== afterRefHash(op.after)) {
@@ -87,6 +86,12 @@ export async function findRevertBlockers(record: ApplyRecord): Promise<string[]>
     }
   }
   return blockers;
+}
+
+export interface RevertOptions {
+  readonly id?: string | undefined;
+  readonly force?: boolean | undefined;
+  readonly runner?: CommandRunner | undefined;
 }
 
 export async function revert(ctx: Context, options: RevertOptions = {}): Promise<RevertResult> {
@@ -113,10 +118,12 @@ export async function revert(ctx: Context, options: RevertOptions = {}): Promise
     }
     const stateBefore = await readState(ctx.stateDir);
     const sourceDir = path.join(recordsRoot(ctx), record.id);
-    const journal = await Journal.begin(ctx);
+    const journal = await Journal.begin(ctx, options.runner ?? runCommand);
     try {
       for (const op of [...record.ops].reverse()) {
-        if (op.type === "path") {
+        if (op.type === "command") {
+          await journal.runCommands(op.key, op.undo, op.ops);
+        } else if (op.type === "path") {
           await journal.revertPath(op, sourceDir);
         } else {
           await journal.revertDoc(op, { force: options.force === true });

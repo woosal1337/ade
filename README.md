@@ -1,6 +1,8 @@
 # ade
 
-Plan, apply, and revert one agent development environment (MCP servers, skills, instructions, settings, and config files) across Claude Code, Codex, Cursor, Grok, and Pi. CLI and TypeScript SDK.
+Plan, apply, and revert one agent development environment (MCP servers, skills, instructions, settings, plugins, and config files) across 10 coding agents. CLI and TypeScript SDK.
+
+Supported harnesses: Claude Code, Codex, Cursor (CLI and IDE), Grok, Pi, Gemini CLI, OpenCode, Zed, Claude Desktop, and Antigravity.
 
 Status: Version 0.1.0 in development. No release exists. This repository owns the production files.
 
@@ -58,15 +60,19 @@ Put the profile directory in Git to share it, or move it with `ade export` and `
 
 ## What ade manages
 
-| Kind | Profile field | Harness files |
+| Kind | Profile field | Examples |
 |---|---|---|
-| MCP servers | `mcp` | `~/.claude.json`, `~/.codex/config.toml`, `~/.cursor/mcp.json`, `~/.grok/config.toml`, `~/.pi/agent/mcp.json` |
-| Skills | `skills` | `~/.agents/skills/<name>`, with a link in `~/.claude/skills` |
+| MCP servers | `mcp` | Each harness gets its own format, including local-scope Claude Code servers |
+| Skills | `skills` | `~/.agents/skills/<name>`, with links where a harness needs them |
 | Global instructions | `instructions` | `~/.agents/AGENTS.md`, linked from each harness |
-| Settings | `settings` | The main settings file of each harness, or another JSON or TOML file in its home |
-| Extension packages and plugins | `settings` | For example the Pi `packages` list or the Claude Code `enabledPlugins` map |
-| Other files | `files` | Any file in a harness home or the user home, with optional secret templates |
+| Settings | `settings` | Each key of each settings file, including Cursor IDE and Zed settings with comments |
+| Subagents, commands, hooks, rules, themes | `files` | `~/.claude/agents/`, `~/.codex/prompts/`, `~/.grok/hooks/`, `~/.pi/agent/extensions/` |
+| Plugins, extensions, marketplaces | `plugins` | Claude Code, Codex, Grok, Gemini CLI, Cursor IDE, and Zed |
+| Pi packages | `settings`, `patches` | The `packages` list, and local changes to package code |
+| Other files | `files` | Any file under a root, as a copy, a link, a template, or a seed |
 | Secrets | `secrets` | Values come from the environment, a file, a command, or the macOS Keychain |
+
+Read [the harness support list](docs/harnesses.md) for each file of each harness. `ade inventory` shows the files on your machine and their sync status. ade never syncs sign-ins, tokens, sessions, history, or caches.
 
 ade owns entries, not whole files. It changes only the keys, servers, and paths that the profile declares. It records a content hash for each entry, so `ade status` can find changes made outside ade.
 
@@ -80,6 +86,7 @@ ade owns entries, not whole files. It changes only the keys, servers, and paths 
 | `ade plan`, `ade apply`, `ade status` | Compare and apply |
 | `ade revert`, `ade history` | Undo an apply, list the apply records |
 | `ade doctor`, `ade harnesses` | Check the profile, the secrets, and the harness paths |
+| `ade inventory` | List each file of each harness, and show which files ade syncs |
 | `ade remote <host> <command>` | Run plan, apply, status, doctor, revert, history, harnesses, or capture on another machine |
 | `ade use`, `ade trust`, `ade pack` | Set the default source, trust a Git source, write a profile for publication |
 | `ade export`, `ade import`, `ade schema` | Share a profile, print the JSON Schema |
@@ -113,7 +120,7 @@ node src/cli.ts --help
 | `test/` | Behavior tests in scratch home directories |
 | `tools/` | The source comment check, the quality runner, and the agent build |
 | `research/` | Dated sources |
-| `docs/` | Architecture, profile reference, sources guide, SDK guide, remote guide, development, quality, runbook, and decisions |
+| `docs/` | Architecture, harness support, profile reference, sources guide, SDK guide, remote guide, development, quality, runbook, and decisions |
 | `examples/starter/` | A small published profile |
 | `log/` | Dated work notes |
 
@@ -124,7 +131,7 @@ Read [the architecture](docs/architecture.md) before adding a module.
 Read [AGENTS.md](AGENTS.md) for agent guidance and [CONTRIBUTING.md](CONTRIBUTING.md) for development rules.
 [Quality gates](docs/quality.md) define the checks for local hooks and continuous integration (CI).
 [Stack research](research/stack.md) records the selected versions and their sources.
-[The first decision](docs/decisions/0001-project-foundation.md) explains the foundation. [The second decision](docs/decisions/0002-entry-ownership.md) explains the ownership model. [The third decision](docs/decisions/0003-remote-agent.md) explains the remote agent. [The fourth decision](docs/decisions/0004-git-sources-and-trust.md) explains Git sources and trust.
+[The first decision](docs/decisions/0001-project-foundation.md) explains the foundation. [The second decision](docs/decisions/0002-entry-ownership.md) explains the ownership model. [The third decision](docs/decisions/0003-remote-agent.md) explains the remote agent. [The fourth decision](docs/decisions/0004-git-sources-and-trust.md) explains Git sources and trust. [The fifth decision](docs/decisions/0005-full-coverage.md) explains the coverage rules.
 [The runbook](docs/runbook.md) gives operational commands.
 
 ## Delivery state

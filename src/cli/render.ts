@@ -1,6 +1,7 @@
 import { shortenHome } from "../core/context.ts";
 import type { Check, DoctorReport } from "../engine/doctor.ts";
 import type { RecordSummary } from "../engine/history.ts";
+import type { InventoryReport, InventoryStatus } from "../engine/inventory.ts";
 import type { Action, Change, Plan } from "../engine/plan.ts";
 import type { StatusReport } from "../engine/status.ts";
 import type { HarnessRow } from "../harness/registry.ts";
@@ -190,9 +191,13 @@ export function renderHistory(out: Output, records: readonly RecordSummary[]): v
 }
 
 export function renderHarnesses(out: Output, home: string, rows: readonly HarnessRow[]): void {
+  const idWidth = Math.max(...rows.map((row) => row.id.length));
+  const labelWidth = Math.max(...rows.map((row) => row.label.length));
   for (const row of rows) {
     const state = row.installed ? out.style("green", "installed") : out.style("dim", "not found");
-    out.line(`${out.style("bold", padEnd(row.id, 7))} ${padEnd(row.label, 12)} ${state}`);
+    out.line(
+      `${out.style("bold", padEnd(row.id, idWidth))}  ${padEnd(row.label, labelWidth)}  ${state}`,
+    );
     out.line(`        home          ${shortenHome(home, row.home)}`);
     out.line(
       `        instructions  ${row.instructions === undefined ? "account rules, no file" : shortenHome(home, row.instructions)}`,
@@ -200,5 +205,42 @@ export function renderHarnesses(out: Output, home: string, rows: readonly Harnes
     out.line(`        mcp           ${shortenHome(home, row.mcp)}`);
     out.line(`        settings      ${shortenHome(home, row.settings)}`);
     out.line(`        skills        ${row.skills}`);
+  }
+}
+
+const INVENTORY_STYLE: Record<InventoryStatus, { label: string; style: Style }> = {
+  synced: { label: "synced ", style: "green" },
+  extra: { label: "extra  ", style: "cyan" },
+  other: { label: "other  ", style: "dim" },
+  unknown: { label: "unknown", style: "yellow" },
+  private: { label: "private", style: "red" },
+  runtime: { label: "runtime", style: "gray" },
+};
+
+export function renderInventory(out: Output, report: InventoryReport, all: boolean): void {
+  const hidden = new Set<InventoryStatus>(all ? [] : ["private", "runtime"]);
+  for (const harness of report.harnesses) {
+    const rows = report.rows.filter((row) => row.harness === harness && !hidden.has(row.status));
+    out.line(out.style("bold", harness));
+    for (const row of rows) {
+      const { label, style } = INVENTORY_STYLE[row.status];
+      const name = row.kind === "dir" ? `${row.display}/` : row.display;
+      out.line(
+        `  ${out.style(style, label)} ${padEnd(name, 46)} ${out.style("dim", row.detail ?? "")}`,
+      );
+    }
+  }
+  const { summary } = report;
+  out.line();
+  out.line(
+    `${summary.synced} synced, ${summary.extra} extra, ${summary.other} other, ${summary.unknown} unknown, ${summary.private} private, ${summary.runtime} runtime.`,
+  );
+  if (!all && summary.private + summary.runtime > 0) {
+    out.line(
+      out.style("dim", "Add --all to show the private and runtime files. ade never syncs them."),
+    );
+  }
+  if (summary.unknown > 0) {
+    out.line("To sync an unknown entry, run `ade add file <root>:<path>`.");
   }
 }

@@ -13,6 +13,7 @@ export interface StateItem {
   readonly pointer?: readonly string[];
   readonly hash: string;
   readonly appliedAt: string;
+  readonly meta?: Readonly<Record<string, string>>;
 }
 
 export interface State {

@@ -4,7 +4,16 @@ import { findSecretRefs } from "../secrets/refs.ts";
 import { isGitSkill, isLinkSkill, type Profile } from "./schema.ts";
 
 export type RiskLevel = "high" | "normal";
-export type RiskArea = "harness" | "instructions" | "mcp" | "setting" | "file" | "secret" | "skill";
+export type RiskArea =
+  | "harness"
+  | "instructions"
+  | "mcp"
+  | "setting"
+  | "file"
+  | "plugin"
+  | "patch"
+  | "secret"
+  | "skill";
 
 export interface RiskItem {
   readonly level: RiskLevel;
@@ -85,11 +94,30 @@ export function riskSummary(profile: Profile): RiskItem[] {
 
   for (const entry of profile.files ?? []) {
     const where = entry.root === "home" ? `~/${entry.target}` : `${entry.root}:${entry.target}`;
+    const how =
+      entry.symlink !== undefined
+        ? ` as a link to ${entry.symlink}`
+        : entry.template === true
+          ? " from a template"
+          : "";
     add(
       "high",
       "file",
-      `writes ${where}${entry.template === true ? " from a template" : ""}${entry.mode === undefined ? "" : ` with mode ${entry.mode}`}`,
+      `writes ${where}${how}${entry.mode === undefined ? "" : ` with mode ${entry.mode}`}${entry.once === true ? " if it does not exist" : ""}`,
     );
+  }
+
+  for (const [harness, set] of Object.entries(profile.plugins ?? {})) {
+    for (const [name, source] of Object.entries(set?.marketplaces ?? {})) {
+      add("high", "plugin", `${harness} adds the marketplace ${name} from ${source}`);
+    }
+    for (const id of set?.install ?? []) {
+      add("high", "plugin", `${harness} installs ${id}`);
+    }
+  }
+
+  for (const entry of profile.patches ?? []) {
+    add("high", "patch", `changes the code in ${entry.root}:${entry.target} with ${entry.source}`);
   }
 
   for (const [name, source] of Object.entries(profile.secrets ?? {})) {

@@ -63,6 +63,23 @@ if (report.drift > 0) {
 await revert(ctx);
 ```
 
+## Inventory
+
+```ts
+import { createContext, inventory } from "@woosal1337/ade";
+
+const report = await inventory(createContext());
+for (const row of report.rows.filter((item) => item.status === "unknown")) {
+  console.log(row.harness, row.display);
+}
+```
+
+Each row has a status: `synced`, `extra`, `other`, `unknown`, `private`, or `runtime`.
+
+## Plugins and patches
+
+The engine runs the harness commands for plugins through a `CommandRunner`. Pass `runner` to `plan`, `apply`, and `revert` to run the commands another way, for example in a test.
+
 ## Git sources and trust
 
 ```ts

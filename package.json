@@ -1,7 +1,7 @@
 {
   "name": "@woosal1337/ade",
   "version": "0.1.0",
-  "description": "Plan, apply, and revert one agent development environment across Claude Code, Codex, Cursor, Grok, and Pi. CLI and TypeScript SDK.",
+  "description": "Plan, apply, and revert one agent development environment (MCP servers, skills, instructions, settings, plugins, and config files) across 10 coding agents. CLI and TypeScript SDK.",
   "private": true,
   "license": "UNLICENSED",
   "type": "module",

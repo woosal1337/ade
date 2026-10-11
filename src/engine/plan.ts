@@ -3,16 +3,19 @@ import { type Context, displayPath } from "../core/context.ts";
 import { type DocFormat, docFormatFor, getAt, type LoadedDoc, loadDoc } from "../core/doc.ts";
 import { inspectPath, type PathState, pathStateHash } from "../core/fsx.ts";
 import { ABSENT, type Absent, hashValue, sha256 } from "../core/hash.ts";
+import { getAdapter } from "../harness/registry.ts";
 import type { LoadedProfile } from "../profile/load.ts";
 import type { HarnessId } from "../profile/schema.ts";
 import {
   type CommandRunner,
   createSecretResolver,
+  runCommand,
   type SecretResolver,
 } from "../secrets/resolve.ts";
 import { createSkillResolver } from "../skills/source.ts";
 import { buildDesired } from "./desired.ts";
-import type { DesiredItem, ItemKind, PathWant, Scope } from "./items.ts";
+import { ExternalProbe, type PatchState, type PluginOp, undoOf } from "./external.ts";
+import type { DesiredItem, ItemKind, PatchItem, PathWant, PluginItem, Scope } from "./items.ts";
 import { readState, type State, type StateItem } from "./state.ts";
 
 export type Action = "create" | "update" | "delete" | "noop" | "adopt" | "forget";
@@ -87,6 +90,22 @@ export interface PathStep {
   readonly phase: number;
 }
 
+export interface PluginStep {
+  readonly key: string;
+  readonly target: "marketplace" | "plugin";
+  readonly action: "create" | "update" | "delete";
+  readonly ops: readonly PluginOp[];
+  readonly undo: readonly PluginOp[];
+}
+
+export interface PatchStep {
+  readonly key: string;
+  readonly action: "create" | "delete";
+  readonly dir: string;
+  readonly file: string;
+  readonly files: readonly string[];
+}
+
 export interface StateUpdate {
   readonly key: string;
   readonly item: StateItem | undefined;
@@ -96,9 +115,12 @@ export interface ComputedPlan {
   readonly plan: Plan;
   readonly docSteps: DocStep[];
   readonly pathSteps: PathStep[];
+  readonly pluginSteps: PluginStep[];
+  readonly patchSteps: PatchStep[];
   readonly stateUpdates: StateUpdate[];
   readonly state: State;
   readonly resolver: SecretResolver;
+  readonly runner: CommandRunner;
 }
 
 export function isWriteAction(action: Action): action is "create" | "update" | "delete" {
@@ -191,6 +213,12 @@ export async function computePlan(
   });
   const state = await readState(ctx.stateDir);
   const now = ctx.now().toISOString();
+  const runner = options.runner ?? runCommand;
+  const probe = new ExternalProbe(ctx, runner);
+  const pluginSteps: PluginStep[] = [];
+  const patchSteps: PatchStep[] = [];
+  const extraWarnings: string[] = [];
+  const unavailable = new Set<string>();
   const docs = new Map<string, LoadedDoc>();
   const loadCached = async (file: string, format: DocFormat): Promise<LoadedDoc> => {
     const cached = docs.get(file);
@@ -234,8 +262,156 @@ export async function computePlan(
     await planDesiredItem(item);
   }
 
+  async function planPluginItem(item: PluginItem): Promise<void> {
+    const prior = state.items[item.key];
+    const { available, list } = await probe.plugins(item.harness);
+    const adapter = getAdapter(item.harness);
+    if (!available) {
+      const program = adapter.plugins?.program ?? item.harness;
+      if (!unavailable.has(item.harness)) {
+        unavailable.add(item.harness);
+        extraWarnings.push(
+          `${program} is not on the PATH. ade cannot install ${adapter.label} ${adapter.plugins?.noun ?? "plugin"}s here.`,
+        );
+      }
+      return;
+    }
+    const current =
+      item.target === "marketplace" ? list.marketplaces[item.id] : list.installed[item.id];
+    const currentHash =
+      current === undefined
+        ? "absent"
+        : item.target === "marketplace"
+          ? `marketplace:${current}`
+          : "present";
+    const desiredHash =
+      item.target === "marketplace" ? `marketplace:${item.source ?? ""}` : "present";
+    const decision = decide(currentHash, desiredHash, prior?.hash, current === undefined, false);
+    record(
+      {
+        key: item.key,
+        kind: item.kind,
+        scope: item.scope,
+        label: item.label,
+        action: decision.action,
+        path: item.path,
+        ...(current === undefined
+          ? {}
+          : { before: item.target === "marketplace" ? current : "installed" }),
+        after: item.target === "marketplace" ? (item.source ?? "") : "installed",
+        drift: decision.drift,
+        notes: item.notes,
+      },
+      desiredHash,
+      currentHash,
+    );
+    if (isWriteAction(decision.action) && decision.action !== "delete") {
+      const ops: PluginOp[] =
+        item.target === "marketplace"
+          ? [
+              ...(current === undefined
+                ? []
+                : [{ harness: item.harness, op: "removeMarketplace" as const, id: item.id }]),
+              {
+                harness: item.harness,
+                op: "addMarketplace",
+                id: item.id,
+                source: item.source ?? "",
+              },
+            ]
+          : [{ harness: item.harness, op: "install", id: item.id }];
+      const last = ops[ops.length - 1] as PluginOp;
+      pluginSteps.push({
+        key: item.key,
+        target: item.target,
+        action: decision.action,
+        ops,
+        undo: undoOf(last, current),
+      });
+    }
+    if (decision.action !== "noop") {
+      stateUpdates.push({
+        key: item.key,
+        item: {
+          kind: item.kind,
+          scope: item.scope,
+          path: item.path,
+          hash: desiredHash,
+          appliedAt: now,
+          meta: {
+            harness: item.harness,
+            target: item.target,
+            id: item.id,
+            ...(item.source === undefined ? {} : { source: item.source }),
+          },
+        },
+      });
+    }
+  }
+
+  async function planPatchItem(item: PatchItem): Promise<void> {
+    const prior = state.items[item.key];
+    const file = await probe.storePatch(item.hash, item.patch);
+    const status = await probe.patchState(item.path, file);
+    if (status === "missing") {
+      extraWarnings.push(
+        `${displayPath(ctx, item.path)} is not a Git checkout yet. Its harness installs it on the next start. Run ade apply again after that.`,
+      );
+      return;
+    }
+    if (status === "conflict") {
+      extraWarnings.push(
+        `The patch for ${displayPath(ctx, item.path)} does not apply. The package changed. Capture the patch again.`,
+      );
+      return;
+    }
+    const desiredHash = `patch:${item.hash}`;
+    const currentHash = status === "applied" ? desiredHash : "unpatched";
+    const decision = decide(currentHash, desiredHash, prior?.hash, false, false);
+    record(
+      {
+        key: item.key,
+        kind: item.kind,
+        scope: item.scope,
+        label: item.label,
+        action: decision.action,
+        path: item.path,
+        before: status === "applied" ? "patched" : "original",
+        after: `patched, ${item.files.length} files`,
+        drift: decision.drift,
+        notes: item.notes,
+      },
+      desiredHash,
+      currentHash,
+    );
+    if (isWriteAction(decision.action)) {
+      patchSteps.push({ key: item.key, action: "create", dir: item.path, file, files: item.files });
+    }
+    if (decision.action !== "noop") {
+      stateUpdates.push({
+        key: item.key,
+        item: {
+          kind: item.kind,
+          scope: item.scope,
+          path: item.path,
+          hash: desiredHash,
+          appliedAt: now,
+          meta: { patch: item.hash, files: item.files.join("\n") },
+        },
+      });
+    }
+  }
+
   async function planDesiredItem(item: DesiredItem): Promise<void> {
     const prior = state.items[item.key];
+    if (item.type === "plugin") {
+      await planPluginItem(item);
+      return;
+    }
+    if (item.type === "patch") {
+      await planPatchItem(item);
+      return;
+    }
     if (item.type === "doc") {
       const doc = await loadCached(item.doc.path, item.doc.format);
       const current = getAt(doc.data, item.pointer);
@@ -290,6 +466,20 @@ export async function computePlan(
     const current = await inspectPath(item.path);
     const currentHash = pathStateHash(current);
     const desiredHash = wantHash(item.want);
+    if (item.once === true && current.type !== "absent") {
+      changes.push({
+        key: item.key,
+        kind: item.kind,
+        scope: item.scope,
+        label: item.label,
+        action: "noop",
+        path: item.path,
+        drift: false,
+        notes: item.notes,
+      });
+      summary.noop += 1;
+      return;
+    }
     let decision = decide(currentHash, desiredHash, prior?.hash, current.type === "absent", false);
     const notes = [...item.notes];
     if (
@@ -330,7 +520,7 @@ export async function computePlan(
         phase: item.phase,
       });
     }
-    if (decision.action !== "noop") {
+    if (decision.action !== "noop" && item.once !== true) {
       stateUpdates.push({
         key: item.key,
         item: {
@@ -350,6 +540,14 @@ export async function computePlan(
       continue;
     }
     stateUpdates.push({ key, item: undefined });
+    if (prior.kind === "plugin" && prior.meta !== undefined) {
+      await forgetPlugin(key, prior);
+      continue;
+    }
+    if (prior.kind === "patch" && prior.meta !== undefined) {
+      await forgetPatch(key, prior);
+      continue;
+    }
     if (prior.pointer !== undefined) {
       const doc = await loadCached(prior.path, docFormatFor(prior.path) ?? "json");
       const current = getAt(doc.data, prior.pointer);
@@ -418,7 +616,74 @@ export async function computePlan(
     );
   }
 
-  const warnings = [...desired.warnings];
+  async function forgetPlugin(key: string, prior: StateItem): Promise<void> {
+    const meta = prior.meta ?? {};
+    const harness = meta.harness as HarnessId;
+    const target = meta.target === "marketplace" ? "marketplace" : "plugin";
+    const id = meta.id ?? "";
+    const { available, list } = await probe.plugins(harness);
+    const current = target === "marketplace" ? list.marketplaces[id] : list.installed[id];
+    const action: Action = available && current !== undefined ? "delete" : "forget";
+    record(
+      {
+        key,
+        kind: prior.kind,
+        scope: prior.scope,
+        label: target === "marketplace" ? `marketplace ${id}` : id,
+        action,
+        path: prior.path,
+        ...(current === undefined
+          ? {}
+          : { before: target === "marketplace" ? current : "installed" }),
+        drift: false,
+        notes: available
+          ? []
+          : ["The CLI of this harness is not on the PATH. ade leaves the entry."],
+      },
+      "absent",
+      current === undefined ? "absent" : "present",
+    );
+    if (action === "delete") {
+      const op: PluginOp =
+        target === "marketplace"
+          ? { harness, op: "removeMarketplace", id }
+          : { harness, op: "uninstall", id };
+      pluginSteps.push({ key, target, action: "delete", ops: [op], undo: undoOf(op, current) });
+    }
+  }
+
+  async function forgetPatch(key: string, prior: StateItem): Promise<void> {
+    const hash = prior.meta?.patch ?? "";
+    const file = probe.patchFile(hash);
+    const files = (prior.meta?.files ?? "").split("\n").filter((item) => item !== "");
+    let status: PatchState = "missing";
+    try {
+      status = await probe.patchState(prior.path, file);
+    } catch {
+      status = "missing";
+    }
+    const action: Action = status === "applied" ? "delete" : "forget";
+    record(
+      {
+        key,
+        kind: prior.kind,
+        scope: prior.scope,
+        label: path.basename(prior.path),
+        action,
+        path: prior.path,
+        ...(status === "applied" ? { before: "patched" } : {}),
+        drift: false,
+        notes: [],
+      },
+      "absent",
+      status,
+    );
+    if (action === "delete") {
+      patchSteps.push({ key, action: "delete", dir: prior.path, file, files });
+    }
+  }
+
+  const warnings = [...desired.warnings, ...extraWarnings];
   for (const step of docSteps.values()) {
     const doc =
       docs.get(step.path) ?? [...docs.values()].find((item) => item.realPath === step.realPath);
@@ -445,9 +710,12 @@ export async function computePlan(
     plan,
     docSteps: [...docSteps.values()],
     pathSteps,
+    pluginSteps,
+    patchSteps,
     stateUpdates,
     state,
     resolver,
+    runner,
   };
 }
 

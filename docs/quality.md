@@ -77,6 +77,15 @@ The Git source check against GitHub on 2026-10-12:
 
 A commit on 2026-10-12 failed in the commit hook, but the same tests passed outside it. Git sets `GIT_INDEX_FILE` for a hook. ade passed it to its own Git calls, so a skill checkout wrote into a foreign index. A test with a copy of the repository index lost 90 of 93 entries. ade now removes the variables from `git rev-parse --local-env-vars` before each Git call. The same test now keeps all 93 entries.
 
+The coverage check on this Mac on 2026-10-12:
+
+1. `ade inventory` listed 42 synced entries, 5 extra files, 2 other entries, 11 private entries, 134 runtime entries, and 0 unknown entries.
+2. `ade capture` found 8 harnesses, 13 skills, 10 settings files, 11 file entries, and the plugins of Claude Code, Cursor, and Zed.
+3. `ade plan` against the real home showed 0 changes and 140 matching entries.
+4. `ade apply` to an empty scratch home made 139 changes, with `claude plugin marketplace add` in the scratch home. A second plan showed 0 changes.
+
+The first scratch apply ran the plugin commands after the file writes. Claude Code then changed `model` from `opus` to `opus[1m]` at start, and the second plan showed drift. Apply now runs the plugin commands first.
+
 The source comment probe on 2026-10-11 added `src/probe.ts` with a line comment. The installed commit hook failed with `src/probe.ts:1: Remove the source comment.` The hook passed after the probe file was removed.
 
 Record a real failure case for the source policy and an installed hook before accepting the foundation.

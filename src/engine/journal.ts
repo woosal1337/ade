@@ -28,7 +28,9 @@ import {
   treeHash,
 } from "../core/fsx.ts";
 import { ABSENT, hashValue } from "../core/hash.ts";
-import type { DocStep, PathStep } from "./plan.ts";
+import type { CommandRunner } from "../secrets/resolve.ts";
+import { gitApply, type PluginOp, runPluginOp } from "./external.ts";
+import type { DocStep, PatchStep, PathStep, PluginStep } from "./plan.ts";
 import type { State } from "./state.ts";
 
 export type Snapshot =
@@ -73,7 +75,14 @@ export interface DocOp {
   readonly edits: readonly DocEditRecord[];
 }
 
-export type OpRecord = PathOp | DocOp;
+export interface CommandOp {
+  readonly type: "command";
+  readonly key: string;
+  readonly ops: readonly PluginOp[];
+  readonly undo: readonly PluginOp[];
+}
+
+export type OpRecord = PathOp | DocOp | CommandOp;
 
 export interface ApplyRecord {
   readonly version: 1;
@@ -135,17 +144,19 @@ export class Journal {
   readonly ops: OpRecord[] = [];
   readonly createdDirs: string[] = [];
   readonly #ctx: Context;
+  readonly #runner: CommandRunner | undefined;
   #counter = 0;
 
-  private constructor(ctx: Context, id: string) {
+  private constructor(ctx: Context, id: string, runner: CommandRunner | undefined) {
     this.#ctx = ctx;
+    this.#runner = runner;
     this.id = id;
     this.dir = path.join(recordsRoot(ctx), id);
   }
 
-  static async begin(ctx: Context): Promise<Journal> {
+  static async begin(ctx: Context, runner?: CommandRunner): Promise<Journal> {
     const previous = (await listRecordIds(ctx)).at(-1);
-    const journal = new Journal(ctx, newRecordId(ctx.now(), previous));
+    const journal = new Journal(ctx, newRecordId(ctx.now(), previous), runner);
     await ensureDir(path.join(journal.dir, "files"), 0o700);
     return journal;
   }
@@ -394,10 +405,78 @@ export class Journal {
     this.ops.push({ type: "path", key: op.key, path: op.path, before, after });
   }
 
+  #requireRunner(): CommandRunner {
+    if (this.#runner === undefined) {
+      throw new AdeError("unsupported", "This operation needs a command runner.");
+    }
+    return this.#runner;
+  }
+
+  async runCommands(
+    key: string,
+    ops: readonly PluginOp[],
+    undo: readonly PluginOp[],
+  ): Promise<void> {
+    const runner = this.#requireRunner();
+    const done: PluginOp[] = [];
+    try {
+      for (const op of ops) {
+        await runPluginOp(this.#ctx, runner, op);
+        done.push(op);
+      }
+    } finally {
+      if (done.length > 0) {
+        this.ops.push({
+          type: "command",
+          key,
+          ops: done,
+          undo: done.length === ops.length ? undo : [],
+        });
+      }
+    }
+  }
+
+  async applyPlugin(step: PluginStep): Promise<void> {
+    await this.runCommands(step.key, step.ops, step.undo);
+  }
+
+  async applyPatch(step: PatchStep): Promise<void> {
+    const runner = this.#requireRunner();
+    const befores: { file: string; snapshot: Snapshot }[] = [];
+    for (const relative of step.files) {
+      const file = path.join(step.dir, ...relative.split("/"));
+      befores.push({ file, snapshot: await this.snapshot(file) });
+    }
+    await gitApply(this.#ctx, runner, step.dir, step.file, step.action === "delete");
+    for (const { file, snapshot } of befores) {
+      const after = await inspectPath(file);
+      this.ops.push({
+        type: "path",
+        key: step.key,
+        path: file,
+        before: snapshot,
+        after:
+          after.type === "file"
+            ? { type: "file", hash: after.hash }
+            : after.type === "symlink"
+              ? { type: "symlink", target: after.target }
+              : { type: "absent" },
+      });
+    }
+  }
+
   async rollback(): Promise<string[]> {
     const failures: string[] = [];
     for (const op of [...this.ops].reverse()) {
       try {
+        if (op.type === "command") {
+          if (this.#runner !== undefined) {
+            for (const undo of op.undo) {
+              await runPluginOp(this.#ctx, this.#runner, undo);
+            }
+          }
+          continue;
+        }
         if (op.type === "path") {
           await restoreSnapshot(op.path, op.before, this.dir, this.#ctx.platform);
         } else if (op.backup !== undefined) {
@@ -407,7 +486,7 @@ export class Journal {
           await removePath(op.path);
         }
       } catch (error) {
-        failures.push(`${op.path}: ${errorMessage(error)}`);
+        failures.push(`${op.type === "command" ? op.key : op.path}: ${errorMessage(error)}`);
       }
     }
     await removeEmptyDirs(this.createdDirs);

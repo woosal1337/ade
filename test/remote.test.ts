@@ -30,10 +30,24 @@ import {
   writeText,
 } from "./helpers.ts";
 
+function toolsOnlyEnv(): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = {};
+  for (const [key, value] of Object.entries(process.env)) {
+    if (key.toUpperCase() !== "PATH") {
+      env[key] = value;
+    }
+  }
+  const finder = process.platform === "win32" ? "where" : "which";
+  const gitPath = execFileSync(finder, ["git"], { encoding: "utf8" }).split(/\r?\n/)[0] ?? "";
+  env.PATH = [path.dirname(process.execPath), path.dirname(gitPath)].join(path.delimiter);
+  return env;
+}
+
 const localTransport: RemoteTransport = (_target, script) =>
   new Promise((resolve, reject) => {
     const child = spawn(process.execPath, ["--input-type=module", "-"], {
       stdio: ["pipe", "pipe", "pipe"],
+      env: toolsOnlyEnv(),
     });
     let stdout = "";
     let stderr = "";

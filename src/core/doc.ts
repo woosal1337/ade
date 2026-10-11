@@ -101,12 +101,65 @@ export async function loadDoc(file: string, format: DocFormat): Promise<LoadedDo
     data: parseDocText(text, format, file),
     mode,
     indent: detectIndent(text),
-    commentLines: format === "toml" ? countCommentLines(text) : 0,
+    commentLines: format === "toml" ? countCommentLines(text) : stripJsonComments(text).comments,
   };
 }
 
+export interface StrippedJson {
+  readonly text: string;
+  readonly comments: number;
+}
+
+export function stripJsonComments(text: string): StrippedJson {
+  let output = "";
+  let comments = 0;
+  let index = 0;
+  while (index < text.length) {
+    const char = text[index] as string;
+    const next = text[index + 1];
+    if (char === '"') {
+      let end = index + 1;
+      while (end < text.length && text[end] !== '"') {
+        end += text[end] === "\\" ? 2 : 1;
+      }
+      output += text.slice(index, end + 1);
+      index = end + 1;
+      continue;
+    }
+    if (char === "/" && next === "/") {
+      comments += 1;
+      while (index < text.length && text[index] !== "\n") {
+        index += 1;
+      }
+      continue;
+    }
+    if (char === "/" && next === "*") {
+      comments += 1;
+      const end = text.indexOf("*/", index + 2);
+      const stop = end === -1 ? text.length : end + 2;
+      output += text.slice(index, stop).replace(/[^\n]/g, " ");
+      index = stop;
+      continue;
+    }
+    if (char === ",") {
+      let ahead = index + 1;
+      while (ahead < text.length && /\s/.test(text[ahead] as string)) {
+        ahead += 1;
+      }
+      if (text[ahead] === "}" || text[ahead] === "]") {
+        index += 1;
+        continue;
+      }
+    }
+    output += char;
+    index += 1;
+  }
+  return { text: output, comments };
+}
+
 export function parseDocText(text: string, format: DocFormat, label: string): DocData {
-  const source = text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
+  const raw = text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
+  const source = format === "json" ? stripJsonComments(raw).text : raw;
   if (source.trim() === "") {
     return {};
   }

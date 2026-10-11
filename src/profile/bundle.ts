@@ -98,6 +98,17 @@ export async function exportBundle(loaded: LoadedProfile, now: Date = new Date()
     await collectDir(root, dir, sources);
   }
   for (const entry of profile.files ?? []) {
+    if (entry.source === undefined) {
+      continue;
+    }
+    const full = safeJoin(root, entry.source, "the profile directory");
+    if ((await statOrUndefined(full))?.isDirectory()) {
+      await collectDir(root, full, sources);
+    } else {
+      await addFile(entry.source, true);
+    }
+  }
+  for (const entry of profile.patches ?? []) {
     await addFile(entry.source, true);
   }
   const files: BundleFile[] = [];

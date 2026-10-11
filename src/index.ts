@@ -15,6 +15,12 @@ export {
 } from "./engine/capture.ts";
 export { type Check, type DoctorReport, doctor } from "./engine/doctor.ts";
 export {
+  type InventoryReport,
+  type InventoryRow,
+  type InventoryStatus,
+  inventory,
+} from "./engine/inventory.ts";
+export {
   listApplies,
   type RecordSummary,
   type RevertOptions,
@@ -45,7 +51,9 @@ export type { HarnessAdapter } from "./harness/types.ts";
 export { type Bundle, exportBundle, importBundle } from "./profile/bundle.ts";
 export {
   addFile,
+  addMarketplace,
   addMcpServer,
+  addPlugin,
   addSecret,
   addSkill,
   type EntryKind,
@@ -70,10 +78,14 @@ export {
   type InstallMode,
   type Lock,
   type McpServer,
+  type PatchEntry,
+  type PluginSet,
   type Profile,
   ProfileSchema,
   profileJsonSchema,
   type SecretSource,
+  ROOT_IDS,
+  type RootId,
   type Skill,
 } from "./profile/schema.ts";
 export {
