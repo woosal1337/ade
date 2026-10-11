@@ -22,7 +22,20 @@ ade plan cobanov/agents
 ade apply cobanov/agents
 ```
 
-A source is a local folder, `owner/repo[/subfolder][@ref]` on GitHub, or a Git URL. ade asks you to trust a Git source before its first apply. Read [the sources guide](docs/sources.md) to use or publish a profile.
+A source is a local folder, an `ADE.md` file, `owner/repo[/subfolder][@ref]` on GitHub, or a Git URL. ade asks you to trust a Git source before its first apply. Read [the sources guide](docs/sources.md) to use or publish a profile.
+
+## Share your setup
+
+1. Write one Markdown file with your complete setup:
+
+   ```bash
+   ade share --profile ~/agent-profile --repo <owner>/<repo>
+   ```
+
+2. Commit `ADE.md` to the repository.
+3. Others run `ade apply <owner>/<repo>`, and get the same setup 1:1.
+
+`ADE.md` holds the use steps, a summary of what the setup runs and writes, the secret names, and every file with its SHA-256 hash. GitHub shows it as a normal page. `ade verify ADE.md` checks it in CI. Read [the ADE.md standard](docs/ade-md.md).
 
 ## Use ade
 
@@ -88,8 +101,9 @@ ade owns entries, not whole files. It changes only the keys, servers, and paths 
 | `ade doctor`, `ade harnesses` | Check the profile, the secrets, and the harness paths |
 | `ade inventory` | List each file of each harness, and show which files ade syncs |
 | `ade remote <host> <command>` | Run plan, apply, status, doctor, revert, history, harnesses, or capture on another machine |
-| `ade use`, `ade trust`, `ade pack` | Set the default source, trust a Git source, write a profile for publication |
-| `ade export`, `ade import`, `ade schema` | Share a profile, print the JSON Schema |
+| `ade share`, `ade verify` | Write an `ADE.md`, check an `ADE.md` or a profile |
+| `ade use`, `ade trust`, `ade pack` | Set the default source, trust a Git source, write a profile folder for publication |
+| `ade import`, `ade export`, `ade schema` | Copy a source into an editable folder, write a JSON bundle, print the JSON Schema |
 
 Every command takes `--json` for a stable machine-readable result. Read [the profile reference](docs/profile.md) for the file format and [the SDK guide](docs/sdk.md) for the TypeScript API.
 
@@ -119,9 +133,11 @@ node src/cli.ts --help
 | `src/index.ts` | The public SDK |
 | `test/` | Behavior tests in scratch home directories |
 | `tools/` | The source comment check, the quality runner, and the agent build |
+| `scripts/` | `install.sh` and `install.ps1`: install ade, then plan and apply a source |
 | `research/` | Dated sources |
-| `docs/` | Architecture, harness support, profile reference, sources guide, SDK guide, remote guide, development, quality, runbook, and decisions |
-| `examples/starter/` | A small published profile |
+| `docs/` | Architecture, harness support, profile reference, the ADE.md standard, sources guide, SDK guide, remote guide, development, quality, runbook, and decisions |
+| `examples/starter/` | A small published profile folder |
+| `examples/single-file/` | The same profile as one `ADE.md` |
 | `log/` | Dated work notes |
 
 Read [the architecture](docs/architecture.md) before adding a module.
@@ -131,7 +147,7 @@ Read [the architecture](docs/architecture.md) before adding a module.
 Read [AGENTS.md](AGENTS.md) for agent guidance and [CONTRIBUTING.md](CONTRIBUTING.md) for development rules.
 [Quality gates](docs/quality.md) define the checks for local hooks and continuous integration (CI).
 [Stack research](research/stack.md) records the selected versions and their sources.
-[The first decision](docs/decisions/0001-project-foundation.md) explains the foundation. [The second decision](docs/decisions/0002-entry-ownership.md) explains the ownership model. [The third decision](docs/decisions/0003-remote-agent.md) explains the remote agent. [The fourth decision](docs/decisions/0004-git-sources-and-trust.md) explains Git sources and trust. [The fifth decision](docs/decisions/0005-full-coverage.md) explains the coverage rules.
+[The first decision](docs/decisions/0001-project-foundation.md) explains the foundation. [The second decision](docs/decisions/0002-entry-ownership.md) explains the ownership model. [The third decision](docs/decisions/0003-remote-agent.md) explains the remote agent. [The fourth decision](docs/decisions/0004-git-sources-and-trust.md) explains Git sources and trust. [The fifth decision](docs/decisions/0005-full-coverage.md) explains the coverage rules. [The sixth decision](docs/decisions/0006-ade-md.md) explains the ADE.md format.
 [The runbook](docs/runbook.md) gives operational commands.
 
 ## Delivery state
@@ -141,3 +157,5 @@ The private GitHub repository holds the code. CI runs the checks on Ubuntu, and 
 ```bash
 npm install -g git+ssh://git@github.com/woosal1337/ade.git
 ```
+
+The install scripts and the use steps in each `ADE.md` name `github:woosal1337/ade`. They work for other users only after the repository is public or the npm package is published.

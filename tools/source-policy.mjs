@@ -72,6 +72,18 @@ function checkYaml(file, text) {
   }
 }
 
+function checkShell(file, text) {
+  text.split(/\r?\n/).forEach((line, index) => {
+    const trimmed = line.trimStart();
+    if (index === 0 && trimmed.startsWith("#!")) {
+      return;
+    }
+    if (trimmed.startsWith("#") || (path.extname(file) === ".ps1" && trimmed.startsWith("<#"))) {
+      errors.push(`${file}:${index + 1}: Remove the source comment.`);
+    }
+  });
+}
+
 function checkLineRule(file, text) {
   text.split(/\r?\n/).forEach((line, index) => {
     const trimmed = line.trimStart();
@@ -95,6 +107,8 @@ for (const file of authoredFiles()) {
     checkJson(file, text);
   } else if (extension === ".yml" || extension === ".yaml") {
     checkYaml(file, text);
+  } else if (extension === ".sh" || extension === ".ps1") {
+    checkShell(file, text);
   } else if (lineRuleNames.has(name)) {
     checkLineRule(file, text);
   } else if (extension === ".py") {

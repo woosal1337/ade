@@ -63,6 +63,21 @@ if (report.drift > 0) {
 await revert(ctx);
 ```
 
+## ADE.md
+
+```ts
+import { createContext, loadProfile, parseMarkdown, shareProfile } from "@woosal1337/ade";
+
+const ctx = createContext();
+const shared = await shareProfile(await loadProfile(dir), ctx, { source: "acme/agents" });
+await fs.writeFile("ADE.md", shared.markdown);
+
+const parsed = parseMarkdown(await fs.readFile("ADE.md", "utf8"), "ADE.md");
+console.log(parsed.digest, parsed.bundle.files.length);
+```
+
+`parseMarkdown` checks each file hash, the file count, and the digest. It throws `AdeError` with the code `bundle-invalid` on a difference. `loadMarkdownProfile` loads an ADE.md as a profile, and `resolveProfile` accepts ADE.md sources.
+
 ## Inventory
 
 ```ts

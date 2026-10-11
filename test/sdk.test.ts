@@ -18,6 +18,9 @@ describe("sdk", () => {
     for (const name of [
       "capture",
       "inventory",
+      "shareProfile",
+      "parseMarkdown",
+      "loadMarkdownProfile",
       "addPlugin",
       "addMarketplace",
       "plan",

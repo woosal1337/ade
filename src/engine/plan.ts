@@ -684,6 +684,12 @@ export async function computePlan(
   }
 
   const warnings = [...desired.warnings, ...extraWarnings];
+  const unset = resolver.unresolved();
+  if (unset.length > 0) {
+    warnings.push(
+      `These secrets are not set: ${unset.join(", ")}. The plan uses placeholders. Set the values before ade apply.`,
+    );
+  }
   for (const step of docSteps.values()) {
     const doc =
       docs.get(step.path) ?? [...docs.values()].find((item) => item.realPath === step.realPath);

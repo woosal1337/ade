@@ -26,7 +26,12 @@
           "codex",
           "cursor",
           "grok",
-          "pi"
+          "pi",
+          "gemini",
+          "opencode",
+          "zed",
+          "claude-desktop",
+          "antigravity"
         ]
       }
     },
@@ -55,7 +60,12 @@
               "codex",
               "cursor",
               "grok",
-              "pi"
+              "pi",
+              "gemini",
+              "opencode",
+              "zed",
+              "claude-desktop",
+              "antigravity"
             ]
           }
         }
@@ -119,7 +129,12 @@
                     "codex",
                     "cursor",
                     "grok",
-                    "pi"
+                    "pi",
+                    "gemini",
+                    "opencode",
+                    "zed",
+                    "claude-desktop",
+                    "antigravity"
                   ]
                 }
               },
@@ -132,7 +147,12 @@
                     "codex",
                     "cursor",
                     "grok",
-                    "pi"
+                    "pi",
+                    "gemini",
+                    "opencode",
+                    "zed",
+                    "claude-desktop",
+                    "antigravity"
                   ]
                 },
                 "additionalProperties": {
@@ -188,7 +208,12 @@
                     "codex",
                     "cursor",
                     "grok",
-                    "pi"
+                    "pi",
+                    "gemini",
+                    "opencode",
+                    "zed",
+                    "claude-desktop",
+                    "antigravity"
                   ]
                 }
               },
@@ -201,7 +226,12 @@
                     "codex",
                     "cursor",
                     "grok",
-                    "pi"
+                    "pi",
+                    "gemini",
+                    "opencode",
+                    "zed",
+                    "claude-desktop",
+                    "antigravity"
                   ]
                 },
                 "additionalProperties": {
@@ -269,7 +299,12 @@
                     "codex",
                     "cursor",
                     "grok",
-                    "pi"
+                    "pi",
+                    "gemini",
+                    "opencode",
+                    "zed",
+                    "claude-desktop",
+                    "antigravity"
                   ]
                 }
               }
@@ -304,7 +339,12 @@
                     "codex",
                     "cursor",
                     "grok",
-                    "pi"
+                    "pi",
+                    "gemini",
+                    "opencode",
+                    "zed",
+                    "claude-desktop",
+                    "antigravity"
                   ]
                 }
               }
@@ -331,7 +371,12 @@
                     "codex",
                     "cursor",
                     "grok",
-                    "pi"
+                    "pi",
+                    "gemini",
+                    "opencode",
+                    "zed",
+                    "claude-desktop",
+                    "antigravity"
                   ]
                 }
               }
@@ -348,7 +393,7 @@
       "type": "object",
       "propertyNames": {
         "type": "string",
-        "pattern": "^(claude|codex|cursor|grok|pi)(:[^:\\\\]+)?$"
+        "pattern": "^(claude|codex|cursor|grok|pi|gemini|opencode|zed|claude\\-desktop|antigravity|home|cursor\\-user)(:[^:\\\\]+)?$"
       },
       "additionalProperties": {
         "type": "object",
@@ -366,21 +411,20 @@
         "type": "object",
         "properties": {
           "root": {
-            "anyOf": [
-              {
-                "type": "string",
-                "enum": [
-                  "claude",
-                  "codex",
-                  "cursor",
-                  "grok",
-                  "pi"
-                ]
-              },
-              {
-                "type": "string",
-                "const": "home"
-              }
+            "type": "string",
+            "enum": [
+              "claude",
+              "codex",
+              "cursor",
+              "grok",
+              "pi",
+              "gemini",
+              "opencode",
+              "zed",
+              "claude-desktop",
+              "antigravity",
+              "home",
+              "cursor-user"
             ]
           },
           "target": {
@@ -391,12 +435,102 @@
             "type": "string",
             "minLength": 1
           },
+          "symlink": {
+            "type": "string",
+            "minLength": 1
+          },
           "template": {
+            "type": "boolean"
+          },
+          "once": {
+            "type": "boolean"
+          },
+          "link": {
             "type": "boolean"
           },
           "mode": {
             "type": "string",
             "pattern": "^[0-7]{3,4}$"
+          }
+        },
+        "required": [
+          "root",
+          "target"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "plugins": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "enum": [
+          "claude",
+          "codex",
+          "cursor",
+          "grok",
+          "pi",
+          "gemini",
+          "opencode",
+          "zed",
+          "claude-desktop",
+          "antigravity"
+        ]
+      },
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "marketplaces": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string",
+              "minLength": 1
+            },
+            "additionalProperties": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "install": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "patches": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "root": {
+            "type": "string",
+            "enum": [
+              "claude",
+              "codex",
+              "cursor",
+              "grok",
+              "pi",
+              "gemini",
+              "opencode",
+              "zed",
+              "claude-desktop",
+              "antigravity",
+              "home",
+              "cursor-user"
+            ]
+          },
+          "target": {
+            "type": "string",
+            "minLength": 1
+          },
+          "source": {
+            "type": "string",
+            "minLength": 1
           }
         },
         "required": [

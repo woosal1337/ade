@@ -38,14 +38,16 @@ A profile source is a local folder or a Git repository that holds an `ade.json` 
 
 | Form | Example | Meaning |
 |---|---|---|
-| Local folder | `./team`, `~/agents`, `/srv/agents` | The folder itself |
+| Local folder | `./team`, `~/agents`, `/srv/agents` | The `ade.json` in the folder, or its `ADE.md` when it has no `ade.json` |
+| Local ADE.md | `./ADE.md`, `~/Downloads/ADE.md` | The file itself |
 | GitHub shorthand | `cobanov/agents` | `https://github.com/cobanov/agents.git` at its default branch |
 | Subfolder | `cobanov/agents/profiles/work` | The `profiles/work` folder of that repository |
+| ADE.md in a repository | `cobanov/agents/profiles/work/ADE.md` | One ADE.md file in that repository |
 | Ref | `cobanov/agents@v1.2`, `cobanov/agents@main` | A tag, a branch, or a full commit hash |
 | Explicit GitHub | `github:cobanov/agents` | The shorthand, even when a local folder has the same name |
 | Git URL | `https://git.example.com/team/agents.git//work#v1` | Any Git URL, with an optional `//subfolder` and `#ref` |
 
-A local folder with the same name as a shorthand wins. Use `github:` to choose the repository.
+A local folder with the same name as a shorthand wins. Use `github:` to choose the repository. A repository root with only an `ADE.md` works as a source. Read [the ADE.md standard](ade-md.md).
 
 ade fetches a Git source into its cache at one commit. It remembers the commit, so `--offline` uses the last fetched commit. The apply record names the source and the commit, for example `cobanov/agents @ 1a2b3c4d5e6f`.
 
@@ -68,6 +70,16 @@ Before trust, `plan`, `status`, and `doctor` do not resolve the secrets of the s
 | `ade trust <source> --remove` | Remove the trust |
 
 ## Publish a profile
+
+The simplest form is one file:
+
+```bash
+ade share --profile ~/agent-profile --repo <owner>/agents
+```
+
+Commit the `ADE.md` that it writes. Read [the ADE.md standard](ade-md.md) for the format.
+
+To publish an editable profile folder instead:
 
 1. Write a self-contained copy of your profile:
 

@@ -23,6 +23,14 @@ jobs:
         run: python3 tools/quality.py check
       - name: CLI smoke test
         run: node dist/cli.js --version
+      - name: Install script
+        run: |
+          npm pack --pack-destination "$RUNNER_TEMP"
+          export npm_config_prefix="$RUNNER_TEMP/ade-prefix"
+          export ADE_PACKAGE="$RUNNER_TEMP/woosal1337-ade-0.1.0.tgz"
+          export PATH="$npm_config_prefix/bin:$PATH"
+          sh scripts/install.sh ./examples/single-file/ADE.md
+          ade verify examples/single-file/ADE.md
   platforms:
     if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
     strategy:
@@ -46,3 +54,20 @@ jobs:
         run: npm ci
       - name: Tests
         run: npm test
+      - name: Install script
+        if: runner.os != 'Windows'
+        run: |
+          npm pack --pack-destination "$RUNNER_TEMP"
+          export npm_config_prefix="$RUNNER_TEMP/ade-prefix"
+          export ADE_PACKAGE="$RUNNER_TEMP/woosal1337-ade-0.1.0.tgz"
+          export PATH="$npm_config_prefix/bin:$PATH"
+          sh scripts/install.sh ./examples/single-file/ADE.md
+      - name: Install script on Windows
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          npm pack --pack-destination $env:RUNNER_TEMP
+          $env:npm_config_prefix = Join-Path $env:RUNNER_TEMP 'ade-prefix'
+          $env:ADE_PACKAGE = Join-Path $env:RUNNER_TEMP 'woosal1337-ade-0.1.0.tgz'
+          $env:Path = "$env:npm_config_prefix;$env:Path"
+          ./scripts/install.ps1 ./examples/single-file/ADE.md

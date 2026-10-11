@@ -1,11 +1,19 @@
 import fs from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { createInterface } from "node:readline/promises";
 import { type ParseArgsConfig, parseArgs } from "node:util";
 import { type Context, createContext, defaultProfileDir } from "../core/context.ts";
 import { docFormatFor, parseKeyPath } from "../core/doc.ts";
 import { AdeError, errorMessage, isAdeError } from "../core/errors.ts";
-import { copyTree, isInside, removePath, safeJoin, statOrUndefined } from "../core/fsx.ts";
+import {
+  atomicWrite,
+  copyTree,
+  isInside,
+  removePath,
+  safeJoin,
+  statOrUndefined,
+} from "../core/fsx.ts";
 import { apply } from "../engine/apply.ts";
 import { type CaptureInclude, capture, writeCapture } from "../engine/capture.ts";
 import { doctor } from "../engine/doctor.ts";
@@ -41,10 +49,14 @@ import {
   initProfile,
   type LoadedProfile,
   loadProfile,
+  PROFILE_FILE,
   saveLock,
   saveProfile,
+  writeSchemaFile,
 } from "../profile/load.ts";
-import { packProfile } from "../profile/pack.ts";
+import { ADE_MD_FILE, isMarkdownProfile, parseMarkdown } from "../profile/markdown.ts";
+import { packProfile, scanBundle, shareProfile } from "../profile/pack.ts";
+import { type RiskItem, riskSummary } from "../profile/risk.ts";
 import {
   type HarnessId,
   isGitSkill,
@@ -82,7 +94,12 @@ import {
   remoteStatus,
 } from "../remote/client.ts";
 import { REMOTE_OPS, type RemoteInfo } from "../remote/protocol.ts";
-import { createPreviewResolver, type SecretResolver } from "../secrets/resolve.ts";
+import {
+  createPreviewResolver,
+  createSecretResolver,
+  type SecretResolver,
+} from "../secrets/resolve.ts";
+import type { TokenFinding } from "../secrets/scan.ts";
 import { lockGitSkill } from "../skills/source.ts";
 import { VERSION } from "../version.ts";
 import { type CliIO, createOutput, type Output, padEnd } from "./output.ts";
@@ -243,7 +260,18 @@ async function inspectSource(c: CommandContext, positional?: string): Promise<So
 }
 
 function profileLabel(gate: SourceGate): string | undefined {
-  return gate.resolved.source.kind === "git" ? sourceLabel(gate.resolved.source) : undefined;
+  const { source, loaded } = gate.resolved;
+  if (source.kind === "git") {
+    return sourceLabel(source);
+  }
+  return source.display === loaded.dir ? undefined : source.display;
+}
+
+function planResolver(c: CommandContext, gate: SourceGate): SecretResolver {
+  const profile = gate.resolved.loaded.profile;
+  return gate.trusted
+    ? createSecretResolver(profile, c.context(), undefined, {}, { lenient: true })
+    : createPreviewResolver(profile, c.context());
 }
 
 function previewResolver(c: CommandContext, gate: SourceGate): SecretResolver | undefined {
@@ -360,6 +388,47 @@ async function trustedGate(c: CommandContext, gate: SourceGate): Promise<SourceG
     return gate;
   }
   return { ...gate, status: await checkTrust(c.context(), gate.resolved), trusted: true };
+}
+
+interface VerifyReport {
+  readonly ok: boolean;
+  readonly kind: "ade-md" | "profile";
+  readonly files: number;
+  readonly digest?: string;
+  readonly findings: readonly TokenFinding[];
+  readonly risk: readonly RiskItem[];
+}
+
+async function verifyInput(c: CommandContext, input: string): Promise<VerifyReport> {
+  const local = c.resolvePath(input);
+  if ((await statOrUndefined(local))?.isFile()) {
+    const parsed = parseMarkdown(await fs.readFile(local, "utf8"), local);
+    const temp = await fs.mkdtemp(path.join(os.tmpdir(), "ade-verify-"));
+    try {
+      const loaded = await importBundle(parsed.bundle, path.join(temp, "profile"));
+      const findings = scanBundle(parsed.bundle);
+      return {
+        ok: findings.length === 0,
+        kind: "ade-md",
+        files: parsed.bundle.files.length,
+        digest: parsed.digest,
+        findings,
+        risk: riskSummary(loaded.profile),
+      };
+    } finally {
+      await fs.rm(temp, { recursive: true, force: true });
+    }
+  }
+  const { loaded } = await c.resolve(input);
+  const bundle = await exportBundle(loaded);
+  const findings = scanBundle(bundle);
+  return {
+    ok: findings.length === 0,
+    kind: "profile",
+    files: bundle.files.length,
+    findings,
+    risk: riskSummary(loaded.profile),
+  };
 }
 
 const commands: Command[] = [
@@ -1048,7 +1117,7 @@ const commands: Command[] = [
         harnesses: c.harnessFilter(),
         force: boolFlag(c.flags, "force"),
         offline: boolFlag(c.flags, "offline"),
-        resolver: previewResolver(c, gate),
+        resolver: planResolver(c, gate),
       });
       if (c.json) {
         c.emit({ ...computed.plan, source: gate.resolved.source, trust: gate.status.state });
@@ -1155,7 +1224,7 @@ const commands: Command[] = [
       const report = await status(gate.resolved.loaded, ctx, {
         harnesses: c.harnessFilter(),
         offline: boolFlag(c.flags, "offline"),
-        resolver: previewResolver(c, gate),
+        resolver: planResolver(c, gate),
       });
       if (c.json) {
         c.emit({ ...report, source: gate.resolved.source, trust: gate.status.state });
@@ -1689,6 +1758,101 @@ const commands: Command[] = [
     },
   },
   {
+    name: "share",
+    group: "Share",
+    summary: "Write ADE.md: one Markdown file that others import 1:1. Share refuses token values.",
+    usage: [
+      "ade share [source] [--out ADE.md] [--repo <owner>/<repo>] [--vendor-git] [--force]",
+      "Then commit ADE.md. Others run: ade apply <owner>/<repo>",
+    ],
+    options: {
+      out: { type: "string", short: "o" },
+      repo: { type: "string" },
+      "vendor-git": { type: "boolean" },
+    },
+    async run(c) {
+      const out = c.resolvePath(stringFlag(c.flags, "out") ?? ADE_MD_FILE);
+      const existing = await statOrUndefined(out);
+      if (existing !== undefined && !boolFlag(c.flags, "force")) {
+        throw new AdeError("profile-exists", `The file already exists: ${out}.`, {
+          hint: "Add --force to write it again.",
+        });
+      }
+      const { loaded } = await c.resolve(c.args[0]);
+      const repo = stringFlag(c.flags, "repo");
+      const result = await shareProfile(loaded, c.context(), {
+        source: repo,
+        vendorGit: boolFlag(c.flags, "vendor-git"),
+        previous: existing?.isFile() === true ? await fs.readFile(out, "utf8") : undefined,
+      });
+      await atomicWrite(out, result.markdown);
+      if (c.json) {
+        c.emit({
+          file: out,
+          files: result.files,
+          digest: result.digest,
+          warnings: result.warnings,
+          notes: result.notes,
+        });
+        return EXIT.ok;
+      }
+      c.out.line(`Wrote ${out} with ${result.files} files.`);
+      c.out.line(c.out.style("dim", `Digest: ${result.digest}`));
+      renderWarnings(c.out, [...result.warnings, ...result.notes]);
+      c.out.line();
+      c.out.line("Next: commit the file. Others can then run:");
+      c.out.line(`  ade plan ${repo ?? out}`);
+      c.out.line(`  ade apply ${repo ?? out}`);
+      return EXIT.ok;
+    },
+  },
+  {
+    name: "verify",
+    group: "Share",
+    summary: "Check an ADE.md or a profile: hashes, digest, schema, and the token scan.",
+    usage: [
+      "ade verify [ADE.md|source]",
+      "Without an argument, ade checks ADE.md in the current folder.",
+    ],
+    async run(c) {
+      const given = c.args[0];
+      const defaultFile = path.join(c.io.cwd, ADE_MD_FILE);
+      const input =
+        given ??
+        ((await statOrUndefined(defaultFile))?.isFile() ? defaultFile : await c.profileInput());
+      const report = await verifyInput(c, input);
+      if (c.json) {
+        c.emit(report);
+      } else {
+        const label = report.kind === "ade-md" ? "ADE.md" : "profile";
+        if (report.ok) {
+          c.out.line(c.out.style("green", `The ${label} is valid: ${report.files} files.`));
+        } else {
+          c.out.line(
+            c.out.style(
+              "red",
+              `The ${label} holds ${report.findings.length} values that look like secrets.`,
+            ),
+          );
+          for (const finding of report.findings) {
+            c.out.line(`  ${finding.file}:${finding.line}: ${finding.kind}`);
+          }
+        }
+        if (report.digest !== undefined) {
+          c.out.line(c.out.style("dim", `Digest: ${report.digest}`));
+        }
+        c.out.line();
+        c.out.line("This setup does these things on a machine:");
+        for (const item of report.risk) {
+          c.out.line(
+            `  ${item.level === "high" ? c.out.style("red", "!") : " "} ${padEnd(item.area, 12)} ${item.text}`,
+          );
+        }
+      }
+      return report.ok ? EXIT.ok : EXIT.failure;
+    },
+  },
+  {
     name: "export",
     group: "Share",
     summary: "Write the profile into one bundle file. The bundle holds no secret values.",
@@ -1716,26 +1880,42 @@ const commands: Command[] = [
   {
     name: "import",
     group: "Share",
-    summary: "Create a profile from a bundle file.",
-    usage: ["ade import <bundle> [--out <dir>] [--force]"],
+    summary: "Create an editable profile folder from an ADE.md, a bundle file, or a source.",
+    usage: [
+      "ade import <ADE.md|bundle.json|source> [--out <dir>] [--force]",
+      "Example: ade import acme/agents --out ~/agent-profile",
+    ],
     options: { out: { type: "string", short: "o" } },
     async run(c) {
       const file = c.args[0];
       if (file === undefined) {
-        throw usageError("Give the bundle file.");
-      }
-      const text = await fs.readFile(c.resolvePath(file), "utf8");
-      let input: unknown;
-      try {
-        input = JSON.parse(text);
-      } catch (error) {
-        throw new AdeError("bundle-invalid", `The bundle is not valid JSON: ${file}.`, {
-          cause: error,
-        });
+        throw usageError("Give an ADE.md, a bundle file, or a source.");
       }
       const out = stringFlag(c.flags, "out");
       const dir = out === undefined ? c.profileDir() : c.resolvePath(out);
+      const local = c.resolvePath(file);
+      let input: unknown;
+      if ((await statOrUndefined(local))?.isFile()) {
+        const text = await fs.readFile(local, "utf8");
+        if (isMarkdownProfile(text)) {
+          input = parseMarkdown(text, local).bundle;
+        } else {
+          try {
+            input = JSON.parse(text);
+          } catch (error) {
+            throw new AdeError(
+              "bundle-invalid",
+              `The file is not an ADE.md and not a JSON bundle: ${file}.`,
+              { cause: error },
+            );
+          }
+        }
+      } else {
+        const resolved = await c.resolve(file);
+        input = await exportBundle(resolved.loaded);
+      }
       const loaded = await importBundle(input, dir, { force: boolFlag(c.flags, "force") });
+      await writeSchemaFile(loaded.dir);
       if (c.json) {
         c.emit({ dir: loaded.dir, profile: loaded.profile });
         return EXIT.ok;
@@ -2012,7 +2192,22 @@ export async function runCli(argv: readonly string[], io: CliIO = processIO()): 
           "usage",
           `The profile comes from Git: ${spec.display}. ade cannot edit it.`,
           {
-            hint: "Edit it in its repository, or copy it with `ade pack <source> --out <dir>` and edit the copy.",
+            hint: "Copy it with `ade import <source> --out <dir>`, then edit the copy.",
+          },
+        );
+      }
+      const stat = await statOrUndefined(spec.dir);
+      const markdown =
+        stat?.isFile() === true ||
+        (stat?.isDirectory() === true &&
+          (await statOrUndefined(path.join(spec.dir, PROFILE_FILE))) === undefined &&
+          (await statOrUndefined(path.join(spec.dir, ADE_MD_FILE)))?.isFile() === true);
+      if (markdown) {
+        throw new AdeError(
+          "usage",
+          `The profile is an ADE.md file: ${spec.dir}. ade cannot edit it.`,
+          {
+            hint: "Copy it with `ade import <file> --out <dir>`, edit the copy, then run `ade share` again.",
           },
         );
       }

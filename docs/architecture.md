@@ -12,7 +12,8 @@ ade reads a profile, builds the desired state for each harness, and compares it 
 | `src/profile/` | The zod schema, validation, load and save, pure edit functions, and bundles |
 | `src/profile/spec.ts`, `source.ts` | Source parsing, Git source fetch, and the default source |
 | `src/profile/risk.ts`, `trust.ts` | The risk summary and the trust store |
-| `src/profile/pack.ts` | The bundle build for remote and pack, and the publication copy |
+| `src/profile/pack.ts` | The bundle build for remote, pack, and share, and the token scan |
+| `src/profile/markdown.ts` | The ADE.md writer and parser |
 | `src/secrets/` | `${secret:NAME}` and `${home}` references, secret providers, and masks |
 | `src/harness/adapters.ts` | One adapter for each harness: paths, MCP format, settings file, asset rules, inventory rules, and plugin support |
 | `src/harness/plugins.ts` | Plugin lists and commands for Claude Code, Codex, Grok, Gemini CLI, Cursor IDE, and Zed |
@@ -61,6 +62,6 @@ ade runs on the machine that it configures, or it sends its engine to another ma
 
 ## Decisions
 
-Read [the foundation decision](decisions/0001-project-foundation.md), [the ownership decision](decisions/0002-entry-ownership.md), [the remote decision](decisions/0003-remote-agent.md), [the sources decision](decisions/0004-git-sources-and-trust.md), [the coverage decision](decisions/0005-full-coverage.md), and [the stack research](../research/stack.md).
+Read [the foundation decision](decisions/0001-project-foundation.md), [the ownership decision](decisions/0002-entry-ownership.md), [the remote decision](decisions/0003-remote-agent.md), [the sources decision](decisions/0004-git-sources-and-trust.md), [the coverage decision](decisions/0005-full-coverage.md), [the ADE.md decision](decisions/0006-ade-md.md), and [the stack research](../research/stack.md).
 Add a decision record when a choice changes a boundary or creates a lasting tradeoff.
 Keep operational steps in [the runbook](runbook.md).

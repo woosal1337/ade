@@ -22,6 +22,7 @@ import {
   SCHEMA_FILE,
   writeSchemaFile,
 } from "./load.ts";
+import { ADE_MD_FILE, isMarkdownProfile, parseMarkdown, writeMarkdown } from "./markdown.ts";
 import { isGitSkill, isLinkSkill, type Lock, type Profile } from "./schema.ts";
 
 export interface BundleBuildOptions {
@@ -288,6 +289,78 @@ export async function packProfile(
     dir: root,
     files: await countFiles(root),
     warnings: portabilityWarnings(built.profile, ctx),
+    notes: built.notes,
+  };
+}
+
+export interface ShareOptions {
+  readonly source?: string | undefined;
+  readonly vendorGit?: boolean | undefined;
+  readonly runner?: CommandRunner | undefined;
+  readonly previous?: string | undefined;
+}
+
+export interface ShareResult {
+  readonly markdown: string;
+  readonly files: number;
+  readonly digest: string;
+  readonly warnings: readonly string[];
+  readonly notes: readonly string[];
+}
+
+export async function shareProfile(
+  loaded: LoadedProfile,
+  ctx: Context,
+  options: ShareOptions = {},
+): Promise<ShareResult> {
+  const built = await buildProfileBundle(loaded, ctx, {
+    vendorGit: options.vendorGit === true,
+    vendorLinks: true,
+    runner: options.runner,
+  });
+  const { $schema: _schema, ...profile } = built.profile;
+  const files = built.bundle.files
+    .filter((file) => file.path !== SCHEMA_FILE)
+    .map((file) =>
+      file.path === PROFILE_FILE
+        ? { ...file, encoding: "utf8" as const, content: profileText(profile) }
+        : file,
+    );
+  const bundle: Bundle = { ...built.bundle, files };
+  const findings = scanBundle(bundle);
+  if (findings.length > 0) {
+    throw new AdeError(
+      "conflict",
+      `The profile holds ${findings.length} values that look like secrets.`,
+      {
+        details: findings.map((finding) => `${finding.file}:${finding.line}: ${finding.kind}`),
+        hint: "Replace each value with a ${secret:NAME} reference, then run the command again.",
+      },
+    );
+  }
+  let markdown = writeMarkdown(bundle, profile, {
+    source: options.source,
+    createdAt: ctx.now(),
+  });
+  const parsed = parseMarkdown(markdown, ADE_MD_FILE);
+  if (options.previous !== undefined && isMarkdownProfile(options.previous)) {
+    try {
+      const before = parseMarkdown(options.previous, ADE_MD_FILE);
+      if (before.digest === parsed.digest && typeof before.meta.created === "string") {
+        markdown = writeMarkdown(bundle, profile, {
+          source: options.source,
+          createdAt: new Date(before.meta.created),
+        });
+      }
+    } catch {
+      markdown = writeMarkdown(bundle, profile, { source: options.source, createdAt: ctx.now() });
+    }
+  }
+  return {
+    markdown,
+    files: parsed.bundle.files.length,
+    digest: parsed.digest,
+    warnings: portabilityWarnings(profile, ctx),
     notes: built.notes,
   };
 }

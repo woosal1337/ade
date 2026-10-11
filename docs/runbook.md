@@ -89,7 +89,24 @@ node src/cli.ts apply --profile <profile-dir> --home /tmp/ade-home --yes
    ade use <owner>/<repo>
    ```
 
-## Publish a profile
+## Share a setup as one ADE.md
+
+1. Write the file:
+
+   ```bash
+   ade share --profile <dir> --repo <owner>/<repo>
+   ```
+
+2. Read the warnings and the file.
+3. Check the file:
+
+   ```bash
+   ade verify ADE.md
+   ```
+
+4. Commit `ADE.md` to the repository.
+
+## Publish a profile folder
 
 1. Write the publication copy:
 

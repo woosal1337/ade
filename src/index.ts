@@ -15,18 +15,18 @@ export {
 } from "./engine/capture.ts";
 export { type Check, type DoctorReport, doctor } from "./engine/doctor.ts";
 export {
-  type InventoryReport,
-  type InventoryRow,
-  type InventoryStatus,
-  inventory,
-} from "./engine/inventory.ts";
-export {
   listApplies,
   type RecordSummary,
   type RevertOptions,
   type RevertResult,
   revert,
 } from "./engine/history.ts";
+export {
+  type InventoryReport,
+  type InventoryRow,
+  type InventoryStatus,
+  inventory,
+} from "./engine/inventory.ts";
 export type { ItemKind, Scope } from "./engine/items.ts";
 export {
   type Action,
@@ -69,7 +69,22 @@ export {
   saveLock,
   saveProfile,
 } from "./profile/load.ts";
-export { type PackOptions, type PackResult, packProfile } from "./profile/pack.ts";
+export {
+  ADE_MD_FILE,
+  digestOf,
+  isMarkdownProfile,
+  type ParsedMarkdown,
+  parseMarkdown,
+  writeMarkdown,
+} from "./profile/markdown.ts";
+export {
+  type PackOptions,
+  type PackResult,
+  packProfile,
+  type ShareOptions,
+  type ShareResult,
+  shareProfile,
+} from "./profile/pack.ts";
 export { type RiskItem, riskSummary } from "./profile/risk.ts";
 export {
   type FileEntry,
@@ -83,14 +98,15 @@ export {
   type Profile,
   ProfileSchema,
   profileJsonSchema,
-  type SecretSource,
   ROOT_IDS,
   type RootId,
+  type SecretSource,
   type Skill,
 } from "./profile/schema.ts";
 export {
   type ProfileSource,
   type ResolvedProfile,
+  loadMarkdownProfile,
   readDefaultProfile,
   resolveProfile,
   writeDefaultProfile,

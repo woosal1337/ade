@@ -3,7 +3,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import type { Context, Environment } from "../core/context.ts";
 import { isPlainObject } from "../core/doc.ts";
-import { AdeError, errnoCode } from "../core/errors.ts";
+import { AdeError, errnoCode, isAdeError } from "../core/errors.ts";
 import type { Profile, SecretSource } from "../profile/schema.ts";
 import { REFERENCE_PATTERN } from "./refs.ts";
 
@@ -59,6 +59,11 @@ export interface SecretResolver {
   mask(text: string): string;
   expandString(text: string): Promise<Expanded<string>>;
   expandDeep<T>(value: T): Promise<Expanded<T>>;
+  unresolved(): string[];
+}
+
+export interface ResolverOptions {
+  readonly lenient?: boolean;
 }
 
 export function createSecretResolver(
@@ -66,8 +71,10 @@ export function createSecretResolver(
   ctx: Context,
   runner: CommandRunner = runCommand,
   presets: Readonly<Record<string, string>> = {},
+  options: ResolverOptions = {},
 ): SecretResolver {
   const cache = new Map<string, string>();
+  const placeholders = new Set<string>();
   for (const [name, value] of Object.entries(presets)) {
     if (profile.secrets !== undefined && Object.hasOwn(profile.secrets, name)) {
       cache.set(name, value);
@@ -85,14 +92,24 @@ export function createSecretResolver(
         hint: `Add it with: ade add secret ${name} --from env --name <VARIABLE>`,
       });
     }
-    const value = await readSecret(name, source, ctx, runner);
-    if (value === "") {
-      throw new AdeError("secret-unresolved", `The secret ${name} has an empty value.`, {
-        hint: describeSource(source),
-      });
+    try {
+      const value = await readSecret(name, source, ctx, runner);
+      if (value === "") {
+        throw new AdeError("secret-unresolved", `The secret ${name} has an empty value.`, {
+          hint: describeSource(source),
+        });
+      }
+      cache.set(name, value);
+      return value;
+    } catch (error) {
+      if (options.lenient !== true || !isAdeError(error) || error.code !== "secret-unresolved") {
+        throw error;
+      }
+      const placeholder = `<unset secret ${name}>`;
+      placeholders.add(name);
+      cache.set(name, placeholder);
+      return placeholder;
     }
-    cache.set(name, value);
-    return value;
   };
 
   const expandString = async (text: string): Promise<Expanded<string>> => {
@@ -154,6 +171,9 @@ export function createSecretResolver(
       const secrets = new Set<string>();
       const expanded = (await expandValue(value, secrets)) as T;
       return { value: expanded, secrets };
+    },
+    unresolved(): string[] {
+      return [...placeholders];
     },
     mask(text: string): string {
       let result = text;

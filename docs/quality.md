@@ -37,6 +37,7 @@ Keep the exclusions narrow. Do not exclude a source directory merely because it 
 | `.json` | `JSON.parse` |
 | `.yml`, `.yaml` | The `yaml` lexer |
 | `.gitignore`, `.gitattributes`, `.editorconfig` | A line rule: a line that starts with `#` or `;` |
+| `.sh`, `.ps1` | A line rule: a line that starts with `#`, or `<#` in PowerShell. The first `#!` line of a script is a required directive |
 | `.py` | The Python tokenizer, through `python3` |
 
 Exceptions:
@@ -85,6 +86,15 @@ The coverage check on this Mac on 2026-10-12:
 4. `ade apply` to an empty scratch home made 139 changes, with `claude plugin marketplace add` in the scratch home. A second plan showed 0 changes.
 
 The first scratch apply ran the plugin commands after the file writes. Claude Code then changed `model` from `opus` to `opus[1m]` at start, and the second plan showed drift. Apply now runs the plugin commands first.
+
+The ADE.md check on 2026-10-12:
+
+1. A capture of this Mac shared to one ADE.md: 74 files, 694 KB. `ade verify`, `ade import`, and `ade plan` read it.
+2. A second `ade share` of the same profile wrote a byte-identical file.
+3. An edit of one line in a file block failed `ade verify` with a hash error and a digest error.
+4. `scripts/install.sh` installed a packed tarball into a scratch npm prefix and ran the plan for a local ADE.md.
+
+CI runs `scripts/install.sh` on Ubuntu and macOS, and `scripts/install.ps1` on Windows, with a packed tarball.
 
 The source comment probe on 2026-10-11 added `src/probe.ts` with a line comment. The installed commit hook failed with `src/probe.ts:1: Remove the source comment.` The hook passed after the probe file was removed.
 
