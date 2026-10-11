@@ -15,7 +15,27 @@ node src/cli.ts plan --profile <profile-dir> --home /tmp/ade-home
 node src/cli.ts apply --profile <profile-dir> --home /tmp/ade-home --yes
 ```
 
-## Move a setup to another machine
+## Move a setup to another machine over SSH
+
+1. Capture the old machine into a local profile:
+
+   ```bash
+   ade remote old-box capture --out ~/agent-profile
+   ```
+
+2. Show the plan for the new machine:
+
+   ```bash
+   ade remote new-box plan --profile ~/agent-profile
+   ```
+
+3. Apply the profile on the new machine:
+
+   ```bash
+   ade remote new-box apply --profile ~/agent-profile
+   ```
+
+## Move a setup to another machine with a bundle file
 
 1. On the old machine, capture the setup:
 

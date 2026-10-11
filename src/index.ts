@@ -34,8 +34,10 @@ export { type StatusReport, status } from "./engine/status.ts";
 export { type SkillUpdate, type UpdateResult, updateSkills } from "./engine/update.ts";
 export {
   type Detection,
+  describeHarnesses,
   detectHarnesses,
   getAdapter,
+  type HarnessRow,
   listAdapters,
   sharedSkillsDir,
 } from "./harness/registry.ts";
@@ -73,7 +75,28 @@ export {
   type Skill,
 } from "./profile/schema.ts";
 export {
+  callRemote,
+  type RemoteCaptureResult,
+  type RemoteOptions,
+  type RemoteProfileOptions,
+  type RemoteResult,
+  type RemoteTarget,
+  type RemoteTransport,
+  remoteApply,
+  remoteCapture,
+  remoteDoctor,
+  remoteHarnesses,
+  remoteHistory,
+  remotePlan,
+  remoteRevert,
+  remoteStatus,
+  shipProfile,
+  sshTransport,
+} from "./remote/client.ts";
+export type { RemoteInfo, RemoteOp } from "./remote/protocol.ts";
+export {
   type CommandRunner,
   createSecretResolver,
   type SecretResolver,
 } from "./secrets/resolve.ts";
+export { VERSION } from "./version.ts";

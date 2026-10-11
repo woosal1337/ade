@@ -59,6 +59,15 @@ The manual acceptance check on 2026-10-11:
 3. `ade apply` to an empty scratch home made 108 changes. A second plan showed 0 changes.
 4. `ade revert` emptied the scratch home. A revert of that revert restored the 108 entries.
 
+The remote acceptance check on Igris, Linux with Node.js 24.13.0, on 2026-10-11:
+
+1. `ade remote igris plan` against the real Igris home showed 73 creates, 6 updates, and 33 matching entries. It left no file on Igris.
+2. `ade remote igris apply` to a scratch home made 112 changes. A second plan showed 0 changes, and status reported "In sync".
+3. `ade remote igris revert` emptied the scratch home.
+4. `ade remote igris capture` read the real Igris home: 4 harnesses, 3 MCP servers, 1 skill, and no secret value.
+
+The first Windows CI run on 2026-10-11 failed one test. Git wrote CRLF line endings into a Git skill because the runner sets `core.autocrlf=true`. The checkout now sets `core.autocrlf=false` and `core.eol=lf`. A test sets `core.autocrlf=true` through the Git environment and fails without the fix.
+
 The source comment probe on 2026-10-11 added `src/probe.ts` with a line comment. The installed commit hook failed with `src/probe.ts:1: Remove the source comment.` The hook passed after the probe file was removed.
 
 Record a real failure case for the source policy and an installed hook before accepting the foundation.

@@ -6,7 +6,7 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: checks-${{ github.ref }}
+  group: checks-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
 jobs:
   checks:

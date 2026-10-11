@@ -18,6 +18,8 @@ ade reads a profile, builds the desired state for each harness, and compares it 
 | `src/engine/journal.ts`, `apply.ts`, `history.ts` | Backups, atomic steps, rollback, apply records, and revert |
 | `src/engine/capture.ts` | The machine-to-profile capture, with secret extraction and native overrides |
 | `src/engine/status.ts`, `doctor.ts`, `update.ts` | Drift reports, checks, and Git skill locks |
+| `src/remote/client.ts` | The profile shipment, the SSH transport, and the remote calls |
+| `src/remote/agent.ts` | The remote entry point. The build bundles it into `dist/remote-agent.mjs` |
 | `src/cli/` | Arguments, prompts, human output, and JSON envelopes |
 | `src/index.ts` | The public SDK |
 
@@ -46,10 +48,10 @@ The state directory is `$ADE_STATE_DIR`, or `$XDG_STATE_HOME/ade`, or `~/.local/
 
 ## Runtime and deployment
 
-ade runs on the machine that it configures. It has no server. The npm package `@woosal1337/ade` stays private until a release decision. Node.js 22 or later runs the built package from `dist/`.
+ade runs on the machine that it configures, or it sends its engine to another machine over SSH. It has no server. The npm package `@woosal1337/ade` stays private until a release decision. Node.js 22 or later runs the built package from `dist/`.
 
 ## Decisions
 
-Read [the foundation decision](decisions/0001-project-foundation.md), [the ownership decision](decisions/0002-entry-ownership.md), and [the stack research](../research/stack.md).
+Read [the foundation decision](decisions/0001-project-foundation.md), [the ownership decision](decisions/0002-entry-ownership.md), [the remote decision](decisions/0003-remote-agent.md), and [the stack research](../research/stack.md).
 Add a decision record when a choice changes a boundary or creates a lasting tradeoff.
 Keep operational steps in [the runbook](runbook.md).

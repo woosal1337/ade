@@ -63,6 +63,20 @@ if (report.drift > 0) {
 await revert(ctx);
 ```
 
+## Remote machines
+
+```ts
+import { createContext, loadProfile, remoteApply, remotePlan } from "@woosal1337/ade";
+
+const ctx = createContext();
+const profile = await loadProfile("/Users/me/agent-profile");
+const target = { host: "igris" };
+const preview = await remotePlan(profile, ctx, { target });
+await remoteApply(profile, ctx, { target, expectedFingerprint: preview.result.fingerprint });
+```
+
+Each remote call returns `{ remote, result }`. `remote` gives the host name, the platform, the Node.js version, and the home. Pass `transport` to use another channel than SSH.
+
 ## Errors
 
 Expected failures throw `AdeError`. Each error has a `code`, a `message`, `details`, and an optional `hint`. Use `isAdeError` to check the type.
@@ -75,6 +89,7 @@ Expected failures throw `AdeError`. Each error has a `code`, a `message`, `detai
 | `target-changed` | The machine changed after the plan |
 | `revert-blocked` | An entry changed after the apply |
 | `locked` | Another apply holds the state lock |
+| `remote-failed` | The SSH session failed, or the remote has no Node.js |
 
 ## Other harnesses
 

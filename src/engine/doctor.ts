@@ -8,7 +8,12 @@ import { getAdapter, parseSettingsKey, sharedSkillsDir } from "../harness/regist
 import type { LoadedProfile } from "../profile/load.ts";
 import { isGitSkill, isLinkSkill } from "../profile/schema.ts";
 import { findSecretRefs } from "../secrets/refs.ts";
-import { type CommandRunner, createSecretResolver, expandUserPath } from "../secrets/resolve.ts";
+import {
+  type CommandRunner,
+  createSecretResolver,
+  expandUserPath,
+  type SecretResolver,
+} from "../secrets/resolve.ts";
 import { treeCacheDir } from "../skills/git.ts";
 import { activeHarnesses } from "./desired.ts";
 import { computePlan } from "./plan.ts";
@@ -29,6 +34,8 @@ export interface DoctorReport {
 
 export interface DoctorOptions {
   readonly runner?: CommandRunner | undefined;
+  readonly resolver?: SecretResolver | undefined;
+  readonly copyFiles?: boolean | undefined;
 }
 
 function frontmatter(text: string): Record<string, string> {
@@ -84,7 +91,7 @@ export async function doctor(
     add("warn", "harness", "The profile targets no installed harness.", "Set the harnesses field.");
   }
 
-  const resolver = createSecretResolver(profile, ctx, options.runner);
+  const resolver = options.resolver ?? createSecretResolver(profile, ctx, options.runner);
   const referenced = findSecretRefs([profile.mcp, profile.settings]);
   for (const name of Object.keys(profile.secrets ?? {})) {
     try {
@@ -215,6 +222,7 @@ export async function doctor(
     const computed = await computePlan(loaded, ctx, {
       offline: true,
       resolver,
+      copyFiles: options.copyFiles,
       ...(options.runner === undefined ? {} : { runner: options.runner }),
     });
     const { summary } = computed.plan;

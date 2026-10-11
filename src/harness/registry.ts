@@ -1,5 +1,5 @@
 import path from "node:path";
-import type { Context } from "../core/context.ts";
+import { type Context, displayPath } from "../core/context.ts";
 import { AdeError } from "../core/errors.ts";
 import { statOrUndefined } from "../core/fsx.ts";
 import { HARNESS_IDS, type HarnessId } from "../profile/schema.ts";
@@ -72,4 +72,27 @@ export function parseSettingsKey(key: string): SettingsKey {
     throw new AdeError("usage", `The settings key does not start with a harness name: ${key}.`);
   }
   return { harness, file: index === -1 ? undefined : key.slice(index + 1) };
+}
+
+export interface HarnessRow extends Detection {
+  readonly instructions: string | undefined;
+  readonly mcp: string;
+  readonly settings: string;
+  readonly skills: string;
+}
+
+export async function describeHarnesses(ctx: Context): Promise<HarnessRow[]> {
+  return (await detectHarnesses(ctx)).map((detection) => {
+    const adapter = getAdapter(detection.id);
+    const skillsDir = adapter.skillsDir(ctx);
+    return {
+      ...detection,
+      instructions: adapter.instructionsPath(ctx),
+      mcp: adapter.mcpLocation(ctx).path,
+      settings: adapter.settingsLocation(ctx).path,
+      skills: adapter.readsSharedSkills
+        ? `reads ${displayPath(ctx, sharedSkillsDir(ctx))}`
+        : `links in ${displayPath(ctx, skillsDir ?? "")}`,
+    };
+  });
 }

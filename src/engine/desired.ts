@@ -29,6 +29,7 @@ export interface DesiredOptions {
   readonly harnesses?: readonly HarnessId[] | undefined;
   readonly resolver: SecretResolver;
   readonly skills: SkillResolver;
+  readonly copyFiles?: boolean | undefined;
 }
 
 export interface DesiredState {
@@ -330,7 +331,12 @@ export async function buildDesired(
         Buffer.from(expanded.value, "utf8"),
         mode ?? (expanded.secrets.size > 0 ? 0o600 : undefined),
       );
-    } else if (install === "link" && mode === undefined && !(await sameLocation(source, target))) {
+    } else if (
+      install === "link" &&
+      options.copyFiles !== true &&
+      mode === undefined &&
+      !(await sameLocation(source, target))
+    ) {
       want = { type: "symlink", target: source, dir: false };
     } else {
       want = fileWant(raw, mode);

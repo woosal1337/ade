@@ -14,7 +14,8 @@ export type ErrorCode =
   | "not-found"
   | "unsupported"
   | "revert-blocked"
-  | "bundle-invalid";
+  | "bundle-invalid"
+  | "remote-failed";
 
 export interface AdeErrorOptions {
   hint?: string;

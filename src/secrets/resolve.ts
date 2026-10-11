@@ -65,8 +65,14 @@ export function createSecretResolver(
   profile: Profile,
   ctx: Context,
   runner: CommandRunner = runCommand,
+  presets: Readonly<Record<string, string>> = {},
 ): SecretResolver {
   const cache = new Map<string, string>();
+  for (const [name, value] of Object.entries(presets)) {
+    if (profile.secrets !== undefined && Object.hasOwn(profile.secrets, name)) {
+      cache.set(name, value);
+    }
+  }
 
   const resolve = async (name: string): Promise<string> => {
     const cached = cache.get(name);

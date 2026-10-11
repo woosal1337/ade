@@ -39,7 +39,13 @@ Status: Version 0.1.0 in development. No release exists. This repository owns th
    ade revert
    ```
 
-Put the profile directory in Git to share it, or move it with `ade export` and `ade import`. A profile holds secret references, never secret values.
+5. Apply the same profile to another machine over SSH:
+
+   ```bash
+   ade remote igris apply --profile ~/agent-profile
+   ```
+
+Put the profile directory in Git to share it, or move it with `ade export` and `ade import`. A profile holds secret references, never secret values. Read [the remote guide](docs/remote.md) for SSH targets.
 
 ## What ade manages
 
@@ -65,6 +71,7 @@ ade owns entries, not whole files. It changes only the keys, servers, and paths 
 | `ade plan`, `ade apply`, `ade status` | Compare and apply |
 | `ade revert`, `ade history` | Undo an apply, list the apply records |
 | `ade doctor`, `ade harnesses` | Check the profile, the secrets, and the harness paths |
+| `ade remote <host> <command>` | Run plan, apply, status, doctor, revert, history, harnesses, or capture on another machine |
 | `ade export`, `ade import`, `ade schema` | Share a profile, print the JSON Schema |
 
 Every command takes `--json` for a stable machine-readable result. Read [the profile reference](docs/profile.md) for the file format and [the SDK guide](docs/sdk.md) for the TypeScript API.
@@ -90,12 +97,13 @@ node src/cli.ts --help
 | `src/harness/` | One adapter for each harness |
 | `src/skills/` | Skill sources and the Git cache |
 | `src/engine/` | Desired state, plan, apply, status, revert, capture, and doctor |
+| `src/remote/` | The SSH client, the protocol, and the remote agent |
 | `src/cli/` | Command parsing and output |
 | `src/index.ts` | The public SDK |
 | `test/` | Behavior tests in scratch home directories |
-| `tools/` | The source comment check and the quality runner |
+| `tools/` | The source comment check, the quality runner, and the agent build |
 | `research/` | Dated sources |
-| `docs/` | Architecture, profile reference, SDK guide, development, quality, runbook, and decisions |
+| `docs/` | Architecture, profile reference, SDK guide, remote guide, development, quality, runbook, and decisions |
 | `log/` | Dated work notes |
 
 Read [the architecture](docs/architecture.md) before adding a module.
@@ -105,9 +113,13 @@ Read [the architecture](docs/architecture.md) before adding a module.
 Read [AGENTS.md](AGENTS.md) for agent guidance and [CONTRIBUTING.md](CONTRIBUTING.md) for development rules.
 [Quality gates](docs/quality.md) define the checks for local hooks and continuous integration (CI).
 [Stack research](research/stack.md) records the selected versions and their sources.
-[The first decision](docs/decisions/0001-project-foundation.md) explains the foundation, and [the second decision](docs/decisions/0002-entry-ownership.md) explains the ownership model.
+[The first decision](docs/decisions/0001-project-foundation.md) explains the foundation. [The second decision](docs/decisions/0002-entry-ownership.md) explains the ownership model. [The third decision](docs/decisions/0003-remote-agent.md) explains the remote agent.
 [The runbook](docs/runbook.md) gives operational commands.
 
 ## Delivery state
 
-The private GitHub repository exists and has no commits. The local quality gates pass, and both Git hooks are installed in this clone. No commit, push, CI run, or npm release exists yet. The package stays private until a release decision.
+The private GitHub repository holds the code. CI runs the checks on Ubuntu, and the tests on macOS, Windows, and Node.js 22. No npm release exists. The package stays private until a release decision. To install it from Git:
+
+```bash
+npm install -g git+ssh://git@github.com/woosal1337/ade.git
+```

@@ -1,9 +1,8 @@
-import { readFileSync } from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { createInterface } from "node:readline/promises";
 import { type ParseArgsConfig, parseArgs } from "node:util";
-import { type Context, createContext, defaultProfileDir, displayPath } from "../core/context.ts";
+import { type Context, createContext, defaultProfileDir } from "../core/context.ts";
 import { docFormatFor, parseKeyPath } from "../core/doc.ts";
 import { AdeError, errorMessage, isAdeError } from "../core/errors.ts";
 import { copyTree, isInside, removePath, safeJoin, statOrUndefined } from "../core/fsx.ts";
@@ -16,11 +15,10 @@ import { computePlan } from "../engine/plan.ts";
 import { status } from "../engine/status.ts";
 import { updateSkills } from "../engine/update.ts";
 import {
-  detectHarnesses,
+  describeHarnesses,
   getAdapter,
   parseHarnessList,
   parseSettingsKey,
-  sharedSkillsDir,
 } from "../harness/registry.ts";
 import { exportBundle, importBundle } from "../profile/bundle.ts";
 import {
@@ -49,7 +47,20 @@ import {
   profileJsonSchema,
   type SecretSource,
 } from "../profile/schema.ts";
+import {
+  type RemoteTarget,
+  remoteApply,
+  remoteCapture,
+  remoteDoctor,
+  remoteHarnesses,
+  remoteHistory,
+  remotePlan,
+  remoteRevert,
+  remoteStatus,
+} from "../remote/client.ts";
+import { REMOTE_OPS, type RemoteInfo } from "../remote/protocol.ts";
 import { lockGitSkill } from "../skills/source.ts";
+import { VERSION } from "../version.ts";
 import { type CliIO, createOutput, type Output, padEnd } from "./output.ts";
 import {
   renderDoctor,
@@ -61,17 +72,6 @@ import {
 } from "./render.ts";
 
 export const EXIT = { ok: 0, failure: 1, usage: 2, pending: 3 } as const;
-
-export const VERSION = readVersion();
-
-function readVersion(): string {
-  try {
-    const text = readFileSync(new URL("../../package.json", import.meta.url), "utf8");
-    return (JSON.parse(text) as { version: string }).version;
-  } catch {
-    return "0.0.0";
-  }
-}
 
 type OptionSpec = NonNullable<ParseArgsConfig["options"]>;
 type Flags = Record<string, string | boolean | (string | boolean)[] | undefined>;
@@ -114,7 +114,7 @@ interface Command {
   readonly summary: string;
   readonly usage: readonly string[];
   readonly options?: OptionSpec;
-  readonly group: "Profile" | "Machine" | "Share";
+  readonly group: "Profile" | "Machine" | "Remote" | "Share";
   run(c: CommandContext): Promise<number>;
 }
 
@@ -806,7 +806,7 @@ const commands: Command[] = [
         c.emit(computed.plan);
         return EXIT.ok;
       }
-      renderPlan(c.out, ctx, computed.plan, c.verbose);
+      renderPlan(c.out, computed.plan, c.verbose);
       const writes =
         computed.plan.summary.create + computed.plan.summary.update + computed.plan.summary.delete;
       if (writes > 0) {
@@ -836,7 +836,7 @@ const commands: Command[] = [
       const plan = computed.plan;
       const writes = plan.summary.create + plan.summary.update + plan.summary.delete;
       if (!c.json) {
-        renderPlan(c.out, ctx, plan, c.verbose);
+        renderPlan(c.out, plan, c.verbose);
       }
       if (writes > 0 && !boolFlag(c.flags, "yes")) {
         if (c.json || !c.io.stdinIsTTY) {
@@ -898,7 +898,7 @@ const commands: Command[] = [
       if (c.json) {
         c.emit(report);
       } else {
-        renderStatus(c.out, ctx, report, c.verbose);
+        renderStatus(c.out, report, c.verbose);
       }
       return boolFlag(c.flags, "exit-code") && !report.inSync ? EXIT.pending : EXIT.ok;
     },
@@ -980,25 +980,244 @@ const commands: Command[] = [
     usage: ["ade harnesses"],
     async run(c) {
       const ctx = c.context();
-      const rows = (await detectHarnesses(ctx)).map((detection) => {
-        const adapter = getAdapter(detection.id);
-        const skillsDir = adapter.skillsDir(ctx);
-        return {
-          ...detection,
-          instructions: adapter.instructionsPath(ctx),
-          mcp: adapter.mcpLocation(ctx).path,
-          settings: adapter.settingsLocation(ctx).path,
-          skills: adapter.readsSharedSkills
-            ? `reads ${displayPath(ctx, sharedSkillsDir(ctx))}`
-            : `links in ${displayPath(ctx, skillsDir ?? "")}`,
-        };
-      });
+      const rows = await describeHarnesses(ctx);
       if (c.json) {
         c.emit(rows);
       } else {
-        renderHarnesses(c.out, ctx, rows);
+        renderHarnesses(c.out, ctx.home, rows);
       }
       return EXIT.ok;
+    },
+  },
+  {
+    name: "remote",
+    group: "Remote",
+    summary: "Run a command on another machine over SSH. The remote needs only Node.js 22.",
+    usage: [
+      "ade remote <host> plan|apply|status|doctor [--remote-home <dir>] [--send-secrets] [--keep-links]",
+      "ade remote <host> revert [apply-id] [--yes] [--force]",
+      "ade remote <host> history|harnesses",
+      "ade remote <host> capture [--out <dir>] [--include <root>:<path>]... [--name <name>]",
+      "SSH options: --node <path> --ssh <program> --ssh-option <option>...",
+      "Example: ade remote igris plan --profile ~/agent-profile",
+    ],
+    options: {
+      "remote-home": { type: "string" },
+      node: { type: "string" },
+      ssh: { type: "string" },
+      "ssh-option": { type: "string", multiple: true },
+      "send-secrets": { type: "boolean" },
+      "keep-links": { type: "boolean" },
+      "exit-code": { type: "boolean" },
+      out: { type: "string", short: "o" },
+      include: { type: "string", multiple: true },
+      name: { type: "string" },
+    },
+    async run(c) {
+      const [host, op, extra] = c.args;
+      const ops = REMOTE_OPS.filter((item) => item !== "info");
+      if (host === undefined || op === undefined || !(ops as readonly string[]).includes(op)) {
+        throw usageError("Give the host and the command.", `Use one of: ${ops.join(", ")}.`);
+      }
+      const remoteHome = stringFlag(c.flags, "remote-home");
+      const target: RemoteTarget = {
+        host,
+        ssh: stringFlag(c.flags, "ssh"),
+        sshOptions: listFlag(c.flags, "ssh-option"),
+        node: stringFlag(c.flags, "node"),
+      };
+      const base = { target, ...(remoteHome === undefined ? {} : { home: remoteHome }) };
+      const describe = (remote: RemoteInfo): string =>
+        `${host} (${remote.hostname}, ${remote.platform}, Node.js ${remote.node})`;
+      const header = (remote: RemoteInfo): void => {
+        c.out.line(`${c.out.style("dim", "Remote ")}  ${describe(remote)}`);
+      };
+      const ship = {
+        harnesses: c.harnessFilter(),
+        force: boolFlag(c.flags, "force"),
+        keepLinks: boolFlag(c.flags, "keep-links"),
+        sendSecrets: boolFlag(c.flags, "send-secrets"),
+      };
+      switch (op) {
+        case "plan": {
+          const loaded = await c.load();
+          const response = await remotePlan(loaded, c.context(), { ...base, ...ship });
+          if (c.json) {
+            c.emit({ remote: response.remote, plan: response.result, notes: response.notes });
+            return EXIT.ok;
+          }
+          header(response.remote);
+          renderPlan(c.out, response.result, c.verbose, `${loaded.dir} -> ${host}`);
+          renderWarnings(c.out, response.notes);
+          return EXIT.ok;
+        }
+        case "apply": {
+          const loaded = await c.load();
+          const ctx = c.context();
+          if (c.json && !boolFlag(c.flags, "yes")) {
+            throw usageError("Add --yes to apply without a prompt.");
+          }
+          const preview = await remotePlan(loaded, ctx, { ...base, ...ship });
+          const plan = preview.result;
+          const writes = plan.summary.create + plan.summary.update + plan.summary.delete;
+          if (!c.json) {
+            header(preview.remote);
+            renderPlan(c.out, plan, c.verbose, `${loaded.dir} -> ${host}`);
+            renderWarnings(c.out, preview.notes);
+          }
+          if (writes > 0 && !boolFlag(c.flags, "yes")) {
+            if (!c.io.stdinIsTTY) {
+              throw usageError("Add --yes to apply without a prompt.");
+            }
+            c.out.line();
+            if (!(await c.confirm(`Apply ${writes} changes to ${plan.home} on ${host}?`))) {
+              c.out.line("Nothing changed.");
+              return EXIT.ok;
+            }
+          }
+          const response = await remoteApply(loaded, ctx, {
+            ...base,
+            ...ship,
+            expectedFingerprint: plan.fingerprint,
+          });
+          if (c.json) {
+            c.emit({ remote: response.remote, ...response.result });
+            return EXIT.ok;
+          }
+          c.out.line();
+          if (response.result.applyId === undefined) {
+            c.out.line(
+              response.result.recorded > 0
+                ? `Recorded ${response.result.recorded} entries in the state on ${host}. No file changed.`
+                : "Nothing to apply.",
+            );
+            return EXIT.ok;
+          }
+          c.out.line(
+            c.out.style(
+              "green",
+              `Applied ${writes} changes on ${host}. Record: ${response.result.applyId}.`,
+            ),
+          );
+          c.out.line(`To undo, run \`ade remote ${host} revert ${response.result.applyId}\`.`);
+          return EXIT.ok;
+        }
+        case "status": {
+          const loaded = await c.load();
+          const response = await remoteStatus(loaded, c.context(), { ...base, ...ship });
+          if (c.json) {
+            c.emit({ remote: response.remote, ...response.result });
+          } else {
+            header(response.remote);
+            renderStatus(c.out, response.result, c.verbose, `${loaded.dir} -> ${host}`);
+          }
+          return boolFlag(c.flags, "exit-code") && !response.result.inSync ? EXIT.pending : EXIT.ok;
+        }
+        case "doctor": {
+          const loaded = await c.load();
+          const response = await remoteDoctor(loaded, c.context(), { ...base, ...ship });
+          if (c.json) {
+            c.emit({ remote: response.remote, ...response.result });
+          } else {
+            header(response.remote);
+            c.out.line();
+            renderDoctor(c.out, response.result);
+          }
+          return response.result.ok ? EXIT.ok : EXIT.failure;
+        }
+        case "revert": {
+          if (!boolFlag(c.flags, "yes")) {
+            if (c.json || !c.io.stdinIsTTY) {
+              throw usageError("Add --yes to revert without a prompt.");
+            }
+            const label = extra === undefined ? "the last apply" : `the apply ${extra}`;
+            if (!(await c.confirm(`Revert ${label} on ${host}?`))) {
+              c.out.line("Nothing changed.");
+              return EXIT.ok;
+            }
+          }
+          const response = await remoteRevert({
+            ...base,
+            id: extra,
+            force: boolFlag(c.flags, "force"),
+          });
+          if (c.json) {
+            c.emit({ remote: response.remote, ...response.result });
+            return EXIT.ok;
+          }
+          c.out.line(
+            c.out.style(
+              "green",
+              `Reverted the record ${response.result.reverted} on ${host}. New record: ${response.result.revertId}.`,
+            ),
+          );
+          return EXIT.ok;
+        }
+        case "history": {
+          const response = await remoteHistory(base);
+          if (c.json) {
+            c.emit({ remote: response.remote, records: response.result });
+          } else {
+            header(response.remote);
+            c.out.line();
+            renderHistory(c.out, response.result);
+          }
+          return EXIT.ok;
+        }
+        case "harnesses": {
+          const response = await remoteHarnesses(base);
+          if (c.json) {
+            c.emit({ remote: response.remote, harnesses: response.result });
+          } else {
+            header(response.remote);
+            c.out.line();
+            renderHarnesses(c.out, response.remote.home, response.result);
+          }
+          return EXIT.ok;
+        }
+        default: {
+          const out = stringFlag(c.flags, "out");
+          const dir = out === undefined ? c.profileDir() : c.resolvePath(out);
+          const response = await remoteCapture({
+            ...base,
+            harnesses: c.harnessFilter(),
+            include: listFlag(c.flags, "include").map((item) => parseRootTarget(item)),
+            name: stringFlag(c.flags, "name") ?? host,
+          });
+          const loaded = await importBundle(response.result.bundle, dir, {
+            force: boolFlag(c.flags, "force"),
+          });
+          if (c.json) {
+            c.emit({
+              remote: response.remote,
+              dir: loaded.dir,
+              profile: loaded.profile,
+              warnings: response.result.warnings,
+              secrets: response.result.secrets,
+            });
+            return EXIT.ok;
+          }
+          header(response.remote);
+          c.out.line(
+            `Captured the setup of ${response.remote.home} on ${host} into ${loaded.dir}.`,
+          );
+          c.out.line(`  harnesses     ${(loaded.profile.harnesses ?? []).join(", ") || "none"}`);
+          c.out.line(`  mcp servers   ${Object.keys(loaded.profile.mcp ?? {}).length}`);
+          c.out.line(`  skills        ${Object.keys(loaded.profile.skills ?? {}).length}`);
+          c.out.line(
+            `  settings      ${Object.keys(loaded.profile.settings ?? {}).join(", ") || "none"}`,
+          );
+          if (response.result.secrets.length > 0) {
+            c.out.line();
+            c.out.line("The profile refers to these secrets. ade did not copy their values:");
+            for (const secret of response.result.secrets) {
+              c.out.line(`  ${padEnd(secret.name, 24)} ${c.out.style("dim", secret.where)}`);
+            }
+          }
+          renderWarnings(c.out, response.result.warnings);
+          return EXIT.ok;
+        }
+      }
     },
   },
   {
@@ -1089,7 +1308,7 @@ function globalHelp(out: Output): void {
   out.line(`ade ${VERSION}: manage one agent development environment from one profile.`);
   out.line();
   out.line("Usage: ade <command> [options]");
-  for (const group of ["Profile", "Machine", "Share"] as const) {
+  for (const group of ["Profile", "Machine", "Remote", "Share"] as const) {
     out.line();
     out.line(out.style("bold", group));
     for (const command of commands.filter((item) => item.group === group)) {

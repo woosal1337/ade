@@ -8,6 +8,7 @@ import { acquireLock, ensureStateDir, type State, type StateItem, writeState } f
 export interface ApplyOptions extends PlanOptions {
   readonly expectedFingerprint?: string | undefined;
   readonly keepRecords?: number | undefined;
+  readonly profileLabel?: string | undefined;
 }
 
 export interface ApplyResult {
@@ -54,6 +55,7 @@ export async function apply(
       return rank(left) - rank(right);
     });
     const written = pathSteps.length + computed.docSteps.length;
+    const profileLabel = options.profileLabel ?? loaded.dir;
     const items: Record<string, StateItem> = { ...computed.state.items };
     for (const update of computed.stateUpdates) {
       if (update.item === undefined) {
@@ -67,7 +69,7 @@ export async function apply(
         await writeState(ctx.stateDir, {
           ...computed.state,
           items,
-          profile: loaded.dir,
+          profile: profileLabel,
         });
       }
       return { plan, applyId: undefined, written: 0, recorded: computed.stateUpdates.length };
@@ -96,14 +98,14 @@ export async function apply(
       kind: "apply",
       createdAt: ctx.now().toISOString(),
       home: ctx.home,
-      profile: loaded.dir,
+      profile: profileLabel,
       stateBefore: computed.state,
     });
     const nextState: State = {
       ...computed.state,
       items,
       lastApply: journal.id,
-      profile: loaded.dir,
+      profile: profileLabel,
     };
     await writeState(ctx.stateDir, nextState);
     await pruneRecords(ctx, options.keepRecords ?? DEFAULT_KEEP_RECORDS);

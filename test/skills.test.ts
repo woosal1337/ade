@@ -43,7 +43,11 @@ describe("git skills", () => {
   test("update locks a commit, and apply installs that content", async () => {
     const { url, repo } = await skillRepo();
     const home = await tempDir();
-    const ctx = contextFor(home);
+    const ctx = contextFor(home, {
+      GIT_CONFIG_COUNT: "1",
+      GIT_CONFIG_KEY_0: "core.autocrlf",
+      GIT_CONFIG_VALUE_0: "true",
+    });
     const dir = await tempDir("ade-profile-");
     await saveProfile(dir, {
       version: 1,

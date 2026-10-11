@@ -99,13 +99,19 @@ function withoutKeys(
   return copy;
 }
 
-export function displayPath(ctx: Context, target: string): string {
-  const relative = path.relative(ctx.home, target);
-  if (relative === "") {
+export function shortenHome(home: string, target: string): string {
+  if (target === home) {
     return "~";
   }
-  if (!relative.startsWith("..") && !path.isAbsolute(relative)) {
-    return `~${path.sep}${relative}`;
+  for (const separator of ["/", "\\"]) {
+    const prefix = home.endsWith(separator) ? home : `${home}${separator}`;
+    if (target.startsWith(prefix)) {
+      return `~${separator}${target.slice(prefix.length)}`;
+    }
   }
   return target;
+}
+
+export function displayPath(ctx: Context, target: string): string {
+  return shortenHome(ctx.home, target);
 }

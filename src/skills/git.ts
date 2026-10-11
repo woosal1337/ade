@@ -138,6 +138,10 @@ export async function materializeGitTree(
       ctx,
       runner,
       [
+        "-c",
+        "core.autocrlf=false",
+        "-c",
+        "core.eol=lf",
         "--git-dir",
         repo,
         "--work-tree",

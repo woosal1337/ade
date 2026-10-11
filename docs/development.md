@@ -10,6 +10,7 @@
 | TypeScript API | 6.0.3 as `typescript-api`, for the source comment parser only |
 | Biome | 2.5.15 for format and lint |
 | yaml | 2.9.1 for the YAML comment check |
+| esbuild | 0.28.2 for the remote agent bundle |
 | pre-commit | 4.6.2 through `uvx` |
 | uv | 0.12.19 or later |
 

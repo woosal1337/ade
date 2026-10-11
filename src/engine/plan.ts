@@ -60,6 +60,7 @@ export interface PlanOptions {
   readonly offline?: boolean | undefined;
   readonly resolver?: SecretResolver | undefined;
   readonly runner?: CommandRunner | undefined;
+  readonly copyFiles?: boolean | undefined;
 }
 
 export interface DocEdit {
@@ -186,6 +187,7 @@ export async function computePlan(
     harnesses: options.harnesses,
     resolver,
     skills,
+    copyFiles: options.copyFiles,
   });
   const state = await readState(ctx.stateDir);
   const now = ctx.now().toISOString();

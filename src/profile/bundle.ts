@@ -37,6 +37,22 @@ function encode(content: Buffer): Pick<BundleFile, "encoding" | "content"> {
   return { encoding: "base64", content: content.toString("base64") };
 }
 
+export async function dirToBundleFiles(dir: string, prefix: string): Promise<BundleFile[]> {
+  const sources = new Map<string, string>();
+  await collectDir(dir, dir, sources);
+  const files: BundleFile[] = [];
+  for (const [relative, full] of [...sources].sort(([a], [b]) => compareText(a, b))) {
+    const content = await fs.readFile(full);
+    const stat = await fs.stat(full);
+    files.push({
+      path: `${prefix}/${relative}`,
+      ...encode(content),
+      ...((stat.mode & 0o111) !== 0 ? { executable: true } : {}),
+    });
+  }
+  return files;
+}
+
 async function collectDir(root: string, dir: string, into: Map<string, string>): Promise<void> {
   for (const name of (await fs.readdir(dir)).sort()) {
     if (IGNORED.has(name)) {
