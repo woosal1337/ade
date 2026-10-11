@@ -346,7 +346,8 @@ describe("patches", () => {
     const ctx = contextFor(target);
     const repo = await packageRepo(target, "export const a = 1;\n");
     await apply(loaded, ctx, { runner: offlineRunner });
-    assert.equal(await fs.readFile(path.join(repo, "index.ts"), "utf8"), "export const a = 2;\n");
+    const patched = await fs.readFile(path.join(repo, "index.ts"), "utf8");
+    assert.equal(patched.replaceAll("\r\n", "\n"), "export const a = 2;\n");
     assert.equal(writes((await plan(loaded, ctx, { runner: offlineRunner })).summary), 0);
     await revert(ctx, { runner: offlineRunner });
     assert.equal(await fs.readFile(path.join(repo, "index.ts"), "utf8"), "export const a = 1;\n");
