@@ -9,3 +9,6 @@ node_modules/
 .cache/
 coverage/
 dist/
+site/.next/
+site/out/
+site/next-env.d.ts

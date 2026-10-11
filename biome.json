@@ -12,7 +12,10 @@
       "!dist",
       "!examples/**/ade.json",
       "!examples/**/ade.schema.json",
-      "!examples/**/ade.lock.json"
+      "!examples/**/ade.lock.json",
+      "!site/.next",
+      "!site/out",
+      "!site/next-env.d.ts"
     ]
   },
   "formatter": {
@@ -38,6 +41,11 @@
       "quoteStyle": "double",
       "trailingCommas": "all",
       "semicolons": "always"
+    }
+  },
+  "css": {
+    "parser": {
+      "tailwindDirectives": true
     }
   }
 }

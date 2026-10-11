@@ -60,7 +60,7 @@
   },
   "quality": {
     "pre_commit_version": "4.6.2",
-    "required": ["typecheck", "build"],
+    "required": ["build", "site", "typecheck"],
     "checks": [
       {
         "id": "format",
@@ -85,6 +85,10 @@
       {
         "id": "test",
         "argv": ["npm", "test", "--silent"]
+      },
+      {
+        "id": "site",
+        "argv": ["npm", "--prefix", "site", "run", "--silent", "check"]
       }
     ]
   },

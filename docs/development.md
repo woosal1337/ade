@@ -11,6 +11,11 @@
 | Biome | 2.5.15 for format and lint |
 | yaml | 2.9.1 for the YAML comment check |
 | esbuild | 0.28.2 for the remote agent bundle |
+| Next.js | 16.4.0 for the landing page in `site/` |
+| React | 19.3.0 for the landing page |
+| Tailwind CSS | 4.3.3 for the landing page |
+| motion | 14.1.0 for the landing page animations |
+| TypeScript in `site/` | 6.0.3, because Next.js type checks need the TypeScript API |
 | pre-commit | 4.6.2 through `uvx` |
 | uv | 0.12.19 or later |
 
@@ -18,9 +23,10 @@
 
 ```bash
 npm ci
+npm ci --prefix site
 ```
 
-Install the project dependencies before installing the hooks.
+Install the project dependencies before installing the hooks. The `site` gate needs the landing page dependencies.
 Both hooks belong to this clone. A repository configuration file alone does not install them.
 
 ```bash
@@ -37,6 +43,14 @@ python3 tools/quality.py check
 npm test
 node src/cli.ts plan --profile <profile-dir> --home <scratch-home>
 ```
+
+## Run the landing page
+
+```bash
+npm --prefix site run dev
+```
+
+`npm --prefix site run build` writes the static site to `site/out`. The site has no server code.
 
 ## Use the CLI from this clone
 

@@ -14,6 +14,7 @@ An absent required check fails the runner. A skipped check is not a pass.
 | Types | `npm run typecheck` (TypeScript 7) |
 | Build | `npm run build` |
 | Tests | `npm test` (Node.js test runner) |
+| Site | `npm --prefix site run check`: the TypeScript check and the static build of the landing page |
 
 Use the same check command in the commit hook and CI.
 The push hook runs the project test command. Add broader checks when the project requires them.
@@ -33,7 +34,9 @@ Keep the exclusions narrow. Do not exclude a source directory merely because it 
 
 | Files | Parser |
 |---|---|
-| `.ts`, `.mts`, `.cts`, `.js`, `.mjs`, `.cjs` | TypeScript 6.0.3 compiler API |
+| `.ts`, `.tsx`, `.mts`, `.cts`, `.js`, `.jsx`, `.mjs`, `.cjs` | TypeScript 6.0.3 compiler API |
+| `.css` | A tokenizer that skips strings and finds `/*` |
+| `.svg` | A search for `<!--` |
 | `.json` | `JSON.parse` |
 | `.yml`, `.yaml` | The `yaml` lexer |
 | `.gitignore`, `.gitattributes`, `.editorconfig` | A line rule: a line that starts with `#` or `;` |
@@ -42,7 +45,10 @@ Keep the exclusions narrow. Do not exclude a source directory merely because it 
 
 Exceptions:
 
-- `package-lock.json` is a generated file. The check skips it.
+- `package-lock.json` is a generated file. The check skips it, also in `site/`.
+- Fonts and images (`.woff2`, `.png`, `.ico`, `.jpg`, `.webp`) are binary files. The check skips them.
+- `site/public/fonts/OFL-*.txt` are third-party license texts. The check skips them.
+- Next.js writes `site/next-env.d.ts` with comments. Git ignores the file.
 - ade writes `ade.json`, `ade.lock.json`, and `ade.schema.json` in `examples/`. Biome does not format them. The source check parses them as JSON.
 - Markdown files are documentation. The check skips them.
 - The `#!/usr/bin/env node` line in `src/cli.ts` is a required directive. The TypeScript parser does not report it as a comment.

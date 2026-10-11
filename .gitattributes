@@ -5,3 +5,6 @@
 *.yaml text eol=lf
 *.py text eol=lf
 *.sh text eol=lf
+*.woff2 binary
+*.png binary
+*.ico binary

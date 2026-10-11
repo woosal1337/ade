@@ -17,9 +17,16 @@ jobs:
         with:
           node-version: "24"
           cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            site/package-lock.json
       - name: Install dependencies
-        run: npm ci
+        run: |
+          npm ci
+          npm ci --prefix site
       - name: Project checks
+        env:
+          NEXT_TELEMETRY_DISABLED: "1"
         run: python3 tools/quality.py check
       - name: CLI smoke test
         run: node dist/cli.js --version

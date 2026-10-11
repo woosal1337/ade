@@ -16,6 +16,7 @@ Research date: 2026-10-11
 | Comment parser | TypeScript 6.0.3 API, yaml 2.9.1 | TypeScript 7 has no stable parser API |
 | Hooks | pre-commit 4.6.2 | The shared foundation |
 | Remote agent bundle | esbuild 0.28.2 | One ESM file that `node -` runs from standard input on the remote |
+| Landing page | Next.js 16.4.0 static export, React 19.3.0, Tailwind CSS 4.3.3, motion 14.1.0 | The stack of the index project, with the current Next.js line. Read [the site decision](../docs/decisions/0007-landing-page.md) |
 | CI actions | checkout v7.0.1 `3d3c42e5aac5ba805825da76410c181273ba90b1`, setup-node v7.1.0 `949feb2413d6458794dcd2491c4babbbce0c15c1` | Pinned to full commit hashes |
 
 Choose compatible stable versions. Do not choose each component's newest version independently.

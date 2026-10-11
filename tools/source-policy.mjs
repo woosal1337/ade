@@ -7,7 +7,9 @@ import { CST, Lexer } from "yaml";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const skipped = new Set(["package-lock.json"]);
-const scriptExtensions = new Set([".ts", ".mts", ".cts", ".js", ".mjs", ".cjs"]);
+const scriptExtensions = new Set([".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs"]);
+const binaryExtensions = new Set([".woff2", ".png", ".ico", ".jpg", ".webp"]);
+const thirdPartyTexts = /^site\/public\/fonts\/OFL-[A-Za-z]+\.txt$/;
 const lineRuleNames = new Set([".gitignore", ".gitattributes", ".editorconfig"]);
 const errors = [];
 
@@ -72,6 +74,34 @@ function checkYaml(file, text) {
   }
 }
 
+function checkCss(file, text) {
+  let index = 0;
+  while (index < text.length) {
+    const char = text[index];
+    if (char === '"' || char === "'") {
+      let end = index + 1;
+      while (end < text.length && text[end] !== char) {
+        end += text[end] === "\\" ? 2 : 1;
+      }
+      index = end + 1;
+      continue;
+    }
+    if (char === "/" && text[index + 1] === "*") {
+      errors.push(`${file}:${lineOf(text, index)}: Remove the source comment.`);
+      const end = text.indexOf("*/", index + 2);
+      index = end === -1 ? text.length : end + 2;
+      continue;
+    }
+    index += 1;
+  }
+}
+
+function checkMarkup(file, text) {
+  for (const match of text.matchAll(/<!--/g)) {
+    errors.push(`${file}:${lineOf(text, match.index)}: Remove the source comment.`);
+  }
+}
+
 function checkShell(file, text) {
   text.split(/\r?\n/).forEach((line, index) => {
     const trimmed = line.trimStart();
@@ -97,7 +127,12 @@ const pythonFiles = [];
 for (const file of authoredFiles()) {
   const name = path.basename(file);
   const extension = path.extname(file);
-  if (skipped.has(name) || extension === ".md") {
+  if (
+    skipped.has(name) ||
+    extension === ".md" ||
+    binaryExtensions.has(extension) ||
+    thirdPartyTexts.test(file)
+  ) {
     continue;
   }
   const text = fs.readFileSync(path.join(root, file), "utf8");
@@ -107,6 +142,10 @@ for (const file of authoredFiles()) {
     checkJson(file, text);
   } else if (extension === ".yml" || extension === ".yaml") {
     checkYaml(file, text);
+  } else if (extension === ".css") {
+    checkCss(file, text);
+  } else if (extension === ".svg") {
+    checkMarkup(file, text);
   } else if (extension === ".sh" || extension === ".ps1") {
     checkShell(file, text);
   } else if (lineRuleNames.has(name)) {
