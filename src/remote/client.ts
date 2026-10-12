@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
 import fs from "node:fs/promises";
+import os from "node:os";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
 import type { Context } from "../core/context.ts";
@@ -68,6 +69,7 @@ export const sshTransport: RemoteTransport = (target, script) =>
     const child = spawn(target.ssh ?? "ssh", args, {
       stdio: ["pipe", "pipe", "pipe"],
       windowsHide: true,
+      cwd: os.homedir(),
     });
     let stdout = "";
     let stderr = "";

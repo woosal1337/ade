@@ -119,6 +119,7 @@ export function grokPlugins(): PluginSupport {
     async list(ctx: Context, runner: CommandRunner): Promise<InstalledPlugins> {
       const result = await runner(["grok", "plugin", "list", "--json"], {
         env: pluginEnv(ctx),
+        cwd: ctx.home,
         timeoutMs: 60_000,
       });
       const installed: Record<string, string> = {};

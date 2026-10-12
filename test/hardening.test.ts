@@ -1042,3 +1042,20 @@ describe("patch links and invisible characters", () => {
     );
   });
 });
+
+describe("child process folders", () => {
+  test("ref lookup ignores the Git config of the current folder", async () => {
+    const { repo, url } = await repoWith({ "README.md": "one\n" });
+    const hostile = await tempDir("ade-hostile-");
+    git(hostile, "init", "--quiet", "-b", "main");
+    git(hostile, "config", `url.file:///nonexistent-ade-target/.insteadOf`, url);
+    const previous = process.cwd();
+    process.chdir(hostile);
+    try {
+      const commit = await resolveGitRef(contextFor(await tempDir()), url, "main");
+      assert.equal(commit, git(repo, "rev-parse", "HEAD"));
+    } finally {
+      process.chdir(previous);
+    }
+  });
+});

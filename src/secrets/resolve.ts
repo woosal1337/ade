@@ -1,5 +1,6 @@
 import { execFile } from "node:child_process";
 import fs from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import type { Context, Environment } from "../core/context.ts";
 import { isPlainObject } from "../core/doc.ts";
@@ -33,7 +34,7 @@ export const runCommand: CommandRunner = (argv, options) =>
         timeout: options.timeoutMs,
         maxBuffer: 16 * 1024 * 1024,
         windowsHide: true,
-        ...(options.cwd === undefined ? {} : { cwd: options.cwd }),
+        cwd: options.cwd ?? os.homedir(),
       },
       (error, stdout, stderr) => {
         if (error && typeof error.code !== "number") {
@@ -239,7 +240,11 @@ async function readSecret(
       }
     }
     case "command": {
-      const result = await runner(source.argv, { env: ctx.env, timeoutMs: 15_000 });
+      const result = await runner(source.argv, {
+        env: ctx.env,
+        timeoutMs: 15_000,
+        cwd: ctx.home,
+      });
       if (result.code !== 0) {
         throw new AdeError(
           "secret-unresolved",
@@ -261,7 +266,7 @@ async function readSecret(
       }
       const result = await runner(
         ["security", "find-generic-password", "-s", source.service, "-a", source.account, "-w"],
-        { env: ctx.env, timeoutMs: 15_000 },
+        { env: ctx.env, timeoutMs: 15_000, cwd: ctx.home },
       );
       if (result.code !== 0) {
         throw new AdeError(

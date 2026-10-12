@@ -36,6 +36,7 @@ The first public version.
 - The risk summary marks each MCP server, override, and setting that gets a secret, and names the secret. An environment secret is a high-risk line.
 - A patch that adds or changes a symbolic link fails, and `git apply` runs with `core.symlinks=false`.
 - Output escapes invisible Unicode characters, such as zero-width spaces and line separators. Paths and Git URLs with such characters fail.
+- Child processes run in the home folder or the cache folder, not in the current folder. Git does not read the repository config of the current folder.
 - A source that names both a local path and a GitHub shorthand fails. Use `./<path>` or `github:<owner>/<repo>`.
 - A settings file name that differs only in case from a main settings file or an MCP file fails.
 - A Grok plugin install must come from the marketplace that the profile names. ade removes a plugin from another marketplace.

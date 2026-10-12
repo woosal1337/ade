@@ -995,6 +995,8 @@ export async function capture(ctx: Context, options: CaptureOptions = {}): Promi
           "-C",
           dir,
           "diff",
+          "--no-ext-diff",
+          "--no-textconv",
           "--binary",
           "HEAD",
           "--",

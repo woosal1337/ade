@@ -55,6 +55,7 @@ export class ExternalProbe {
       await this.#runner([support.program, "--version"], {
         env: pluginEnv(this.#ctx),
         timeoutMs: 30_000,
+        cwd: this.#ctx.home,
       });
     } catch (error) {
       if (errnoCode(error) === "ENOENT") {

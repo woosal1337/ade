@@ -79,8 +79,13 @@ async function runGit(
   args: readonly string[],
   timeoutMs = 120_000,
 ): Promise<CommandResult> {
+  await ensurePrivateDir(ctx.cacheDir);
   try {
-    return await runner(["git", ...args], { env: isolatedGitEnv(ctx.env), timeoutMs });
+    return await runner(["git", ...args], {
+      env: { ...isolatedGitEnv(ctx.env), GIT_CEILING_DIRECTORIES: path.dirname(ctx.cacheDir) },
+      timeoutMs,
+      cwd: ctx.cacheDir,
+    });
   } catch (error) {
     if (errnoCode(error) === "ENOENT") {
       throw new AdeError("git-failed", "Git is not installed, or it is not on the PATH.", {
