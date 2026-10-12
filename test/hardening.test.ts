@@ -661,8 +661,13 @@ describe("audit run 2 fixes", () => {
     );
   });
 
-  test("JSON output escapes C1 and bidirectional characters", () => {
-    const value = { text: "a\u202eb\u0085c" };
+  test("JSON output escapes C1, bidirectional, and invisible characters", () => {
+    const value = { text: "a\u202eb\u0085c\u200bd\u{e0041}e" };
+    const escaped = escapeJsonControls(JSON.stringify(value));
+    for (const char of ["\u202e", "\u0085", "\u200b", "\u{e0041}"]) {
+      assert.equal(escaped.includes(char), false, JSON.stringify(char));
+    }
+    assert.deepEqual(JSON.parse(escaped), value);
     const json = escapeJsonControls(JSON.stringify(value));
     assert.equal(json.includes("\u202e"), false);
     assert.equal(json.includes("\\u202e"), true);

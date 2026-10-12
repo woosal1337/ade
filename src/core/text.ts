@@ -48,14 +48,28 @@ export function printable(value: string, keepNewlines = false): string {
 }
 
 function isJsonUnsafe(code: number): boolean {
-  return (code >= 0x7f && code <= 0x9f) || BIDI_CONTROLS.has(code);
+  return (
+    (code >= 0x7f && code <= 0x9f) ||
+    BIDI_CONTROLS.has(code) ||
+    INVISIBLE.test(String.fromCodePoint(code))
+  );
+}
+
+function jsonEscape(code: number): string {
+  if (code <= 0xffff) {
+    return `\\u${code.toString(16).padStart(4, "0")}`;
+  }
+  const offset = code - 0x10000;
+  const high = 0xd800 + (offset >> 10);
+  const low = 0xdc00 + (offset & 0x3ff);
+  return `\\u${high.toString(16)}\\u${low.toString(16)}`;
 }
 
 export function escapeJsonControls(json: string): string {
   let result = "";
   for (const char of json) {
     const code = char.codePointAt(0) ?? 0;
-    result += isJsonUnsafe(code) ? `\\u${code.toString(16).padStart(4, "0")}` : char;
+    result += isJsonUnsafe(code) ? jsonEscape(code) : char;
   }
   return result;
 }
