@@ -190,6 +190,29 @@ export async function runPluginOp(
       },
     );
   }
+  if (op.op === "install" && op.harness === "grok") {
+    await checkInstalledMarketplace(
+      op.id,
+      Object.keys((await support.list(ctx, runner)).installed),
+    );
+  }
+}
+
+export async function checkInstalledMarketplace(
+  id: string,
+  installed: readonly string[],
+): Promise<void> {
+  const at = id.lastIndexOf("@");
+  if (at <= 0 || installed.includes(id)) {
+    return;
+  }
+  const name = id.slice(0, at);
+  const other = installed.find((key) => key.startsWith(`${name}@`));
+  if (other !== undefined) {
+    throw new AdeError("conflict", `Grok installed ${other}, not ${id}.`, {
+      hint: "Remove the other marketplace from Grok, or name its plugin in the profile.",
+    });
+  }
 }
 
 export async function gitApply(

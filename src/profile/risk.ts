@@ -23,7 +23,7 @@ export interface RiskItem {
 }
 
 const EXECUTION_KEY =
-  /^(hooks?|command|commands|notify|statusLine|apiKeyHelper|otelHeadersHelper|awsAuthRefresh|awsCredentialExport|shellPath|shellCommandPrefix|npmCommand|packages|plugins?|enabledPlugins|extraKnownMarketplaces|marketplaces?|extensions|env|mcp_servers|mcpServers|context_servers|enableAllProjectMcpServers|enabledMcpjsonServers|discoveryCommand|callCommand|model_providers|base_url|baseUrl|apiBase)$/i;
+  /^(hooks?|command|commands|notify|statusLine|apiKeyHelper|otelHeadersHelper|awsAuthRefresh|awsCredentialExport|shellPath|shellCommandPrefix|npmCommand|packages|plugins?|enabledPlugins|extraKnownMarketplaces|marketplaces?|extensions|auto_install_extensions|auto_update_extensions|env|mcp_servers|mcpServers|context_servers|enableAllProjectMcpServers|enabledMcpjsonServers|discoveryCommand|callCommand|model_providers|base_url|baseUrl|apiBase)$/i;
 const OUTSIDE_ROOTS = new Set(["home", "cursor-user"]);
 const PERMISSION_KEY =
   /(permission|approval|sandbox|yolo|dangerous|trust|autoMode|defaultMode|^allow$|^deny$|bypass)/i;

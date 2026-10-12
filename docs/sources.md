@@ -49,7 +49,7 @@ To edit a setup before you apply it, import it first. `ade import woosal1337/ade
 | Explicit GitHub | `github:acme/agents` | The shorthand, even when a local folder has the same name |
 | Git URL | `https://git.example.com/team/agents.git//work#v1` | Any Git URL, with an optional `//subfolder` and `#ref` |
 
-A local folder with the same name as a shorthand wins. Use `github:` to choose the repository. A repository root with only an `ADE.md` works as a source. Read [the ADE.md standard](ade-md.md).
+If a local folder or file has the same name as a shorthand, ade stops. Use `./<path>` for the local path, or `github:<owner>/<repo>` for the repository. A repository root with only an `ADE.md` works as a source. Read [the ADE.md standard](ade-md.md).
 
 ade fetches a Git source into its cache at one commit. It remembers the commit, so `--offline` uses the last fetched commit. The apply record names the source and the commit, for example `acme/agents @ 1a2b3c4d5e6f`.
 

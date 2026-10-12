@@ -98,9 +98,14 @@ describe("profile specs", () => {
     assert.equal(scp.kind === "git" && scp.url, "git@github.com:a/b.git");
   });
 
-  test("local folders win over the shorthand", () => {
+  test("a local path that looks like a shorthand needs ./ or github:", () => {
     const local = path.resolve("/work/a/b");
-    assert.equal(parseProfileSpec("a/b", context([local])).kind, "local");
+    assert.throws(
+      () => parseProfileSpec("a/b", context([local])),
+      (error: unknown) => error instanceof AdeError && error.code === "usage",
+    );
+    assert.equal(parseProfileSpec("./a/b", context([local])).kind, "local");
+    assert.equal(parseProfileSpec("github:a/b", context([local])).kind, "git");
     assert.equal(parseProfileSpec("./a/b", context()).kind, "local");
     assert.equal(
       parseProfileSpec("~/agents", context()).canonical,

@@ -12,7 +12,7 @@ import { isSafeRelative, listFiles } from "../src/core/fsx.ts";
 import { escapeJsonControls } from "../src/core/text.ts";
 import { apply } from "../src/engine/apply.ts";
 import { capture, writeCapture } from "../src/engine/capture.ts";
-import { numstatPaths } from "../src/engine/external.ts";
+import { checkInstalledMarketplace, numstatPaths } from "../src/engine/external.ts";
 import { revert } from "../src/engine/history.ts";
 import { plan } from "../src/engine/plan.ts";
 import { type Bundle, importBundle, modeFlags } from "../src/profile/bundle.ts";
@@ -22,6 +22,7 @@ import { buildProfileBundle, scanBundle } from "../src/profile/pack.ts";
 import { riskSummary } from "../src/profile/risk.ts";
 import { ProfileSchema } from "../src/profile/schema.ts";
 import { trustEntries } from "../src/profile/trust.ts";
+import { semanticProblems } from "../src/profile/validate.ts";
 import { remoteHistory } from "../src/remote/client.ts";
 import { createSecretResolver } from "../src/secrets/resolve.ts";
 import { materializeGitTree, resolveGitRef, treeCacheDir } from "../src/skills/git.ts";
@@ -784,6 +785,39 @@ describe("trust keys and the risk display", () => {
     assert.equal(
       text.split("\n").some((line) => line.trimStart().startsWith("+ fake")),
       false,
+    );
+  });
+});
+
+describe("settings names, Grok installs, and extension keys", () => {
+  test("a case variant of a main settings file needs the harness key", () => {
+    const problems = semanticProblems({
+      version: 1,
+      settings: { "zed:Settings.json": { auto_install_extensions: { html: true } } },
+    });
+    assert.equal(
+      problems.some((problem) => problem.includes('Use the key "zed"')),
+      true,
+    );
+  });
+
+  test("a Grok install from another marketplace fails", async () => {
+    await checkInstalledMarketplace("deploy@team", ["deploy@team"]);
+    await checkInstalledMarketplace("deploy@team", ["deploy"]);
+    await assert.rejects(
+      checkInstalledMarketplace("deploy@team", ["deploy@other"]),
+      isCode("conflict"),
+    );
+  });
+
+  test("extension auto-install settings are high-risk lines", () => {
+    const items = riskSummary({
+      version: 1,
+      settings: { zed: { auto_install_extensions: { html: true } } },
+    });
+    assert.equal(
+      items.some((item) => item.level === "high" && item.text.includes("auto_install_extensions")),
+      true,
     );
   });
 });

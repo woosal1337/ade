@@ -18,6 +18,8 @@ ade writes the setup of coding agents on your machine. A setup can start program
 
 `ade import` and `ade pack` write a local profile folder, so they ask for trust before they write. `ade remote <host> capture` shows the summary of the captured setup and asks before it writes. It removes file links and link skills that name paths on the other machine.
 
+A source such as `acme/agents` can also be a local path. If both exist, ade stops and asks for `./acme/agents` or `github:acme/agents`, so a folder in the working directory cannot take the place of a repository.
+
 A trusted profile can run programs as you. MCP servers, hooks, plugins, patches, and secret commands all run with your rights. Trust a source only when you would run its code.
 
 ## Before trust

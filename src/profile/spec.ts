@@ -122,10 +122,18 @@ export function parseProfileSpec(input: string, context: SpecContext): ProfileSp
     return urlSpec(value);
   }
   const local = path.resolve(context.cwd, value);
+  const match = GITHUB_SHORTHAND.exec(value);
+  const shorthand = match?.groups?.owner !== undefined && match.groups.repo !== undefined;
   if (context.exists(local)) {
+    if (shorthand) {
+      throw new AdeError(
+        "usage",
+        `The source ${value} names a local path and a GitHub repository.`,
+        { hint: `Use ./${value} for the local path, or github:${value} for the repository.` },
+      );
+    }
     return { kind: "local", dir: local, display: local, canonical: local };
   }
-  const match = GITHUB_SHORTHAND.exec(value);
   if (match?.groups?.owner !== undefined && match.groups.repo !== undefined) {
     return githubSpec(
       match.groups.owner,

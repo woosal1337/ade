@@ -44,6 +44,10 @@ export function validateLock(input: unknown, label: string): Lock {
 
 const sampleContext = createContext({ home: path.resolve("/ade-sample-home"), env: {} });
 
+function samePathKey(file: string): string {
+  return file.normalize("NFC").toLowerCase();
+}
+
 export function semanticProblems(profile: Profile): string[] {
   const problems: string[] = [];
   for (const [key, patch] of Object.entries(profile.settings ?? {})) {
@@ -73,16 +77,16 @@ export function semanticProblems(profile: Profile): string[] {
     if (docFormatFor(file) === undefined) {
       problems.push(`settings.${key}: Use a file that ends with .json or .toml.`);
     }
-    const target = path.resolve(rootDir(sampleContext, root), file);
+    const target = samePathKey(path.resolve(rootDir(sampleContext, root), file));
     for (const other of listAdapters()) {
       const mcp = other.mcpLocation(sampleContext);
-      if (target === path.resolve(mcp.path)) {
+      if (target === samePathKey(path.resolve(mcp.path))) {
         const reserved = mcp.pointer[0] ?? "";
         if (Object.hasOwn(patch, reserved)) {
           problems.push(`settings.${key}.${reserved}: Use the mcp section for MCP servers.`);
         }
       }
-      if (target === path.resolve(other.settingsLocation(sampleContext).path)) {
+      if (target === samePathKey(path.resolve(other.settingsLocation(sampleContext).path))) {
         problems.push(`settings.${key}: Use the key "${other.id}" for the main settings file.`);
       }
     }

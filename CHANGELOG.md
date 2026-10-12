@@ -32,3 +32,6 @@ The first public version.
 - A locked skill commit must be on its ref.
 - Trust keys of settings use JSON pointers, and two entries with one key fail.
 - Prompts, plan labels, and JSON output escape control characters.
+- A source that names both a local path and a GitHub shorthand fails. Use `./<path>` or `github:<owner>/<repo>`.
+- A settings file name that differs only in case from a main settings file or an MCP file fails.
+- A Grok plugin install must come from the marketplace that the profile names.
