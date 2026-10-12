@@ -1059,3 +1059,21 @@ describe("child process folders", () => {
     }
   });
 });
+
+describe("small input checks", () => {
+  test("a secret command needs a program name or an absolute path", () => {
+    const parse = (argv: string[]) =>
+      ProfileSchema.safeParse({ version: 1, secrets: { A: { from: "command", argv } } }).success;
+    assert.equal(parse(["op", "read", "x"]), true);
+    assert.equal(parse(["/usr/local/bin/op", "read"]), true);
+    assert.equal(parse(["./helper"]), false);
+    assert.equal(parse(["bin/helper"]), false);
+  });
+
+  test("Windows names of the .git folder are not safe", () => {
+    for (const part of [".git.", ".git ", "GIT~1", ".Git.."]) {
+      assert.equal(isSafeRelative(`a/${part}/config`), false, part);
+    }
+    assert.equal(isSafeRelative("a/.github/workflows"), true);
+  });
+});

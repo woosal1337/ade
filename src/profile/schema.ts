@@ -115,7 +115,16 @@ export const SkillSchema = z.union([PathSkillSchema, GitSkillSchema, LinkSkillSc
 export const SecretSourceSchema = z.discriminatedUnion("from", [
   z.strictObject({ from: z.literal("env"), name: z.string().min(1) }),
   z.strictObject({ from: z.literal("file"), path: z.string().min(1) }),
-  z.strictObject({ from: z.literal("command"), argv: z.array(z.string().min(1)).min(1) }),
+  z.strictObject({
+    from: z.literal("command"),
+    argv: z
+      .array(z.string().min(1))
+      .min(1)
+      .refine((argv) => {
+        const program = argv[0] ?? "";
+        return !/[\\/]/.test(program) || /^(?:\/|[A-Za-z]:[\\/]|\\\\)/.test(program);
+      }, "Use a program name on the PATH or an absolute path for the command."),
+  }),
   z.strictObject({
     from: z.literal("keychain"),
     service: z.string().min(1),

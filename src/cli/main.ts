@@ -1400,6 +1400,9 @@ const commands: Command[] = [
       if (host === undefined || op === undefined || !(ops as readonly string[]).includes(op)) {
         throw usageError("Give the host and the command.", `Use one of: ${ops.join(", ")}.`);
       }
+      if (host.startsWith("-")) {
+        throw usageError(`The host must not start with '-': ${host}.`);
+      }
       const remoteHome = stringFlag(c.flags, "remote-home");
       const target: RemoteTarget = {
         host,
