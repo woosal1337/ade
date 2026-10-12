@@ -15,8 +15,9 @@ ade needs a public page that shows what it is, how to install it, and how to use
 3. The site uses Next.js 16.4.0, the current stable line. Index uses Next.js 15.
 4. The site uses TypeScript 6.0.3. Next.js type checks call the TypeScript API, and TypeScript 7 has no stable API.
 5. The design follows Prime Intellect, a tier A entry of the index catalog: a dark, monospace-first, terminal style. The page copies its numbered navigation tabs, its framed panels with `FIG` labels, its command loop diagram, its white mono buttons, its animated dot matrix, and its dot-matrix footer word.
-6. Each command and each output line on the page comes from the real CLI.
-7. The page is static. It has no analytics and no server code.
+6. The logo is the dot-matrix word "ade." from the footer. `site/app/glyphs.ts` holds the glyphs. The header, the footer, the favicon, and the README logo use it. Run `node tools/build-logo.mjs` after a glyph change.
+7. Each command and each output line on the page comes from the real CLI.
+8. The page is static. It has no analytics and no server code.
 
 ## Alternatives
 

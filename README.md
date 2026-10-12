@@ -1,4 +1,9 @@
-# ade
+<h1>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/ade-logo-dark.svg">
+    <img alt="ade" src="docs/assets/ade-logo-light.svg" width="228">
+  </picture>
+</h1>
 
 **Own your agent setup.** ade captures the MCP servers, skills, instructions, settings, and plugins of 10 coding agents into one profile. It plans each change, applies it with a backup, and shares the whole setup as one `ADE.md` file.
 
@@ -206,6 +211,7 @@ python3 tools/quality.py check
 | `test/` | Tests that run in scratch home folders |
 | `site/` | The landing page: Next.js, Tailwind CSS, and motion |
 | `scripts/` | The install scripts |
+| `tools/build-logo.mjs` | Writes the favicon and the README logo files from `site/app/glyphs.ts` |
 | `examples/` | A sample profile folder and a sample `ADE.md` |
 | `docs/` | Guides and decision records |
 

@@ -1,15 +1,20 @@
 import { NAV, REPO_URL } from "../content";
+import { DotText } from "./DotText";
 import { ArrowUpRight, Button } from "./primitives";
 
 export function Logo() {
   return (
-    <a href="#top" className="flex items-center gap-2" aria-label="ade home">
-      <svg viewBox="0 0 24 24" aria-hidden="true" className="h-6 w-6">
-        <rect x="1" y="1" width="22" height="22" fill="none" stroke="#ededed" strokeWidth="1.5" />
-        <path d="M6 8l4 4-4 4" fill="none" stroke="#ededed" strokeWidth="1.6" />
-        <path d="M12 16h6" stroke="#7cf0b0" strokeWidth="1.6" />
-      </svg>
-      <span className="font-mono text-[17px] font-medium tracking-tight text-fg">ade</span>
+    <a href="#top" className="flex shrink-0 items-center" aria-label="ade home">
+      <DotText
+        text="ade."
+        label="ade"
+        sub={2}
+        pitch={2.5}
+        size={1.8}
+        on="#ededed"
+        off="#1f1f1f"
+        className="block h-[35px] w-[95px]"
+      />
     </a>
   );
 }

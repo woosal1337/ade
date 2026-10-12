@@ -1,7 +1,85 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 36">
   <title>ade</title>
-  <rect width="32" height="32" fill="#0b0b0b"/>
-  <rect x="4" y="4" width="24" height="24" fill="none" stroke="#ededed" stroke-width="2"/>
-  <path d="M10 12l5 4-5 4" fill="none" stroke="#ededed" stroke-width="2"/>
-  <path d="M17 20h6" stroke="#7cf0b0" stroke-width="2"/>
+  <rect width="36" height="36" fill="#0b0b0b"/>
+  <rect x="0.5" y="0.5" width="3" height="3" fill="#262626"/>
+  <rect x="4.5" y="0.5" width="3" height="3" fill="#262626"/>
+  <rect x="8.5" y="0.5" width="3" height="3" fill="#262626"/>
+  <rect x="12.5" y="0.5" width="3" height="3" fill="#262626"/>
+  <rect x="16.5" y="0.5" width="3" height="3" fill="#262626"/>
+  <rect x="20.5" y="0.5" width="3" height="3" fill="#262626"/>
+  <rect x="24.5" y="0.5" width="3" height="3" fill="#262626"/>
+  <rect x="28.5" y="0.5" width="3" height="3" fill="#262626"/>
+  <rect x="32.5" y="0.5" width="3" height="3" fill="#262626"/>
+  <rect x="0.5" y="4.5" width="3" height="3" fill="#262626"/>
+  <rect x="4.5" y="4.5" width="3" height="3" fill="#262626"/>
+  <rect x="8.5" y="4.5" width="3" height="3" fill="#262626"/>
+  <rect x="12.5" y="4.5" width="3" height="3" fill="#262626"/>
+  <rect x="16.5" y="4.5" width="3" height="3" fill="#262626"/>
+  <rect x="20.5" y="4.5" width="3" height="3" fill="#262626"/>
+  <rect x="24.5" y="4.5" width="3" height="3" fill="#262626"/>
+  <rect x="28.5" y="4.5" width="3" height="3" fill="#262626"/>
+  <rect x="32.5" y="4.5" width="3" height="3" fill="#262626"/>
+  <rect x="0.5" y="8.5" width="3" height="3" fill="#262626"/>
+  <rect x="4.5" y="8.5" width="3" height="3" fill="#262626"/>
+  <rect x="8.5" y="8.5" width="3" height="3" fill="#ededed"/>
+  <rect x="12.5" y="8.5" width="3" height="3" fill="#ededed"/>
+  <rect x="16.5" y="8.5" width="3" height="3" fill="#ededed"/>
+  <rect x="20.5" y="8.5" width="3" height="3" fill="#262626"/>
+  <rect x="24.5" y="8.5" width="3" height="3" fill="#262626"/>
+  <rect x="28.5" y="8.5" width="3" height="3" fill="#262626"/>
+  <rect x="32.5" y="8.5" width="3" height="3" fill="#262626"/>
+  <rect x="0.5" y="12.5" width="3" height="3" fill="#262626"/>
+  <rect x="4.5" y="12.5" width="3" height="3" fill="#262626"/>
+  <rect x="8.5" y="12.5" width="3" height="3" fill="#262626"/>
+  <rect x="12.5" y="12.5" width="3" height="3" fill="#262626"/>
+  <rect x="16.5" y="12.5" width="3" height="3" fill="#262626"/>
+  <rect x="20.5" y="12.5" width="3" height="3" fill="#ededed"/>
+  <rect x="24.5" y="12.5" width="3" height="3" fill="#262626"/>
+  <rect x="28.5" y="12.5" width="3" height="3" fill="#262626"/>
+  <rect x="32.5" y="12.5" width="3" height="3" fill="#262626"/>
+  <rect x="0.5" y="16.5" width="3" height="3" fill="#262626"/>
+  <rect x="4.5" y="16.5" width="3" height="3" fill="#262626"/>
+  <rect x="8.5" y="16.5" width="3" height="3" fill="#ededed"/>
+  <rect x="12.5" y="16.5" width="3" height="3" fill="#ededed"/>
+  <rect x="16.5" y="16.5" width="3" height="3" fill="#ededed"/>
+  <rect x="20.5" y="16.5" width="3" height="3" fill="#ededed"/>
+  <rect x="24.5" y="16.5" width="3" height="3" fill="#262626"/>
+  <rect x="28.5" y="16.5" width="3" height="3" fill="#262626"/>
+  <rect x="32.5" y="16.5" width="3" height="3" fill="#262626"/>
+  <rect x="0.5" y="20.5" width="3" height="3" fill="#262626"/>
+  <rect x="4.5" y="20.5" width="3" height="3" fill="#ededed"/>
+  <rect x="8.5" y="20.5" width="3" height="3" fill="#262626"/>
+  <rect x="12.5" y="20.5" width="3" height="3" fill="#262626"/>
+  <rect x="16.5" y="20.5" width="3" height="3" fill="#262626"/>
+  <rect x="20.5" y="20.5" width="3" height="3" fill="#ededed"/>
+  <rect x="24.5" y="20.5" width="3" height="3" fill="#262626"/>
+  <rect x="28.5" y="20.5" width="3" height="3" fill="#262626"/>
+  <rect x="32.5" y="20.5" width="3" height="3" fill="#262626"/>
+  <rect x="0.5" y="24.5" width="3" height="3" fill="#262626"/>
+  <rect x="4.5" y="24.5" width="3" height="3" fill="#262626"/>
+  <rect x="8.5" y="24.5" width="3" height="3" fill="#ededed"/>
+  <rect x="12.5" y="24.5" width="3" height="3" fill="#ededed"/>
+  <rect x="16.5" y="24.5" width="3" height="3" fill="#ededed"/>
+  <rect x="20.5" y="24.5" width="3" height="3" fill="#ededed"/>
+  <rect x="24.5" y="24.5" width="3" height="3" fill="#262626"/>
+  <rect x="28.5" y="24.5" width="3" height="3" fill="#ededed"/>
+  <rect x="32.5" y="24.5" width="3" height="3" fill="#262626"/>
+  <rect x="0.5" y="28.5" width="3" height="3" fill="#262626"/>
+  <rect x="4.5" y="28.5" width="3" height="3" fill="#262626"/>
+  <rect x="8.5" y="28.5" width="3" height="3" fill="#262626"/>
+  <rect x="12.5" y="28.5" width="3" height="3" fill="#262626"/>
+  <rect x="16.5" y="28.5" width="3" height="3" fill="#262626"/>
+  <rect x="20.5" y="28.5" width="3" height="3" fill="#262626"/>
+  <rect x="24.5" y="28.5" width="3" height="3" fill="#262626"/>
+  <rect x="28.5" y="28.5" width="3" height="3" fill="#262626"/>
+  <rect x="32.5" y="28.5" width="3" height="3" fill="#262626"/>
+  <rect x="0.5" y="32.5" width="3" height="3" fill="#262626"/>
+  <rect x="4.5" y="32.5" width="3" height="3" fill="#262626"/>
+  <rect x="8.5" y="32.5" width="3" height="3" fill="#262626"/>
+  <rect x="12.5" y="32.5" width="3" height="3" fill="#262626"/>
+  <rect x="16.5" y="32.5" width="3" height="3" fill="#262626"/>
+  <rect x="20.5" y="32.5" width="3" height="3" fill="#262626"/>
+  <rect x="24.5" y="32.5" width="3" height="3" fill="#262626"/>
+  <rect x="28.5" y="32.5" width="3" height="3" fill="#262626"/>
+  <rect x="32.5" y="32.5" width="3" height="3" fill="#262626"/>
 </svg>
