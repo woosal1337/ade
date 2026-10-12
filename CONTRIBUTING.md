@@ -1,20 +1,18 @@
 # Contributing to ade
 
 Read [the development guide](docs/development.md) before the first change.
-Use the package manager and lockfile recorded in [PROJECT.json](PROJECT.json).
-Keep one editable owner for each production file.
+Run `npm ci` to install the tools from the lockfile.
 
 ## Change procedure
 
-1. Read the task and record its plan.
-2. Make the smallest change that meets its acceptance criteria.
-3. Run the quality gates and relevant product checks.
-4. Record the result and remaining work on the task.
-5. Commit or push only within the current authorization.
+1. Open an issue before a large change, so that the approach is clear before the work.
+2. Make the smallest change that meets the goal.
+3. Run `python3 tools/quality.py check`. It runs the same gates as CI.
+4. Open a pull request. State the problem, the result, and the checks that passed.
 
-Use imperative commit titles. Keep each authorized commit focused.
+Use imperative commit titles. Keep each commit focused.
 Do not reformat untouched code or stage unrelated work.
-Use `ege@chele.bi` for the author and committer emails.
+Use your own Git name and email for each commit.
 
 ## Code rules
 
@@ -29,8 +27,13 @@ Read [the source policy](docs/quality.md) for generated files and required direc
 Add tests for meaningful behavior. Do not add tests that only repeat the implementation.
 Do not add a dependency without a concrete need.
 
+## Security
+
+Do not report a security problem in a public issue. Read [SECURITY.md](SECURITY.md).
+A change to the trust gate, the secret handling, or the path checks needs a regression test. Read [the security model](docs/security.md).
+
 ## Review evidence
 
-State the problem and resulting behavior first.
-Record the commands that passed and any checks that remain pending.
-Keep CI, provider delivery, and live acceptance distinct from local success.
+State the problem and the result first.
+Record the commands that passed and any checks that remain open.
+Keep CI results apart from local results.

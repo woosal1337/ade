@@ -67,12 +67,12 @@ The manual acceptance check on 2026-10-11:
 3. `ade apply` to an empty scratch home made 108 changes. A second plan showed 0 changes.
 4. `ade revert` emptied the scratch home. A revert of that revert restored the 108 entries.
 
-The remote acceptance check on Igris, Linux with Node.js 24.13.0, on 2026-10-11:
+The remote acceptance check on a Linux test machine with Node.js 24.13.0, on 2026-10-11:
 
-1. `ade remote igris plan` against the real Igris home showed 73 creates, 6 updates, and 33 matching entries. It left no file on Igris.
-2. `ade remote igris apply` to a scratch home made 112 changes. A second plan showed 0 changes, and status reported "In sync".
-3. `ade remote igris revert` emptied the scratch home.
-4. `ade remote igris capture` read the real Igris home: 4 harnesses, 3 MCP servers, 1 skill, and no secret value.
+1. `ade remote <host> plan` against the real home of the test machine showed 73 creates, 6 updates, and 33 matching entries. It left no file on the machine.
+2. `ade remote <host> apply` to a scratch home made 112 changes. A second plan showed 0 changes, and status reported "In sync".
+3. `ade remote <host> revert` emptied the scratch home.
+4. `ade remote <host> capture` read the real home of the test machine: 4 harnesses, 3 MCP servers, 1 skill, and no secret value.
 
 The first Windows CI run on 2026-10-11 failed one test. Git wrote CRLF line endings into a Git skill because the runner sets `core.autocrlf=true`. The checkout now sets `core.autocrlf=false` and `core.eol=lf`. A test sets `core.autocrlf=true` through the Git environment and fails without the fix.
 
@@ -80,7 +80,7 @@ The Git source check against GitHub on 2026-10-12:
 
 1. The SSH URL with `//examples/starter` and the shorthand `woosal1337/ade/examples/starter` fetched commit `dd5a4e7`.
 2. Apply without trust stopped with the `untrusted` error. Apply with `--trust` made 7 changes. A second plan showed 0 changes.
-3. `ade remote igris apply` with the same source made 4 changes in a scratch home on Igris. A second plan showed 0 changes, and revert restored the home.
+3. `ade remote <host> apply` with the same source made 4 changes in a scratch home on the Linux test machine. A second plan showed 0 changes, and revert restored the home.
 
 A commit on 2026-10-12 failed in the commit hook, but the same tests passed outside it. Git sets `GIT_INDEX_FILE` for a hook. ade passed it to its own Git calls, so a skill checkout wrote into a foreign index. A test with a copy of the repository index lost 90 of 93 entries. ade now removes the variables from `git rev-parse --local-env-vars` before each Git call. The same test now keeps all 93 entries.
 

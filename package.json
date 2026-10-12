@@ -4,6 +4,26 @@
   "description": "Plan, apply, and revert one agent development environment (MCP servers, skills, instructions, settings, plugins, and config files) across 10 coding agents. CLI and TypeScript SDK.",
   "private": true,
   "license": "UNLICENSED",
+  "author": "Ege Chelebi",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/woosal1337/ade.git"
+  },
+  "bugs": {
+    "url": "https://github.com/woosal1337/ade/issues"
+  },
+  "homepage": "https://github.com/woosal1337/ade#readme",
+  "keywords": [
+    "ai-agents",
+    "agent-skills",
+    "mcp",
+    "claude-code",
+    "codex",
+    "cursor",
+    "cli",
+    "sdk",
+    "dotfiles"
+  ],
   "type": "module",
   "bin": {
     "ade": "dist/cli.js"
@@ -17,7 +37,9 @@
   },
   "files": [
     "dist",
-    "README.md"
+    "README.md",
+    "CHANGELOG.md",
+    "SECURITY.md"
   ],
   "engines": {
     "node": ">=22"
@@ -33,8 +55,8 @@
     "dev": "node src/cli.ts"
   },
   "dependencies": {
-    "smol-toml": "^1.9.1",
-    "zod": "^4.6.5"
+    "smol-toml": "1.9.1",
+    "zod": "4.6.5"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.15",

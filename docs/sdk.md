@@ -100,7 +100,7 @@ The engine runs the harness commands for plugins through a `CommandRunner`. Pass
 ```ts
 import { checkTrust, recordTrust, resolveProfile, riskSummary } from "@woosal1337/ade";
 
-const resolved = await resolveProfile("cobanov/agents", ctx);
+const resolved = await resolveProfile("acme/agents", ctx);
 const trust = await checkTrust(ctx, resolved);
 if (trust.state === "untrusted" || trust.state === "changed") {
   console.log(riskSummary(resolved.loaded.profile));

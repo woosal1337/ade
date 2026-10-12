@@ -12,3 +12,9 @@ dist/
 site/.next/
 site/out/
 site/next-env.d.ts
+*.pem
+*.key
+*.p12
+*.pfx
+.npmrc
+credentials.json

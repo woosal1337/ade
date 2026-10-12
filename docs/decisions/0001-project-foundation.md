@@ -6,7 +6,7 @@ Status: Accepted for the initial foundation.
 
 ## Context
 
-Developers configure each coding agent by hand. MCP servers, skills, instructions, and settings drift between agents and between machines. The survey in the Obsidian note `projects/stack/sync-landscape-2026-10-10.md` found no tool that also manages harness settings, extension packages, and machine moves, with an SDK.
+Developers configure each coding agent by hand. MCP servers, skills, instructions, and settings drift between agents and between machines. A survey of agent setup sync tools on 2026-10-10 found no tool that also manages harness settings, extension packages, and machine moves, with an SDK.
 
 ## Decision
 

@@ -10,7 +10,7 @@ Harness configuration files hold more than the user's setup. `~/.claude.json` ho
 
 ## Decision
 
-1. ade owns entries, not files. An entry is one MCP server, one settings leaf, one skill path, one instructions path, or one extra file. Each entry has a stable key, such as `mcp:claude:elliptic` or `setting:pi:/defaultModel`.
+1. ade owns entries, not files. An entry is one MCP server, one settings leaf, one skill path, one instructions path, or one extra file. Each entry has a stable key, such as `mcp:claude:github` or `setting:pi:/defaultModel`.
 2. The state file records one content hash for each entry that ade applied. The plan compares the desired value, the current value, and the recorded hash:
 
    | Current equals desired | Current equals recorded | Result |

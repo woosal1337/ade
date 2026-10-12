@@ -74,15 +74,15 @@ describe("profile specs", () => {
   });
 
   test("GitHub shorthand, subdirectories, and refs", () => {
-    assert.deepEqual(parseProfileSpec("cobanov/agents", context()), {
+    assert.deepEqual(parseProfileSpec("acme/agents", context()), {
       kind: "git",
-      url: "https://github.com/cobanov/agents.git",
+      url: "https://github.com/acme/agents.git",
       ref: undefined,
       subdir: undefined,
-      display: "cobanov/agents",
-      canonical: "github:cobanov/agents",
+      display: "acme/agents",
+      canonical: "github:acme/agents",
     });
-    const nested = parseProfileSpec("cobanov/agents/profiles/work@v1.2", context());
+    const nested = parseProfileSpec("acme/agents/profiles/work@v1.2", context());
     assert.equal(nested.kind === "git" && nested.subdir, "profiles/work");
     assert.equal(nested.kind === "git" && nested.ref, "v1.2");
     assert.equal(parseProfileSpec("github:a/b@main", context()).canonical, "github:a/b@main");

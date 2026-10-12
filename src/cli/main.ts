@@ -1632,7 +1632,12 @@ const commands: Command[] = [
     name: "use",
     group: "Share",
     summary: "Set the default profile source for this home.",
-    usage: ["ade use <source>", "ade use --clear", "ade use", "Example: ade use cobanov/agents"],
+    usage: [
+      "ade use <source>",
+      "ade use --clear",
+      "ade use",
+      "Example: ade use woosal1337/ade/examples/starter",
+    ],
     options: { clear: { type: "boolean" } },
     async run(c) {
       const ctx = c.context();

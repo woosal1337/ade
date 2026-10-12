@@ -182,6 +182,8 @@ Every command takes `--json`. Run `ade help <command>` for its options.
 - **Backups.** Each apply keeps backups and a record. A failed apply rolls back. `ade revert` restores one apply.
 - **Drift.** ade stops when an entry changed outside ade. `--force` overwrites it.
 
+Read [the security model](docs/security.md) for the trust gate and the secret handling. Report a security problem through [SECURITY.md](SECURITY.md), not in a public issue.
+
 ## Remote machines
 
 ```bash
@@ -214,6 +216,8 @@ The CLI uses the same engine. Read [the SDK guide](docs/sdk.md).
 | [Sources](docs/sources.md) | Git sources, trust, and publication |
 | [Remote machines](docs/remote.md) | Commands over SSH |
 | [SDK](docs/sdk.md) | The TypeScript API |
+| [Security model](docs/security.md) | The trust gate, the secret handling, and the limits |
+| [Changelog](CHANGELOG.md) | The changes in each version |
 | [Architecture](docs/architecture.md) | Modules, data flow, and storage |
 | [Runbook](docs/runbook.md) | Moves, recovery, and publication steps |
 | [Decisions](docs/decisions) | The design decisions and their reasons |

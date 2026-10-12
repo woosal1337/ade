@@ -7,19 +7,19 @@ A profile source is a local folder or a Git repository that holds an `ade.json` 
 1. Show the changes for your machine. The plan writes nothing:
 
    ```bash
-   ade plan cobanov/agents
+   ade plan woosal1337/ade/examples/starter
    ```
 
 2. Apply the profile. ade shows what the source runs and writes, and asks you to trust it:
 
    ```bash
-   ade apply cobanov/agents
+   ade apply woosal1337/ade/examples/starter
    ```
 
 3. Make the source the default for this home:
 
    ```bash
-   ade use cobanov/agents
+   ade use woosal1337/ade/examples/starter
    ```
 
 4. Sync later. Each `ade apply` fetches the newest commit of the source:
@@ -31,10 +31,10 @@ A profile source is a local folder or a Git repository that holds an `ade.json` 
 5. Apply the same source to another machine:
 
    ```bash
-   ade remote devbox apply cobanov/agents
+   ade remote devbox apply woosal1337/ade/examples/starter
    ```
 
-To edit a setup before you apply it, import it first. `ade import cobanov/agents` asks for trust, then writes the default profile folder. Then run `ade plan` and `ade apply`.
+To edit a setup before you apply it, import it first. `ade import woosal1337/ade/examples/starter` asks for trust, then writes the default profile folder. Then run `ade plan` and `ade apply`.
 
 ## Source forms
 
@@ -42,16 +42,16 @@ To edit a setup before you apply it, import it first. `ade import cobanov/agents
 |---|---|---|
 | Local folder | `./team`, `~/agents`, `/srv/agents` | The `ade.json` in the folder, or its `ADE.md` when it has no `ade.json` |
 | Local ADE.md | `./ADE.md`, `~/Downloads/ADE.md` | The file itself |
-| GitHub shorthand | `cobanov/agents` | `https://github.com/cobanov/agents.git` at its default branch |
-| Subfolder | `cobanov/agents/profiles/work` | The `profiles/work` folder of that repository |
-| ADE.md in a repository | `cobanov/agents/profiles/work/ADE.md` | One ADE.md file in that repository |
-| Ref | `cobanov/agents@v1.2`, `cobanov/agents@main` | A tag, a branch, or a full commit hash |
-| Explicit GitHub | `github:cobanov/agents` | The shorthand, even when a local folder has the same name |
+| GitHub shorthand | `acme/agents` | `https://github.com/acme/agents.git` at its default branch |
+| Subfolder | `acme/agents/profiles/work` | The `profiles/work` folder of that repository |
+| ADE.md in a repository | `acme/agents/profiles/work/ADE.md` | One ADE.md file in that repository |
+| Ref | `acme/agents@v1.2`, `acme/agents@main` | A tag, a branch, or a full commit hash |
+| Explicit GitHub | `github:acme/agents` | The shorthand, even when a local folder has the same name |
 | Git URL | `https://git.example.com/team/agents.git//work#v1` | Any Git URL, with an optional `//subfolder` and `#ref` |
 
 A local folder with the same name as a shorthand wins. Use `github:` to choose the repository. A repository root with only an `ADE.md` works as a source. Read [the ADE.md standard](ade-md.md).
 
-ade fetches a Git source into its cache at one commit. It remembers the commit, so `--offline` uses the last fetched commit. The apply record names the source and the commit, for example `cobanov/agents @ 1a2b3c4d5e6f`.
+ade fetches a Git source into its cache at one commit. It remembers the commit, so `--offline` uses the last fetched commit. The apply record names the source and the commit, for example `acme/agents @ 1a2b3c4d5e6f`.
 
 ## Trust
 

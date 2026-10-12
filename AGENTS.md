@@ -31,13 +31,10 @@ Do not add inline or block prose comments to authored source, tests, or configur
 Keep required tool directives and generated files in the explicit exception list in `docs/quality.md`.
 Do not use an exception to hide authored comments.
 
-## Work and knowledge
+## Work and records
 
-Use the board in `PROJECT.json`. Search before creating a task.
-Move the task to In Progress before a change. Record evidence before marking it Done.
-Keep durable decisions and sources in the linked Obsidian project note.
-The repository owns production files. Elliptic owns task state.
-Read the declared machine paths. Keep heavy data outside Git.
+Record a real decision in `docs/decisions/`. Keep heavy data outside Git.
+The maintainer tracks tasks outside this repository.
 
 ## Checks and delivery
 
@@ -46,5 +43,5 @@ Run the relevant integration, build, or device checks from `docs/quality.md`.
 Run `python3 tools/quality.py hooks-install` after each clone.
 Keep the local gates and CI commands equal.
 Commit and push only when the current request authorizes them.
-Before a commit, check both Git emails. Use `ege@chele.bi` for both.
+Commit with the Git name and email of the person who asked for the change.
 Report local checks, CI results, commits, pushes, and deployments as separate facts.

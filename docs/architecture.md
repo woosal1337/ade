@@ -44,7 +44,7 @@ The engine does not know a harness file format. Each format stays in its adapter
 4. The engine reads the current target and the state. It classifies each entry as create, update, delete, in sync, or drift.
 5. Apply checks the plan fingerprint, takes the state lock, writes the steps with backups, and updates the state.
 
-Each entry has a stable key, for example `mcp:claude:elliptic`, `setting:pi:/defaultModel`, `skill:shared:review`, `instructions:codex`, `file:claude:hooks/check.sh`, `plugin:claude:tool@acme`, or `patch:pi:git/github.com/acme/tool`.
+Each entry has a stable key, for example `mcp:claude:github`, `setting:pi:/defaultModel`, `skill:shared:review`, `instructions:codex`, `file:claude:hooks/check.sh`, `plugin:claude:tool@acme`, or `patch:pi:git/github.com/acme/tool`.
 
 Apply runs the steps in this order: plugin commands, paths, documents, then patches. The harness commands run first, so a harness that changes its own files at start does not change the values that ade writes after it. Read [the ownership decision](decisions/0002-entry-ownership.md) for the rules.
 

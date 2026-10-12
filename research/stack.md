@@ -54,6 +54,6 @@ Biome checks format and lint. TypeScript 7 checks types and builds `dist/`. The 
 - [Cursor skills](https://cursor.com/docs/skills)
 - The Grok user guide in `~/.grok/docs/user-guide/`, sections 05, 07, and 08
 - The Pi documentation in its installed package: `docs/mcp.md`, `docs/settings.md`, and `docs/skills.md`
-- The survey note `projects/stack/sync-landscape-2026-10-10.md` in the Obsidian vault
+- A survey of agent setup sync tools on 2026-10-10, in the notes of the maintainer
 
 Open question: Cursor IDE settings use JSON with comments. ade does not write them yet.
