@@ -86,12 +86,35 @@ function languageFor(path: string): string {
   return (dot === -1 ? undefined : LANGUAGES[path.slice(dot).toLowerCase()]) ?? "text";
 }
 
-export function digestOf(blocks: readonly { path: string; hash: string }[]): string {
+export interface DigestEntry {
+  readonly path: string;
+  readonly hash: string;
+  readonly executable?: boolean;
+  readonly private?: boolean;
+}
+
+export function modeText(entry: { executable?: boolean; private?: boolean }): string {
+  if (entry.private === true) {
+    return entry.executable === true ? "700" : "600";
+  }
+  return entry.executable === true ? "755" : "644";
+}
+
+export function digestOf(blocks: readonly DigestEntry[]): string {
   const lines = [...blocks]
     .sort((left, right) => compareText(left.path, right.path))
-    .map((block) => `${block.path} ${block.hash}\n`)
+    .map((block) => {
+      const mode = modeText(block);
+      return mode === "644"
+        ? `${block.path} ${block.hash}\n`
+        : `${block.path} ${block.hash} ${mode}\n`;
+    })
     .join("");
   return `sha256:${sha256(lines)}`;
+}
+
+export function pathKey(file: string): string {
+  return file.normalize("NFC").toLowerCase();
 }
 
 function cell(text: string): string {
@@ -230,8 +253,8 @@ function fileBlock(block: Block): string[] {
       body = `${text}\n`;
     }
   }
-  if (block.executable || block.private) {
-    attributes.push(`mode="${block.private ? (block.executable ? "700" : "600") : "755"}"`);
+  if (modeText(block) !== "644") {
+    attributes.push(`mode="${modeText(block)}"`);
   }
   const fence = "`".repeat(Math.max(3, longestBacktickRun(body) + 1));
   return [
@@ -398,10 +421,13 @@ export function parseMarkdown(text: string, label: string): ParsedMarkdown {
         `A file block has a path that is not safe: ${path ?? `line ${index + 1}`}.`,
       );
     }
-    if (seen.has(path)) {
-      throw new AdeError("bundle-invalid", `Two file blocks have the path ${path}.`);
+    if (seen.has(pathKey(path))) {
+      throw new AdeError(
+        "bundle-invalid",
+        `Two file blocks have the path ${path}, or paths that differ only in case.`,
+      );
     }
-    seen.add(path);
+    seen.add(pathKey(path));
     const joined = body.join("\n");
     const bytes =
       attributes.encoding === "base64"
@@ -427,7 +453,7 @@ export function parseMarkdown(text: string, label: string): ParsedMarkdown {
       private: mode?.private === true,
     });
   }
-  if (!seen.has(PROFILE_FILE)) {
+  if (!blocks.some((block) => block.path === PROFILE_FILE)) {
     throw new AdeError("bundle-invalid", `The file has no ${PROFILE_FILE} block: ${label}.`);
   }
   const digest = digestOf(blocks);

@@ -182,7 +182,7 @@ describe("git sources", () => {
       },
       "Add a stdio server and a long command",
     );
-    assert.deepEqual(await changes(), ["mcp:tools", "setting:pi:shellCommandPrefix"]);
+    assert.deepEqual(await changes(), ["mcp:tools", "setting:pi:/shellCommandPrefix"]);
 
     await commitProfile(
       repo,
@@ -198,7 +198,7 @@ describe("git sources", () => {
       },
       "Change only the end of each value",
     );
-    assert.deepEqual(await changes(), ["mcp:tools", "setting:pi:shellCommandPrefix"]);
+    assert.deepEqual(await changes(), ["mcp:tools", "setting:pi:/shellCommandPrefix"]);
 
     await commitProfile(
       repo,
@@ -211,7 +211,7 @@ describe("git sources", () => {
     );
     const added = await changes();
     assert.equal(added.length, 1);
-    assert.equal(added[0]?.startsWith("setting:home:.claude.json:projects."), true);
+    assert.equal(added[0]?.startsWith("setting:home:.claude.json:/projects/"), true);
     const summary = riskSummary((await resolveProfile(url, ctx)).loaded.profile);
     assert.equal(
       summary.some(

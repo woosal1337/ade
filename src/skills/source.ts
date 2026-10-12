@@ -99,7 +99,13 @@ async function resolveLockedGitSkill(
   }
   const dir = await materializeGitTree(
     ctx,
-    { url: locked.git, ref: locked.ref, commit: locked.commit, subdir: locked.subdir },
+    {
+      url: locked.git,
+      ref: locked.ref,
+      commit: locked.commit,
+      subdir: locked.subdir,
+      verifyRef: true,
+    },
     { allowFetch: options.allowFetch, ...(options.runner ? { runner: options.runner } : {}) },
   );
   const hash = await treeHash(dir);

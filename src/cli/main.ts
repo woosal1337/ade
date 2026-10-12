@@ -9,12 +9,13 @@ import { AdeError, errorMessage, isAdeError } from "../core/errors.ts";
 import {
   atomicWrite,
   copyTree,
+  isEmptyDir,
   isInside,
   removePath,
   safeJoin,
   statOrUndefined,
 } from "../core/fsx.ts";
-import { printable } from "../core/text.ts";
+import { escapeJsonControls, printable } from "../core/text.ts";
 import { apply } from "../engine/apply.ts";
 import { type CaptureInclude, capture, writeCapture } from "../engine/capture.ts";
 import { doctor } from "../engine/doctor.ts";
@@ -75,6 +76,7 @@ import {
   sharedProblems,
   sourceLabel,
   specFor,
+  withoutLocalPaths,
   writeDefaultProfile,
 } from "../profile/source.ts";
 import {
@@ -105,7 +107,7 @@ import {
 import type { TokenFinding } from "../secrets/scan.ts";
 import { lockGitSkill } from "../skills/source.ts";
 import { VERSION } from "../version.ts";
-import { type CliIO, createOutput, type Output, padEnd } from "./output.ts";
+import { type CliIO, createOutput, type Output, padEnd, terminalText } from "./output.ts";
 import {
   renderDoctor,
   renderHarnesses,
@@ -328,8 +330,16 @@ function renderRisk(out: Output, gate: SourceGate): void {
     }
     out.line();
   }
-  out.line(`${sourceLabel(source)} does these things on this machine:`);
-  for (const item of riskOf(gate.resolved)) {
+  renderRiskItems(
+    out,
+    `${sourceLabel(source)} does these things on this machine:`,
+    riskOf(gate.resolved),
+  );
+}
+
+function renderRiskItems(out: Output, title: string, items: readonly RiskItem[]): void {
+  out.line(title);
+  for (const item of items) {
     const mark = item.level === "high" ? out.style("red", "!") : " ";
     out.line(`  ${mark} ${padEnd(item.area, 12)} ${item.text}`);
   }
@@ -428,7 +438,7 @@ async function verifyInput(c: CommandContext, input: string): Promise<VerifyRepo
         digest: parsed.digest,
         findings,
         problems,
-        risk: riskSummary(loaded.profile),
+        risk: riskSummary(loaded.profile, loaded.lock),
       };
     } finally {
       await fs.rm(temp, { recursive: true, force: true });
@@ -443,7 +453,7 @@ async function verifyInput(c: CommandContext, input: string): Promise<VerifyRepo
     files: bundle.files.length,
     findings,
     problems: [],
-    risk: riskSummary(loaded.profile),
+    risk: riskSummary(loaded.profile, loaded.lock),
   };
 }
 
@@ -1586,15 +1596,55 @@ const commands: Command[] = [
         default: {
           const out = stringFlag(c.flags, "out");
           const dir = out === undefined ? c.profileDir() : c.resolvePath(out);
+          if (!boolFlag(c.flags, "force") && !(await isEmptyDir(dir))) {
+            throw new AdeError("profile-exists", `The directory is not empty: ${dir}.`, {
+              hint: "Use an empty directory, or add --force to write into it.",
+            });
+          }
           const response = await remoteCapture({
             ...base,
             harnesses: c.harnessFilter(),
             include: listFlag(c.flags, "include").map((item) => parseRootTarget(item)),
             name: stringFlag(c.flags, "name") ?? host,
           });
-          const loaded = await importBundle(response.result.bundle, dir, {
-            force: boolFlag(c.flags, "force"),
-          });
+          const staging = await fs.mkdtemp(path.join(os.tmpdir(), "ade-capture-"));
+          let loaded: LoadedProfile;
+          try {
+            const staged = await importBundle(
+              response.result.bundle,
+              path.join(staging, "profile"),
+            );
+            const localized = withoutLocalPaths(staged);
+            await saveProfile(staged.dir, localized.profile);
+            await saveLock(staged.dir, localized.lock);
+            const review = await loadProfile(staged.dir);
+            if (!c.json) {
+              header(response.remote);
+              c.out.line();
+              renderRiskItems(
+                c.out,
+                `The setup from ${response.remote.home} on ${host} does these things on this machine:`,
+                riskSummary(review.profile, review.lock),
+              );
+              renderWarnings(c.out, localized.removed);
+            }
+            if (!boolFlag(c.flags, "trust")) {
+              if (c.json || !c.io.stdinIsTTY) {
+                throw new AdeError("untrusted", `The setup from ${host} needs your trust.`, {
+                  hint: "Run the command in a terminal to read the summary, or add --trust.",
+                });
+              }
+              if (!(await c.confirm(`Write the setup from ${host} into ${dir}?`))) {
+                c.out.line("Nothing changed.");
+                return EXIT.ok;
+              }
+            }
+            loaded = await importBundle(await exportBundle(review), dir, {
+              force: boolFlag(c.flags, "force"),
+            });
+          } finally {
+            await fs.rm(staging, { recursive: true, force: true });
+          }
           if (c.json) {
             c.emit({
               remote: response.remote,
@@ -1605,7 +1655,6 @@ const commands: Command[] = [
             });
             return EXIT.ok;
           }
-          header(response.remote);
           c.out.line(
             `Captured the setup of ${response.remote.home} on ${host} into ${loaded.dir}.`,
           );
@@ -1763,7 +1812,12 @@ const commands: Command[] = [
       if (out === undefined) {
         throw usageError("Give the output directory with --out.");
       }
-      const { loaded } = await c.resolve(c.args[0]);
+      const gate = await inspectSource(c, c.args[0]);
+      if (!(await requireTrust(c, gate))) {
+        c.out.line("Nothing changed.");
+        return EXIT.ok;
+      }
+      const { loaded } = gate.resolved;
       const result = await packProfile(loaded, c.context(), c.resolvePath(out), {
         vendorGit: boolFlag(c.flags, "vendor-git"),
         force: boolFlag(c.flags, "force"),
@@ -1897,14 +1951,25 @@ const commands: Command[] = [
     async run(c) {
       const { loaded } = await c.resolve(c.args[0]);
       const bundle = await exportBundle(loaded);
-      const text = `${JSON.stringify(bundle, null, 2)}\n`;
+      const findings = scanBundle(bundle);
+      if (findings.length > 0) {
+        throw new AdeError(
+          "conflict",
+          `The profile holds ${findings.length} values that look like secrets.`,
+          {
+            details: findings.map((finding) => `${finding.file}:${finding.line}: ${finding.kind}`),
+            hint: "Replace each value with a ${secret:NAME} reference, then export again.",
+          },
+        );
+      }
+      const text = `${escapeJsonControls(JSON.stringify(bundle, null, 2))}\n`;
       const out = stringFlag(c.flags, "out");
       if (out === undefined) {
         c.io.stdout(text);
         return EXIT.ok;
       }
       const file = c.resolvePath(out);
-      await fs.writeFile(file, text);
+      await atomicWrite(file, text, 0o600);
       if (c.json) {
         c.emit({ file, files: bundle.files.length });
         return EXIT.ok;
@@ -2267,11 +2332,13 @@ export async function runCli(argv: readonly string[], io: CliIO = processIO()): 
     },
     emit(result) {
       io.stdout(
-        `${JSON.stringify({ schemaVersion: 1, command: name, ok: true, result }, null, 2)}\n`,
+        `${escapeJsonControls(JSON.stringify({ schemaVersion: 1, command: name, ok: true, result }, null, 2))}\n`,
       );
     },
     async confirm(question) {
-      const answer = (await io.prompt(`${question} Type yes to continue: `)).trim().toLowerCase();
+      const answer = (await io.prompt(terminalText(`${question} Type yes to continue: `, false)))
+        .trim()
+        .toLowerCase();
       return answer === "yes" || answer === "y";
     },
     resolvePath,

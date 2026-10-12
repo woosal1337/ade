@@ -2,7 +2,7 @@ import { formatPointer } from "../core/doc.ts";
 import { listLeaves } from "../core/merge.ts";
 import { printable } from "../core/text.ts";
 import { findSecretRefs } from "../secrets/refs.ts";
-import { isGitSkill, isLinkSkill, type Profile } from "./schema.ts";
+import { isGitSkill, isLinkSkill, type Lock, type Profile } from "./schema.ts";
 
 export type RiskLevel = "high" | "normal";
 export type RiskArea =
@@ -28,12 +28,17 @@ const OUTSIDE_ROOTS = new Set(["home", "cursor-user"]);
 const PERMISSION_KEY =
   /(permission|approval|sandbox|yolo|dangerous|trust|autoMode|defaultMode|^allow$|^deny$|bypass)/i;
 
-function compact(value: unknown, limit = 120): string {
-  const text = JSON.stringify(value) ?? String(value);
-  return text.length > limit ? `${text.slice(0, limit - 3)}...` : text;
+function compact(value: unknown): string {
+  return JSON.stringify(value) ?? String(value);
 }
 
-export function riskSummary(profile: Profile): RiskItem[] {
+function commandLine(argv: readonly string[]): string {
+  return argv
+    .map((part) => (/^[A-Za-z0-9_@%+=:,./~-]+$/.test(part) ? part : JSON.stringify(part)))
+    .join(" ");
+}
+
+export function riskSummary(profile: Profile, lock?: Lock): RiskItem[] {
   const items: RiskItem[] = [];
   const add = (level: RiskLevel, area: RiskArea, text: string): void => {
     items.push({ level, area, text: printable(text) });
@@ -54,7 +59,7 @@ export function riskSummary(profile: Profile): RiskItem[] {
       add(
         "high",
         "mcp",
-        `${name} runs: ${[server.command, ...(server.args ?? [])].join(" ")}${env.length === 0 ? "" : ` (env: ${env.join(", ")})`}${server.cwd === undefined ? "" : ` in ${server.cwd}`}`,
+        `${name} runs: ${commandLine([server.command, ...(server.args ?? [])])}${env.length === 0 ? "" : ` (env: ${env.join(", ")})`}${server.cwd === undefined ? "" : ` in ${server.cwd}`}`,
       );
     } else {
       const secrets = [...findSecretRefs(server.headers ?? {})];
@@ -66,7 +71,9 @@ export function riskSummary(profile: Profile): RiskItem[] {
     }
     for (const [harness, override] of Object.entries(server.overrides ?? {})) {
       add(
-        "command" in override || "url" in override ? "high" : "normal",
+        ["command", "args", "env", "cwd", "url", "headers"].some((key) => key in override)
+          ? "high"
+          : "normal",
         "mcp",
         `${name} for ${harness} adds ${compact(override)}`,
       );
@@ -155,10 +162,11 @@ export function riskSummary(profile: Profile): RiskItem[] {
     if (isLinkSkill(skill)) {
       add("high", "skill", `${name} links to ${skill.link}`);
     } else if (isGitSkill(skill)) {
+      const locked = lock?.skills[name];
       add(
         "normal",
         "skill",
-        `${name} comes from ${skill.git}${skill.subdir === undefined ? "" : `//${skill.subdir}`}`,
+        `${name} comes from ${skill.git}${skill.subdir === undefined ? "" : `//${skill.subdir}`} at ${skill.ref ?? "HEAD"}${locked === undefined ? "" : `, commit ${locked.commit.slice(0, 12)}`}`,
       );
     } else {
       plain.push(name);

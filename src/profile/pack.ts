@@ -4,6 +4,7 @@ import type { Context } from "../core/context.ts";
 import { AdeError } from "../core/errors.ts";
 import { countFiles, isEmptyDir, safeJoin, statOrUndefined } from "../core/fsx.ts";
 import { compareText } from "../core/hash.ts";
+import { isSecretFileName } from "../harness/inventory-rules.ts";
 import { type CommandRunner, expandUserPath } from "../secrets/resolve.ts";
 import { findTokens, type TokenFinding } from "../secrets/scan.ts";
 import { createSkillResolver } from "../skills/source.ts";
@@ -153,14 +154,17 @@ export async function buildProfileBundle(
 }
 
 export function scanBundle(bundle: Bundle): TokenFinding[] {
-  return bundle.files.flatMap((file) =>
-    findTokens(
+  return bundle.files.flatMap((file) => [
+    ...(isSecretFileName(path.posix.basename(file.path))
+      ? [{ file: file.path, line: 1, kind: "credential file" }]
+      : []),
+    ...findTokens(
       file.encoding === "utf8"
         ? file.content
         : Buffer.from(file.content, "base64").toString("latin1"),
       file.path,
     ),
-  );
+  ]);
 }
 
 export interface PackOptions {

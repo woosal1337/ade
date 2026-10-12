@@ -69,6 +69,8 @@ ade remote new-box plan --profile ~/agent-profile
 ade remote new-box apply --profile ~/agent-profile
 ```
 
+`capture` shows what the captured setup does on this machine, then asks before it writes the profile. Add `--trust` to skip the question in a script. It removes file links and link skills that name paths on the other machine, and it keeps the copied files.
+
 ## Windows
 
 A Windows host runs the same commands through OpenSSH. Its default shell must find `node`. On Windows, the default install mode copies files and skills, because links need extra rights.

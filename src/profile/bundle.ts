@@ -18,7 +18,7 @@ export interface BundleFile {
 export function modeFlags(mode: number): Pick<BundleFile, "executable" | "private"> {
   return {
     ...((mode & 0o111) !== 0 ? { executable: true } : {}),
-    ...(process.platform !== "win32" && (mode & 0o044) === 0 ? { private: true } : {}),
+    ...(process.platform !== "win32" && (mode & 0o004) === 0 ? { private: true } : {}),
   };
 }
 
@@ -172,16 +172,20 @@ function parseBundle(input: unknown): Bundle {
     if (!isSafeRelative(file.path) || normalized !== file.path || file.path.includes("\\")) {
       throw new AdeError("bundle-invalid", `The bundle path is not safe: ${file.path}.`);
     }
-    if (seen.has(file.path)) {
-      throw new AdeError("bundle-invalid", `The bundle has the path two times: ${file.path}.`);
+    const key = file.path.normalize("NFC").toLowerCase();
+    if (seen.has(key)) {
+      throw new AdeError(
+        "bundle-invalid",
+        `The bundle has the path ${file.path} two times, or paths that differ only in case.`,
+      );
     }
-    seen.add(file.path);
+    seen.add(key);
     total += file.content.length;
     if (total > MAX_BUNDLE_BYTES * 2) {
       throw new AdeError("bundle-invalid", "The bundle is larger than the 64 MB limit.");
     }
   }
-  if (!seen.has(PROFILE_FILE)) {
+  if (!input.files.some((file) => isPlainObject(file) && file.path === PROFILE_FILE)) {
     throw new AdeError("bundle-invalid", `The bundle has no ${PROFILE_FILE} file.`);
   }
   return input as unknown as Bundle;

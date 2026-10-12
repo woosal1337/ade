@@ -1,4 +1,5 @@
 import { shortenHome } from "../core/context.ts";
+import { printable } from "../core/text.ts";
 import type { Check, DoctorReport } from "../engine/doctor.ts";
 import type { RecordSummary } from "../engine/history.ts";
 import type { InventoryReport, InventoryStatus } from "../engine/inventory.ts";
@@ -21,15 +22,15 @@ const SCOPE_ORDER: string[] = ["shared", "home", ...HARNESS_IDS];
 
 function detail(change: Change, home: string): string {
   if (change.action === "update" && change.before !== undefined && change.after !== undefined) {
-    return `${change.before} -> ${change.after}`;
+    return printable(`${change.before} -> ${change.after}`);
   }
   if (change.action === "create" && change.after !== undefined) {
-    return change.after;
+    return printable(change.after);
   }
   if (change.action === "delete" && change.before !== undefined) {
-    return change.before;
+    return printable(change.before);
   }
-  return shortenHome(home, change.path);
+  return printable(shortenHome(home, change.path));
 }
 
 export function renderChanges(
@@ -58,7 +59,7 @@ export function renderChanges(
       const { symbol, style } = SYMBOLS[change.action];
       const mark = change.drift ? out.style("red", "!") : out.style(style, symbol);
       const kind = padEnd(change.kind, 12);
-      const label = padEnd(change.label, labelWidth);
+      const label = padEnd(printable(change.label), labelWidth);
       out.line(`  ${mark} ${kind} ${label}  ${out.style("dim", detail(change, home))}`);
       if (change.drift) {
         out.line(`      ${out.style("red", "changed outside ade since the last apply")}`);
@@ -69,7 +70,7 @@ export function renderChanges(
         );
       }
       for (const note of change.notes) {
-        out.line(`      ${out.style("dim", note)}`);
+        out.line(`      ${out.style("dim", printable(note))}`);
       }
     }
   }

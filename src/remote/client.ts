@@ -291,6 +291,26 @@ function profilePayload(
   };
 }
 
+const RemotePlanSchema = z.looseObject({
+  home: z.string(),
+  fingerprint: z.string(),
+  warnings: z.array(z.string()),
+  summary: z.looseObject({
+    create: z.number(),
+    update: z.number(),
+    delete: z.number(),
+  }),
+  changes: z.array(
+    z.looseObject({
+      key: z.string(),
+      label: z.string(),
+      action: z.string(),
+      path: z.string(),
+      notes: z.array(z.string()),
+    }),
+  ),
+});
+
 export async function remotePlan(
   loaded: LoadedProfile,
   ctx: Context,
@@ -301,6 +321,9 @@ export async function remotePlan(
     { op: "plan", ...profilePayload(shipped, loaded, options) },
     options,
   );
+  if (!RemotePlanSchema.safeParse(response.result).success) {
+    throw new AdeError("remote-failed", `The plan from ${options.target.host} is not valid.`);
+  }
   return { ...response, notes: shipped.notes };
 }
 

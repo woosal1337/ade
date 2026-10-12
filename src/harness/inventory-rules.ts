@@ -87,3 +87,38 @@ export function matchesGlob(relative: string, glob: string): boolean {
 export function matchesAny(relative: string, globs: readonly string[]): boolean {
   return globs.some((glob) => matchesGlob(relative, glob));
 }
+
+export const SECRET_FILE_NAMES: readonly string[] = [
+  ".env",
+  ".env.*",
+  "*.env",
+  ".netrc",
+  ".pgpass",
+  "*.pem",
+  "*.key",
+  "*.p12",
+  "*.pfx",
+  "*.keystore",
+  "*.jks",
+  "id_rsa",
+  "id_dsa",
+  "id_ecdsa",
+  "id_ed25519",
+  "credentials",
+  "credentials.json",
+  "*-credentials.json",
+  "*_credentials.json",
+  "service-account*.json",
+];
+
+const NOT_SECRET_NAMES: readonly string[] = [
+  "*.example",
+  "*.sample",
+  "*.template",
+  "*.dist",
+  "*.pub",
+];
+
+export function isSecretFileName(name: string): boolean {
+  return matchesAny(name, SECRET_FILE_NAMES) && !matchesAny(name, NOT_SECRET_NAMES);
+}

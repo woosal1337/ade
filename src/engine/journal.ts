@@ -73,7 +73,17 @@ export interface DocOp {
   readonly existed: boolean;
   readonly backup?: string;
   readonly mode?: number;
+  readonly secret?: boolean;
   readonly edits: readonly DocEditRecord[];
+}
+
+function docMode(
+  current: number | undefined,
+  fallback: number | undefined,
+  secret: boolean,
+): number {
+  const mode = current ?? fallback;
+  return secret ? (mode ?? 0o600) & 0o700 : (mode ?? 0o644);
 }
 
 export interface CommandOp {
@@ -309,7 +319,7 @@ export class Journal {
     await atomicWrite(
       step.realPath,
       serializeDoc(data, step.format, doc.indent),
-      step.secret ? (doc.mode ?? 0o600) & 0o700 : (doc.mode ?? 0o644),
+      docMode(doc.mode, undefined, step.secret),
     );
     this.ops.push({
       type: "doc",
@@ -318,6 +328,7 @@ export class Journal {
       existed: doc.exists,
       ...(backup === undefined ? {} : { backup }),
       ...(doc.mode === undefined ? {} : { mode: doc.mode }),
+      ...(step.secret ? { secret: true } : {}),
       edits,
     });
   }
@@ -368,7 +379,7 @@ export class Journal {
       await atomicWrite(
         op.path,
         serializeDoc(data, op.format, doc.indent),
-        doc.mode ?? op.mode ?? 0o644,
+        docMode(doc.mode, op.mode, op.secret === true),
       );
     }
     this.ops.push({
@@ -378,6 +389,7 @@ export class Journal {
       existed: doc.exists,
       ...(backup === undefined ? {} : { backup }),
       ...(doc.mode === undefined ? {} : { mode: doc.mode }),
+      ...(op.secret === true ? { secret: true } : {}),
       edits,
     });
   }

@@ -2,9 +2,9 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
 import type { Context } from "../core/context.ts";
-import { formatPointer } from "../core/doc.ts";
+import { encodePointer } from "../core/doc.ts";
 import { AdeError, errnoCode, errorMessage } from "../core/errors.ts";
-import { atomicWrite, ensureDir, safeJoin, statOrUndefined, treeHash } from "../core/fsx.ts";
+import { atomicWrite, ensureDir, listFiles, safeJoin, statOrUndefined } from "../core/fsx.ts";
 import { compareText, hashValue, sha256 } from "../core/hash.ts";
 import { listLeaves } from "../core/merge.ts";
 import type { LoadedProfile } from "./load.ts";
@@ -99,17 +99,27 @@ async function writeStore(ctx: Context, store: TrustStore): Promise<void> {
 }
 
 export function riskOf(resolved: ResolvedProfile): RiskItem[] {
-  return riskSummary(resolved.loaded.profile);
+  return riskSummary(resolved.loaded.profile, resolved.loaded.lock);
+}
+
+function executable(mode: number): string {
+  return (mode & 0o111) === 0 ? "-" : "x";
 }
 
 async function contentHash(dir: string, relative: string): Promise<string> {
   const full = safeJoin(dir, relative, "the profile directory");
   const stat = await statOrUndefined(full);
   if (stat?.isFile()) {
-    return `file:${sha256(await fs.readFile(full))}`;
+    return `file:${sha256(await fs.readFile(full))}:${executable(stat.mode)}`;
   }
   if (stat?.isDirectory()) {
-    return `tree:${await treeHash(full)}`;
+    const lines: string[] = [];
+    for (const file of await listFiles(full)) {
+      const item = path.join(full, ...file.split("/"));
+      const itemStat = await fs.stat(item);
+      lines.push(`${file} ${sha256(await fs.readFile(item))} ${executable(itemStat.mode)}`);
+    }
+    return `tree:${sha256(lines.join("\n"))}`;
   }
   return "missing";
 }
@@ -118,7 +128,17 @@ export async function trustEntries(loaded: LoadedProfile): Promise<Record<string
   const { profile, lock, dir } = loaded;
   const entries: Record<string, string> = {};
   const put = (key: string, value: unknown): void => {
-    entries[key] = hashValue(value);
+    const hash = hashValue(value);
+    if (Object.hasOwn(entries, key) && entries[key] !== hash) {
+      throw new AdeError(
+        "profile-invalid",
+        `Two entries of the profile have the same key: ${key}.`,
+        {
+          hint: "Remove the duplicate entry from the profile.",
+        },
+      );
+    }
+    entries[key] = hash;
   };
   put("harnesses", { harnesses: profile.harnesses ?? null, install: profile.install ?? null });
   if (profile.instructions !== undefined) {
@@ -136,7 +156,7 @@ export async function trustEntries(loaded: LoadedProfile): Promise<Record<string
       put(`setting:${docKey}`, patch);
     }
     for (const [pointer, value] of leaves) {
-      put(`setting:${docKey}:${formatPointer(pointer)}`, value);
+      put(`setting:${docKey}:${encodePointer(pointer)}`, value);
     }
   }
   for (const entry of profile.files ?? []) {

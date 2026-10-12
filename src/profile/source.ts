@@ -17,7 +17,7 @@ import { materializeGitTree, resolveGitRef } from "../skills/git.ts";
 import { importBundle } from "./bundle.ts";
 import { type LoadedProfile, loadProfile, PROFILE_FILE } from "./load.ts";
 import { ADE_MD_FILE, isMarkdownProfile, parseMarkdown } from "./markdown.ts";
-import { isGitSkill, isLinkSkill } from "./schema.ts";
+import { type FileEntry, isGitSkill, isLinkSkill, type Lock, type Profile } from "./schema.ts";
 import { type ProfileSpec, parseProfileSpec } from "./spec.ts";
 
 export interface ProfileSource {
@@ -164,6 +164,64 @@ export function sharedProblems(loaded: LoadedProfile): string[] {
     }
   }
   return problems;
+}
+
+export interface LocalizedProfile {
+  readonly profile: Profile;
+  readonly lock: Lock;
+  readonly removed: readonly string[];
+}
+
+export function withoutLocalPaths(loaded: LoadedProfile): LocalizedProfile {
+  const profile: Profile = structuredClone(loaded.profile);
+  const lock: Lock = { version: 1, skills: { ...loaded.lock.skills } };
+  const removed: string[] = [];
+  const skills = profile.skills ?? {};
+  for (const [name, skill] of Object.entries(skills)) {
+    const local = isLinkSkill(skill)
+      ? skill.link
+      : isGitSkill(skill) && !isSharedGitUrl(skill.git)
+        ? skill.git
+        : undefined;
+    if (local !== undefined) {
+      delete skills[name];
+      delete lock.skills[name];
+      removed.push(
+        `ade removed the skill ${name}. It names the path ${local} on the other machine.`,
+      );
+    }
+  }
+  for (const [name, locked] of Object.entries(lock.skills)) {
+    if (!isSharedGitUrl(locked.git)) {
+      delete lock.skills[name];
+      delete skills[name];
+      removed.push(`ade removed the skill ${name}. Its lock entry fetches ${locked.git}.`);
+    }
+  }
+  if (profile.skills !== undefined && Object.keys(skills).length === 0) {
+    delete profile.skills;
+  }
+  if (profile.files !== undefined) {
+    const files: FileEntry[] = [];
+    for (const entry of profile.files) {
+      if (entry.symlink === undefined) {
+        files.push(entry);
+      } else if (entry.source !== undefined) {
+        const { symlink: _link, ...copy } = entry;
+        files.push(copy);
+      } else {
+        removed.push(
+          `ade removed the file ${entry.root}:${entry.target}. It links to the path ${entry.symlink} on the other machine.`,
+        );
+      }
+    }
+    if (files.length > 0) {
+      profile.files = files;
+    } else {
+      delete profile.files;
+    }
+  }
+  return { profile, lock, removed };
 }
 
 function checkShared(loaded: LoadedProfile, label: string): void {

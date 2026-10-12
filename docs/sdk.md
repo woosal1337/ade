@@ -111,7 +111,7 @@ await apply(resolved.loaded, ctx);
 
 The engine functions do not check trust. A host that applies a Git source or a shared file must call `checkTrust` and show `riskSummary` before the apply. Use `createPreviewResolver` for a plan before trust.
 
-`resolveProfile` gives `source.kind` as `local`, `git`, or `file`. A `file` source is a local `ADE.md` or JSON bundle. It needs trust like a Git source. For a `changed` state, `added`, `changed`, and `removed` list the entry keys, for example `mcp:github` or `setting:claude:hooks.PreToolUse`.
+`resolveProfile` gives `source.kind` as `local`, `git`, or `file`. A `file` source is a local `ADE.md` or JSON bundle. It needs trust like a Git source. For a `changed` state, `added`, `changed`, and `removed` list the entry keys, for example `mcp:github` or `setting:claude:/hooks/PreToolUse`.
 
 ## Remote machines
 

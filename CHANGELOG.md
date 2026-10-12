@@ -24,3 +24,11 @@ The first public version.
 - Capture skips credential files and replaces credential arguments and URL values with references.
 - The token scan reads base64 files and knows more token formats.
 - The backup set of a patch comes from `git apply --numstat`.
+- `ade pack` and `ade remote <host> capture` ask for trust before they write a local profile. Remote capture removes links to paths on the other machine.
+- `ade export` refuses token values and credential files, and writes the bundle with mode 600.
+- The ADE.md digest and the trust hash hold the file mode. Paths that differ only in case fail.
+- Capture skips credential files in harness folders, skill folders, and referenced files.
+- A revert of a revert keeps mode 600 on a file with a secret.
+- A locked skill commit must be on its ref.
+- Trust keys of settings use JSON pointers, and two entries with one key fail.
+- Prompts, plan labels, and JSON output escape control characters.

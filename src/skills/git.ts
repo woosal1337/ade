@@ -195,6 +195,53 @@ export interface GitTreeRequest {
   readonly ref: string;
   readonly commit: string;
   readonly subdir?: string | undefined;
+  readonly verifyRef?: boolean | undefined;
+}
+
+async function verifyOnRef(
+  ctx: Context,
+  runner: CommandRunner,
+  repo: string,
+  request: GitTreeRequest,
+): Promise<void> {
+  if (FULL_COMMIT.test(request.ref)) {
+    return;
+  }
+  const tip = await resolveGitRef(ctx, request.url, request.ref, runner);
+  if (tip === request.commit) {
+    return;
+  }
+  const shallow = await runGit(ctx, runner, ["-C", repo, "rev-parse", "--is-shallow-repository"]);
+  await git(
+    ctx,
+    runner,
+    [
+      "-C",
+      repo,
+      "fetch",
+      "--quiet",
+      ...(shallow.stdout.trim() === "true" ? ["--unshallow"] : []),
+      "--",
+      request.url,
+      tip,
+    ],
+    `fetch ${request.ref} from ${request.url}`,
+  );
+  const ancestor = await runGit(ctx, runner, [
+    "-C",
+    repo,
+    "merge-base",
+    "--is-ancestor",
+    request.commit,
+    tip,
+  ]);
+  if (ancestor.code !== 0) {
+    throw new AdeError(
+      "conflict",
+      `The locked commit ${request.commit.slice(0, 12)} is not on ${request.ref} of ${request.url}.`,
+      { hint: "Run `ade update` to lock a commit of the ref again." },
+    );
+  }
 }
 
 export async function materializeGitTree(
@@ -256,6 +303,9 @@ export async function materializeGitTree(
         { hint: "Use a ref that exists in the repository, then run the command again." },
       );
     }
+  }
+  if (request.verifyRef === true) {
+    await verifyOnRef(ctx, runner, repo, request);
   }
   const staging = tempSibling(output);
   await ensureDir(staging);

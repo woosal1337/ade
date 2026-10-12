@@ -1,6 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import type { Context } from "../core/context.ts";
+import { type Context, displayPath } from "../core/context.ts";
 import { cloneValue, deleteAt, docFormatFor, getAt, isPlainObject, loadDoc } from "../core/doc.ts";
 import { AdeError, errnoCode } from "../core/errors.ts";
 import {
@@ -17,6 +17,7 @@ import {
 } from "../core/fsx.ts";
 import { compareText, hashValue, sha256 } from "../core/hash.ts";
 import { mergeDiff } from "../core/merge.ts";
+import { isSecretFileName } from "../harness/inventory-rules.ts";
 import {
   detectHarnesses,
   getAdapter,
@@ -53,6 +54,29 @@ import { SCHEME_PREFIX, SENSITIVE_KEY, TOKEN_PATTERN } from "../secrets/scan.ts"
 import { isolatedGitEnv } from "../skills/git.ts";
 import { capturableFiles, inventory, piPackageAssets } from "./inventory.ts";
 
+const MAX_SCANNED_BYTES = 1024 * 1024;
+
+async function secretFileReason(file: string): Promise<string | undefined> {
+  const name = path.basename(file);
+  if (isSecretFileName(name)) {
+    return "has the name of a credential file";
+  }
+  if (/\.(md|markdown)$/i.test(name)) {
+    return undefined;
+  }
+  const stat = await statOrUndefined(file);
+  if (!stat?.isFile() || stat.size > MAX_SCANNED_BYTES) {
+    return undefined;
+  }
+  const content = await fs.readFile(file);
+  if (content.includes(0)) {
+    return undefined;
+  }
+  return holdsSecret(content.toString("utf8"))
+    ? "holds a value that looks like a secret"
+    : undefined;
+}
+
 export interface CaptureInclude {
   readonly root: RootId;
   readonly target: string;
@@ -72,6 +96,7 @@ export interface CapturedFile {
   readonly content?: Buffer;
   readonly mode?: number;
   readonly filtered?: boolean;
+  readonly include?: readonly string[];
 }
 
 export interface CapturedSecret {
@@ -119,16 +144,19 @@ function holdsSecret(text: string): boolean {
     return true;
   }
   for (const line of text.split(/\r?\n/)) {
-    const assignment =
-      /^\s*(?:export\s+)?["']?([A-Za-z0-9_.-]+)["']?\s*[=:]\s*["']?([^"'\s#]+)/.exec(line);
-    if (
-      assignment?.[1] !== undefined &&
-      assignment[2] !== undefined &&
-      SENSITIVE_KEY.test(assignment[1]) &&
-      assignment[2].length >= 8 &&
-      !assignment[2].includes("${")
-    ) {
-      return true;
+    for (const assignment of line.matchAll(
+      /["']?([A-Za-z0-9_.-]+)["']?\s*[=:]\s*["']?([^"'\s#,}\]]+)/g,
+    )) {
+      const [, key, value] = assignment;
+      if (
+        key !== undefined &&
+        value !== undefined &&
+        SENSITIVE_KEY.test(key) &&
+        value.length >= 8 &&
+        !value.includes("${")
+      ) {
+        return true;
+      }
     }
   }
   return false;
@@ -481,6 +509,13 @@ export async function capture(ctx: Context, options: CaptureOptions = {}): Promi
     const symlink =
       linkTarget === undefined || once ? {} : { symlink: templateHome(linkTarget, ctx.home) };
     const relative = path.posix.join("files", root, target);
+    if (stat?.isFile()) {
+      const reason = await secretFileReason(source);
+      if (reason !== undefined) {
+        warnings.push(`${displayPath(ctx, source)} ${reason}. ade does not capture it.`);
+        return;
+      }
+    }
     if (stat?.isDirectory()) {
       const inner = await capturableFiles(source);
       const innerLinks: string[] = [];
@@ -502,7 +537,20 @@ export async function capture(ctx: Context, options: CaptureOptions = {}): Promi
         }
         return;
       }
-      files.push({ path: relative, kind: "dir", source, filtered: true });
+      const include: string[] = [];
+      for (const item of inner) {
+        const full = path.join(source, ...item.split("/"));
+        const reason = await secretFileReason(full);
+        if (reason === undefined) {
+          include.push(item);
+        } else {
+          warnings.push(`${displayPath(ctx, full)} ${reason}. ade does not capture it.`);
+        }
+      }
+      if (include.length === 0) {
+        return;
+      }
+      files.push({ path: relative, kind: "dir", source, filtered: true, include });
     } else if (stat?.isFile()) {
       files.push({
         path: relative,
@@ -985,8 +1033,12 @@ export interface WriteCaptureOptions {
   readonly force?: boolean | undefined;
 }
 
-async function copyCapturable(source: string, target: string): Promise<void> {
-  for (const relative of await capturableFiles(source)) {
+async function copyCapturable(
+  source: string,
+  target: string,
+  include: readonly string[] | undefined,
+): Promise<void> {
+  for (const relative of include ?? (await capturableFiles(source))) {
     const from = path.join(source, ...relative.split("/"));
     const to = path.join(target, ...relative.split("/"));
     await ensureDir(path.dirname(to));
@@ -1013,7 +1065,7 @@ export async function writeCapture(
     if (file.kind === "dir" && file.source !== undefined) {
       if (file.filtered === true) {
         await ensureDir(target);
-        await copyCapturable(file.source, target);
+        await copyCapturable(file.source, target, file.include);
       } else {
         await ensureDir(path.dirname(target));
         await copyTree(file.source, target);

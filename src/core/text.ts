@@ -39,3 +39,16 @@ export function printable(value: string, keepNewlines = false): string {
   }
   return result;
 }
+
+function isJsonUnsafe(code: number): boolean {
+  return (code >= 0x7f && code <= 0x9f) || BIDI_CONTROLS.has(code);
+}
+
+export function escapeJsonControls(json: string): string {
+  let result = "";
+  for (const char of json) {
+    const code = char.codePointAt(0) ?? 0;
+    result += isJsonUnsafe(code) ? `\\u${code.toString(16).padStart(4, "0")}` : char;
+  }
+  return result;
+}
