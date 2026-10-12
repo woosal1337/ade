@@ -156,5 +156,7 @@ describe("templates", () => {
     assert.equal(isSafeRelative("/etc/passwd"), false);
     assert.equal(isSafeRelative("C:\\x"), false);
     assert.equal(isSafeRelative(""), false);
+    assert.equal(isSafeRelative("."), false);
+    assert.equal(isSafeRelative("a/./b"), false);
   });
 });

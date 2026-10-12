@@ -52,7 +52,7 @@ ade refuses a shared profile that links a file or a skill to a local path, or th
 
 ## Terminal output
 
-In text output, ade escapes control characters. Profile text and remote output cannot move the cursor, clear the screen, or hide text. JSON output escapes them by the JSON rules.
+In text output, ade escapes control characters and line breaks that come from data. Only ade itself adds color. Profile text and remote output cannot move the cursor, clear the screen, add color, add lines, or hide text. JSON output escapes them by the JSON rules.
 
 ## Remote machines
 

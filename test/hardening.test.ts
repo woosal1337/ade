@@ -150,14 +150,24 @@ describe("terminal output", () => {
   const esc = String.fromCharCode(27);
 
   test("output escapes control characters in data and keeps the ade styles", () => {
-    const styled = `${esc}[31m!${esc}[39m`;
-    const shown = terminalText(`${styled} a${esc}[2Jb\rc\u202ed`, true);
-    assert.equal(shown.startsWith(styled), true);
-    assert.equal(shown.includes(`${esc}[2J`), false);
-    assert.equal(shown.includes("\r"), false);
-    assert.equal(shown.includes("\u202e"), false);
-    assert.equal(terminalText(styled, false).includes(esc), false);
-    assert.equal(terminalText("one\ntwo", false), "one\ntwo");
+    let text = "";
+    const io: CliIO = {
+      ...fakeIO("/"),
+      stdoutIsTTY: true,
+      env: {},
+      stdout: (chunk: string) => {
+        text += chunk;
+      },
+    };
+    const out = createOutput(io, true);
+    const forged = `${esc}[31m! fake${esc}[39m`;
+    out.line(`${out.style("red", "!")} a${esc}[2Jb\rc\u202ed ${forged} one\ntwo`);
+    assert.equal(text.startsWith(`${esc}[31m!${esc}[39m`), true);
+    assert.equal(text.split(esc).length - 1, 2);
+    assert.equal(text.includes("\r"), false);
+    assert.equal(text.includes("\u202e"), false);
+    assert.equal(text.trimEnd().includes("\n"), false);
+    assert.equal(terminalText(forged, false).includes(esc), false);
   });
 
   test("risk lines hold no control character", () => {

@@ -107,7 +107,7 @@ import {
 import type { TokenFinding } from "../secrets/scan.ts";
 import { lockGitSkill } from "../skills/source.ts";
 import { VERSION } from "../version.ts";
-import { type CliIO, createOutput, type Output, padEnd, terminalText } from "./output.ts";
+import { type CliIO, createOutput, type Output, padEnd } from "./output.ts";
 import {
   renderDoctor,
   renderHarnesses,
@@ -2336,7 +2336,7 @@ export async function runCli(argv: readonly string[], io: CliIO = processIO()): 
       );
     },
     async confirm(question) {
-      const answer = (await io.prompt(terminalText(`${question} Type yes to continue: `, false)))
+      const answer = (await io.prompt(out.plain(`${question} Type yes to continue: `)))
         .trim()
         .toLowerCase();
       return answer === "yes" || answer === "y";

@@ -26,12 +26,13 @@ The first public version.
 - The backup set of a patch comes from `git apply --numstat`.
 - `ade pack` and `ade remote <host> capture` ask for trust before they write a local profile. Remote capture removes links to paths on the other machine.
 - `ade export` refuses token values and credential files, and writes the bundle with mode 600.
-- The ADE.md digest and the trust hash hold the file mode. Paths that differ only in case fail.
+- The ADE.md digest and the trust hash hold the file mode. Paths that differ only in case fail. An ADE.md from an earlier build with a mode other than 644 fails its digest check. Run `ade share` again to write it.
 - Capture skips credential files in harness folders, skill folders, and referenced files.
 - A revert of a revert keeps mode 600 on a file with a secret.
 - The risk summary names the ref and the locked commit of each Git skill.
 - Trust keys of settings use JSON pointers, and two entries with one key fail.
-- Prompts, plan labels, and JSON output escape control characters.
+- Prompts, plan labels, and JSON output escape control characters. Text output also escapes line breaks and color codes that come from profile text.
+- A path in a profile cannot hold a `.` part, so a target cannot name a whole harness folder or the home folder.
 - A source that names both a local path and a GitHub shorthand fails. Use `./<path>` or `github:<owner>/<repo>`.
 - A settings file name that differs only in case from a main settings file or an MCP file fails.
 - A Grok plugin install must come from the marketplace that the profile names. ade removes a plugin from another marketplace.

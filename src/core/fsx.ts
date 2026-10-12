@@ -273,7 +273,9 @@ export function isSafeRelative(relative: string): boolean {
   ) {
     return false;
   }
-  return !relative.split(/[\\/]+/).some((part) => part === ".." || part.toLowerCase() === ".git");
+  return !relative
+    .split(/[\\/]+/)
+    .some((part) => part === "." || part === ".." || part.toLowerCase() === ".git");
 }
 
 export function safeJoin(root: string, relative: string, label: string): string {

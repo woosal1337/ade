@@ -1,4 +1,4 @@
-import { styleText } from "node:util";
+import { randomBytes } from "node:crypto";
 import { printable } from "../core/text.ts";
 
 export type Style = "bold" | "dim" | "red" | "green" | "yellow" | "cyan" | "gray";
@@ -17,22 +17,44 @@ export interface CliIO {
 export interface Output {
   readonly color: boolean;
   style(style: Style, text: string): string;
+  plain(text: string): string;
   line(text?: string): void;
   error(text?: string): void;
 }
 
-const STYLE_CODES = new Set(["1", "2", "22", "31", "32", "33", "36", "39", "90"]);
+const SGR: Record<Style, readonly [string, string]> = {
+  bold: ["1", "22"],
+  dim: ["2", "22"],
+  red: ["31", "39"],
+  green: ["32", "39"],
+  yellow: ["33", "39"],
+  cyan: ["36", "39"],
+  gray: ["90", "39"],
+};
 
-export function terminalText(text: string, color: boolean): string {
+const MARK_START = "\u0001";
+const MARK_END = "\u0002";
+
+function isStyle(value: string): value is Style {
+  return Object.hasOwn(SGR, value);
+}
+
+export function terminalText(text: string, color: boolean, nonce = ""): string {
+  const open = `${MARK_START}${nonce}`;
   let result = "";
   let plain = "";
   let index = 0;
   while (index < text.length) {
-    if (color && text.charCodeAt(index) === 0x1b && text[index + 1] === "[") {
-      const end = text.indexOf("m", index + 2);
-      if (end !== -1 && STYLE_CODES.has(text.slice(index + 2, end))) {
-        result += printable(plain, true) + text.slice(index, end + 1);
+    if (nonce !== "" && text.startsWith(open, index)) {
+      const end = text.indexOf(MARK_END, index + open.length);
+      const tag = end === -1 ? "" : text.slice(index + open.length, end);
+      const name = tag.slice(1);
+      if ((tag.startsWith("o") || tag.startsWith("c")) && isStyle(name)) {
+        result += printable(plain);
         plain = "";
+        if (color) {
+          result += `\u001b[${SGR[name][tag.startsWith("o") ? 0 : 1]}m`;
+        }
         index = end + 1;
         continue;
       }
@@ -40,21 +62,27 @@ export function terminalText(text: string, color: boolean): string {
     plain += text[index];
     index += 1;
   }
-  return result + printable(plain, true);
+  return result + printable(plain);
 }
 
 export function createOutput(io: CliIO, colorAllowed: boolean): Output {
   const color = colorAllowed && io.stdoutIsTTY && io.env.NO_COLOR === undefined;
+  const nonce = randomBytes(8).toString("hex");
+  const mark = (kind: "o" | "c", style: Style): string =>
+    `${MARK_START}${nonce}${kind}${style}${MARK_END}`;
   return {
     color,
     style(style, text) {
-      return color ? styleText(style, text) : text;
+      return color ? `${mark("o", style)}${text}${mark("c", style)}` : text;
+    },
+    plain(text) {
+      return terminalText(text, false, nonce);
     },
     line(text = "") {
-      io.stdout(`${terminalText(text, color)}\n`);
+      io.stdout(`${terminalText(text, color, nonce)}\n`);
     },
     error(text = "") {
-      io.stderr(`${terminalText(text, color)}\n`);
+      io.stderr(`${terminalText(text, color, nonce)}\n`);
     },
   };
 }
