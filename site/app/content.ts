@@ -13,22 +13,10 @@ export const NAV = [
   { label: "Share", n: "04", href: "#share" },
 ] as const;
 
-export const HARNESS_NAMES = [
-  "Claude Code",
-  "Codex",
-  "Cursor",
-  "Grok",
-  "Pi",
-  "Gemini CLI",
-  "OpenCode",
-  "Zed",
-  "Claude Desktop",
-  "Antigravity",
-] as const;
-
 export type Support = "yes" | "no" | "partial";
 
 export interface HarnessRow {
+  readonly id: string;
   readonly name: string;
   readonly instructions: Support;
   readonly mcp: Support;
@@ -40,6 +28,7 @@ export interface HarnessRow {
 
 export const HARNESSES: readonly HarnessRow[] = [
   {
+    id: "claude",
     name: "Claude Code",
     instructions: "yes",
     mcp: "yes",
@@ -49,6 +38,7 @@ export const HARNESSES: readonly HarnessRow[] = [
     extras: "agents, commands, hooks, output styles, local MCP servers",
   },
   {
+    id: "codex",
     name: "Codex",
     instructions: "yes",
     mcp: "yes",
@@ -58,6 +48,7 @@ export const HARNESSES: readonly HarnessRow[] = [
     extras: "prompts, rules, agents, hooks",
   },
   {
+    id: "cursor",
     name: "Cursor",
     instructions: "no",
     mcp: "yes",
@@ -67,6 +58,7 @@ export const HARNESSES: readonly HarnessRow[] = [
     extras: "CLI and IDE settings, hooks, agents, commands, rules",
   },
   {
+    id: "grok",
     name: "Grok",
     instructions: "yes",
     mcp: "yes",
@@ -76,6 +68,7 @@ export const HARNESSES: readonly HarnessRow[] = [
     extras: "hooks, agents, commands, local plugins",
   },
   {
+    id: "pi",
     name: "Pi",
     instructions: "yes",
     mcp: "yes",
@@ -85,6 +78,7 @@ export const HARNESSES: readonly HarnessRow[] = [
     extras: "packages, extensions, prompts, themes, package patches",
   },
   {
+    id: "gemini",
     name: "Gemini CLI",
     instructions: "yes",
     mcp: "yes",
@@ -94,6 +88,7 @@ export const HARNESSES: readonly HarnessRow[] = [
     extras: "agents, commands, policies",
   },
   {
+    id: "opencode",
     name: "OpenCode",
     instructions: "yes",
     mcp: "yes",
@@ -103,6 +98,7 @@ export const HARNESSES: readonly HarnessRow[] = [
     extras: "agents, commands, modes, tools, themes",
   },
   {
+    id: "zed",
     name: "Zed",
     instructions: "no",
     mcp: "yes",
@@ -112,6 +108,7 @@ export const HARNESSES: readonly HarnessRow[] = [
     extras: "key map, tasks, snippets, themes",
   },
   {
+    id: "claude-desktop",
     name: "Claude Desktop",
     instructions: "no",
     mcp: "partial",
@@ -121,6 +118,7 @@ export const HARNESSES: readonly HarnessRow[] = [
     extras: "desktop extensions",
   },
   {
+    id: "antigravity",
     name: "Antigravity",
     instructions: "yes",
     mcp: "yes",
@@ -323,3 +321,37 @@ name: review
 description: Review a change before a merge.
 ---
 \`\`\``;
+
+export interface ModelSetting {
+  readonly harness: string;
+  readonly file: string;
+  readonly key: string;
+  readonly value: string;
+}
+
+export const MODEL_SETTINGS: readonly ModelSetting[] = [
+  { harness: "claude", file: "settings.json", key: "model", value: '"opus"' },
+  { harness: "codex", file: "config.toml", key: "model", value: '"gpt-6.1-sol"' },
+  { harness: "cursor", file: "cli-config.json", key: "model.modelId", value: '"grok-4.7"' },
+  { harness: "grok", file: "config.toml", key: "models.default", value: '"grok-4.5"' },
+  { harness: "pi", file: "settings.json", key: "defaultModel", value: '"claude-opus-5-5"' },
+  {
+    harness: "gemini",
+    file: "settings.json",
+    key: "model.name",
+    value: '"gemini-3.1-pro-preview"',
+  },
+  {
+    harness: "opencode",
+    file: "opencode.json",
+    key: "model",
+    value: '"anthropic/claude-opus-5-5"',
+  },
+  { harness: "zed", file: "settings.json", key: "agent.default_model", value: '{ "provider": … }' },
+  {
+    harness: "antigravity",
+    file: "settings.json",
+    key: "model",
+    value: '"Gemini 3.8 Flash (High)"',
+  },
+];

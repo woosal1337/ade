@@ -6,6 +6,7 @@ export function Logo() {
   return (
     <a href="#top" className="flex shrink-0 items-center" aria-label="ade home">
       <DotText
+        id="logo-header"
         text="ade."
         label="ade"
         sub={2}
@@ -46,6 +47,9 @@ export function Header() {
         <div className="ml-auto flex items-center gap-5 font-mono text-[12px] uppercase tracking-wide">
           <a href="#harnesses" className="hidden text-muted hover:text-fg sm:inline">
             Harnesses
+          </a>
+          <a href="#models" className="hidden text-muted hover:text-fg md:inline">
+            Models
           </a>
           <a href="#commands" className="hidden text-muted hover:text-fg sm:inline">
             Commands

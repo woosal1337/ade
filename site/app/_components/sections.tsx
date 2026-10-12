@@ -3,15 +3,18 @@ import {
   COMMANDS,
   DOCS_URL,
   FEATURES,
-  HARNESS_NAMES,
   HARNESSES,
+  MODEL_SETTINGS,
   PACKAGE,
   QUICK_START,
   REPO_URL,
   type Support,
   TERMINAL,
 } from "../content";
+import { brandById, HARNESS_BRANDS, MODEL_BRANDS } from "../brands";
+import { BrandIcon } from "./BrandIcon";
 import { CopyCommand } from "./CopyCommand";
+import { DotLogo } from "./DotLogo";
 import { DotField } from "./DotField";
 import { DotText } from "./DotText";
 import { InstallTabs } from "./InstallTabs";
@@ -118,23 +121,52 @@ export function Hero() {
   );
 }
 
+interface LogoCellProps {
+  readonly href: string;
+  readonly brand: (typeof HARNESS_BRANDS)[number];
+  readonly caption?: string;
+  readonly tag?: string;
+}
+
+function LogoCell({ href, brand, caption, tag }: LogoCellProps) {
+  return (
+    <a
+      href={href}
+      className="group relative flex h-[136px] flex-col items-center justify-center gap-3 border-r border-b border-line text-muted transition-colors duration-300 hover:bg-panel hover:text-fg"
+    >
+      {tag === undefined ? null : (
+        <span className="absolute top-0 right-0">
+          <Tag>{tag}</Tag>
+        </span>
+      )}
+      <DotLogo
+        id={`dot-${brand.id}`}
+        paths={brand.paths}
+        className="h-11 w-11 transition-colors duration-300"
+      />
+      <span className="text-center leading-tight">
+        <span className="block text-[14px]">{brand.name}</span>
+        {caption === undefined ? null : (
+          <span className="block font-mono text-[10px] uppercase tracking-wider text-faint">
+            {caption}
+          </span>
+        )}
+      </span>
+    </a>
+  );
+}
+
 export function HarnessStrip() {
   return (
     <section aria-label="Supported harnesses" className={FRAME}>
       <div className="grid grid-cols-2 border-t border-l border-line sm:grid-cols-5">
-        {HARNESS_NAMES.map((name, index) => (
-          <a
-            key={name}
+        {HARNESS_BRANDS.map((brand, index) => (
+          <LogoCell
+            key={brand.id}
             href="#harnesses"
-            className="group relative flex h-20 items-center justify-center border-r border-b border-line text-[15px] text-muted transition-colors hover:bg-panel hover:text-fg"
-          >
-            {index === 0 ? (
-              <span className="absolute top-0 right-0">
-                <Tag>10 harnesses</Tag>
-              </span>
-            ) : null}
-            {name}
-          </a>
+            brand={brand}
+            {...(index === 0 ? { tag: "10 harnesses" } : {})}
+          />
         ))}
       </div>
     </section>
@@ -301,7 +333,13 @@ export function Harnesses() {
                     scope="row"
                     className="border-b border-line px-4 py-3 text-[15px] font-normal text-fg"
                   >
-                    {row.name}
+                    <span className="flex items-center gap-3">
+                      <BrandIcon
+                        paths={brandById(row.id)?.paths ?? []}
+                        className="h-4 w-4 shrink-0 text-muted"
+                      />
+                      {row.name}
+                    </span>
                   </th>
                   <Cell value={row.instructions} />
                   <Cell value={row.mcp} />
@@ -328,6 +366,79 @@ export function Harnesses() {
           </a>
           .
         </p>
+      </div>
+    </section>
+  );
+}
+
+export function Models() {
+  return (
+    <section id="models" className={`${FRAME} pt-24`}>
+      <div className="space-y-8">
+        <SectionTitle lead="Models.">
+          Each harness keeps its own model. ade syncs that setting with the rest of the setup.
+        </SectionTitle>
+        <div className="border border-line">
+          <div className="overflow-hidden">
+            <div className="-mr-px grid grid-cols-2 sm:grid-cols-5">
+              {MODEL_BRANDS.map((brand) => (
+                <LogoCell
+                  key={brand.id}
+                  href="#models"
+                  brand={brand}
+                  caption={brand.provider ?? ""}
+                />
+              ))}
+            </div>
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.6fr)]">
+            <div className="flex flex-col justify-between gap-6 border-b border-line p-6 lg:border-r lg:border-b-0">
+              <Fig n="9" />
+              <p className="max-w-sm text-[16px] leading-[1.55] text-muted">
+                <span className="text-fg">The model is one more key.</span> A profile can set it for
+                each harness. ade does not change model names and does not sync sign-ins.
+              </p>
+            </div>
+            <div className="overflow-x-auto p-6">
+              <table className="w-full min-w-[560px] border-collapse whitespace-nowrap font-mono text-[12px]">
+                <thead>
+                  <tr className="text-left text-[10px] uppercase tracking-widest text-faint">
+                    <th scope="col" className="pb-3 font-normal">
+                      Harness
+                    </th>
+                    <th scope="col" className="pb-3 font-normal">
+                      File
+                    </th>
+                    <th scope="col" className="pb-3 font-normal">
+                      Key
+                    </th>
+                    <th scope="col" className="pb-3 font-normal">
+                      Example
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {MODEL_SETTINGS.map((row) => (
+                    <tr key={row.harness} className="border-t border-line">
+                      <th scope="row" className="py-2 pr-4 text-left font-normal text-fg">
+                        <span className="flex items-center gap-2">
+                          <BrandIcon
+                            paths={brandById(row.harness)?.paths ?? []}
+                            className="h-3.5 w-3.5 shrink-0 text-muted"
+                          />
+                          {row.harness}
+                        </span>
+                      </th>
+                      <td className="py-2 pr-4 text-faint">{row.file}</td>
+                      <td className="py-2 pr-4 text-accent">{row.key}</td>
+                      <td className="py-2 text-muted">{row.value}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
       </div>
     </section>
   );
@@ -552,6 +663,7 @@ const FOOTER_LINKS = [
     links: [
       { label: "Install", href: "#install" },
       { label: "Harnesses", href: "#harnesses" },
+      { label: "Models", href: "#models" },
       { label: "Commands", href: "#commands" },
       { label: "ADE.md", href: "#ade-md" },
     ],
@@ -581,9 +693,19 @@ export function Footer() {
     <footer className="mt-32 border-t border-line bg-panel">
       <div className={`${FRAME} grid grid-cols-1 gap-12 py-16 lg:grid-cols-2`}>
         <div className="max-w-[420px] space-y-6">
-          <DotText text="ade." label="ade" />
+          <DotText id="logo-footer" text="ade." label="ade" />
           <p className="font-mono text-[12px] text-faint">
             One profile. Ten harnesses. Any machine.
+          </p>
+          <p className="max-w-sm text-[12px] leading-[1.6] text-faint">
+            Product names and logos belong to their owners. ade has no link to these companies.
+            Logos come from Simple Icons and LobeHub Icons.{" "}
+            <a
+              href={`${REPO_URL}/blob/main/THIRD_PARTY.md`}
+              className="underline decoration-line-strong underline-offset-4 hover:text-muted"
+            >
+              Licenses
+            </a>
           </p>
         </div>
         <div className="grid grid-cols-2 gap-8 sm:grid-cols-3">

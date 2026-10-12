@@ -12,7 +12,7 @@
 ![macOS, Linux, Windows](https://img.shields.io/badge/os-macOS%20%7C%20Linux%20%7C%20Windows-555)
 ![Version 0.1.0](https://img.shields.io/badge/version-0.1.0-555)
 
-[Install](#install) · [Quick start](#quick-start) · [Share a setup](#share-a-setup) · [Harnesses](#supported-harnesses) · [Commands](#commands) · [Docs](#documentation)
+[Install](#install) · [Quick start](#quick-start) · [Share a setup](#share-a-setup) · [Harnesses](#supported-harnesses) · [Models](#models) · [Commands](#commands) · [Docs](#documentation)
 
 ![The ade landing page: an ade apply run with a trust prompt and a plan](docs/assets/ade-site.png)
 
@@ -97,6 +97,11 @@ A source can be a local folder, an `ADE.md` file, `owner/repo[/subfolder][@ref]`
 
 ## Supported harnesses
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/harnesses-dark.svg">
+  <img alt="The logos of the 10 supported harnesses" src="docs/assets/harnesses-light.svg" width="680">
+</picture>
+
 | Harness | Instructions | MCP servers | Skills | Settings | Plugins | Also synced |
 |---|:---:|:---:|:---:|:---:|:---:|---|
 | Claude Code | ● | ● | ● | ● | ● | agents, commands, hooks, output styles, local MCP servers |
@@ -113,6 +118,27 @@ A source can be a local folder, an `ADE.md` file, `owner/repo[/subfolder][@ref]`
 ● synced. ◐ partly: Claude Desktop takes only stdio MCP servers, and OpenCode and Claude Desktop plugins sync as settings or files. Cursor keeps user rules in the Cursor account, so no file exists to sync.
 
 ade never syncs sign-ins, tokens, sessions, history, or caches. Read [the harness support list](docs/harnesses.md) for each file of each harness.
+
+## Models
+
+Each harness keeps its own model. ade syncs that setting with the rest of the setup. ade does not change model names and does not sync sign-ins.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/models-dark.svg">
+  <img alt="The logos of 10 model families" src="docs/assets/models-light.svg" width="680">
+</picture>
+
+| Harness | File | Key |
+|---|---|---|
+| Claude Code | `~/.claude/settings.json` | `model` |
+| Codex | `~/.codex/config.toml` | `model` |
+| Cursor | `~/.cursor/cli-config.json` | `model.modelId` |
+| Grok | `~/.grok/config.toml` | `models.default` |
+| Pi | `~/.pi/agent/settings.json` | `defaultProvider`, `defaultModel` |
+| Gemini CLI | `~/.gemini/settings.json` | `model.name` |
+| OpenCode | `~/.config/opencode/opencode.json` | `model` |
+| Zed | `~/.config/zed/settings.json` | `agent.default_model` |
+| Antigravity | `~/.gemini/antigravity-cli/settings.json` | `model` |
 
 ## How it works
 
@@ -211,7 +237,7 @@ python3 tools/quality.py check
 | `test/` | Tests that run in scratch home folders |
 | `site/` | The landing page: Next.js, Tailwind CSS, and motion |
 | `scripts/` | The install scripts |
-| `tools/build-logo.mjs` | Writes the favicon and the README logo files from `site/app/glyphs.ts` |
+| `tools/build-logo.mjs` | Writes the favicon, the README logo, and the logo strips from `site/app/glyphs.ts` and `site/app/brands.ts` |
 | `examples/` | A sample profile folder and a sample `ADE.md` |
 | `docs/` | Guides and decision records |
 
@@ -220,3 +246,5 @@ Run the landing page with `npm --prefix site run dev`. Read [CONTRIBUTING.md](CO
 ## License
 
 The license is not chosen yet.
+
+Product names and logos belong to their owners. ade has no link to these companies. Read [THIRD_PARTY.md](THIRD_PARTY.md) for the logo sources, their licenses, and the font licenses.

@@ -1,6 +1,7 @@
-import { dotMatrix } from "../glyphs";
+import { matrixRuns } from "../glyphs";
 
 interface DotTextProps {
+  readonly id: string;
   readonly text: string;
   readonly label: string;
   readonly sub?: number;
@@ -12,6 +13,7 @@ interface DotTextProps {
 }
 
 export function DotText({
+  id,
   text,
   label,
   sub = 3,
@@ -21,22 +23,25 @@ export function DotText({
   off = "#1a1a1a",
   className = "h-auto w-full",
 }: DotTextProps) {
-  const matrix = dotMatrix(text, sub);
-  const width = matrix.columns * pitch;
-  const height = matrix.rows * pitch;
+  const grid = matrixRuns(text, sub, pitch);
   return (
-    <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label={label} className={className}>
+    <svg
+      viewBox={`0 0 ${grid.width} ${grid.height}`}
+      role="img"
+      aria-label={label}
+      className={className}
+    >
       <title>{label}</title>
-      {matrix.dots.map((dot) => (
-        <rect
-          key={`${dot.x}-${dot.y}`}
-          x={dot.x * pitch}
-          y={dot.y * pitch}
-          width={size}
-          height={size}
-          fill={dot.on ? on : off}
-        />
-      ))}
+      <defs>
+        <pattern id={`${id}-off`} width={pitch} height={pitch} patternUnits="userSpaceOnUse">
+          <rect width={size} height={size} fill={off} />
+        </pattern>
+        <pattern id={`${id}-on`} width={pitch} height={pitch} patternUnits="userSpaceOnUse">
+          <rect width={size} height={size} fill={on} />
+        </pattern>
+      </defs>
+      <rect width={grid.width} height={grid.height} fill={`url(#${id}-off)`} />
+      <path d={grid.runs} fill={`url(#${id}-on)`} />
     </svg>
   );
 }

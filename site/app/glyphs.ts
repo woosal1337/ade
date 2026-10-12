@@ -43,6 +43,40 @@ export function dotMatrix(text: string, sub: number): DotMatrix {
   return { dots, columns: Math.max(1, offset - 1) * sub, rows: GLYPH_ROWS * sub };
 }
 
+export interface MatrixRuns {
+  readonly width: number;
+  readonly height: number;
+  readonly runs: string;
+}
+
+export function matrixRuns(
+  text: string,
+  sub: number,
+  pitch: number,
+  left = 0,
+  top = 0,
+): MatrixRuns {
+  const matrix = dotMatrix(text, sub);
+  const lit = new Set(matrix.dots.filter((dot) => dot.on).map((dot) => `${dot.x},${dot.y}`));
+  let runs = "";
+  for (let y = 0; y < matrix.rows; y += 1) {
+    let x = 0;
+    while (x < matrix.columns) {
+      if (!lit.has(`${x},${y}`)) {
+        x += 1;
+        continue;
+      }
+      const first = x;
+      while (x < matrix.columns && lit.has(`${x},${y}`)) {
+        x += 1;
+      }
+      const width = (x - first) * pitch;
+      runs += `M${left + first * pitch} ${top + y * pitch}h${width}v${pitch}h-${width}z`;
+    }
+  }
+  return { width: matrix.columns * pitch, height: matrix.rows * pitch, runs };
+}
+
 export interface DotSvgOptions {
   readonly sub: number;
   readonly pitch: number;
@@ -55,24 +89,15 @@ export interface DotSvgOptions {
 }
 
 export function dotSvg(text: string, options: DotSvgOptions): string {
-  const matrix = dotMatrix(text, options.sub);
   const padding = options.padding ?? 0;
-  const width = matrix.columns * options.pitch + padding * 2;
-  const height = matrix.rows * options.pitch + padding * 2;
-  const square = (dot: Dot): string =>
-    `M${padding + dot.x * options.pitch} ${padding + dot.y * options.pitch}h${options.size}v${options.size}h-${options.size}z`;
-  const off = matrix.dots
-    .filter((dot) => !dot.on)
-    .map(square)
-    .join("");
-  const on = matrix.dots
-    .filter((dot) => dot.on)
-    .map(square)
-    .join("");
-  const rects = `  <path fill="${options.off}" d="${off}"/>\n  <path fill="${options.on}" d="${on}"/>`;
+  const grid = matrixRuns(text, options.sub, options.pitch, padding, padding);
+  const width = grid.width + padding * 2;
+  const height = grid.height + padding * 2;
+  const pattern = (id: string, fill: string): string =>
+    `    <pattern id="${id}" x="${padding}" y="${padding}" width="${options.pitch}" height="${options.pitch}" patternUnits="userSpaceOnUse"><rect width="${options.size}" height="${options.size}" fill="${fill}"/></pattern>`;
   const background =
     options.background === undefined
       ? ""
       : `  <rect width="${width}" height="${height}" fill="${options.background}"/>\n`;
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}" role="img" aria-label="${options.label}">\n  <title>${options.label}</title>\n${background}${rects}\n</svg>\n`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}" role="img" aria-label="${options.label}">\n  <title>${options.label}</title>\n  <defs>\n${pattern("off", options.off)}\n${pattern("on", options.on)}\n  </defs>\n${background}  <rect x="${padding}" y="${padding}" width="${grid.width}" height="${grid.height}" fill="url(#off)"/>\n  <path fill="url(#on)" d="${grid.runs}"/>\n</svg>\n`;
 }
