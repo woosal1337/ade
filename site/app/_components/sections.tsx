@@ -18,7 +18,7 @@ import { DotLogo } from "./DotLogo";
 import { DotField } from "./DotField";
 import { DotText } from "./DotText";
 import { InstallTabs } from "./InstallTabs";
-import { LoopDiagram } from "./LoopDiagram";
+import { LoopFigure } from "./LoopFigure";
 import { Button, Chevron, Eyebrow, Fig, SectionTitle, Tag } from "./primitives";
 import { Terminal } from "./Terminal";
 
@@ -196,8 +196,8 @@ export function Loop() {
         <div className="grid grid-cols-1 border-b border-line lg:grid-cols-2">
           <div className="border-b border-line p-6 lg:border-r lg:border-b-0">
             <Fig n="1" />
-            <div className="py-16">
-              <LoopDiagram />
+            <div className="pt-8">
+              <LoopFigure />
             </div>
           </div>
           <div className="flex min-w-0 flex-col justify-between gap-8 p-6">

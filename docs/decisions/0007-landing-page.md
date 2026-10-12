@@ -14,10 +14,11 @@ ade needs a public page that shows what it is, how to install it, and how to use
 2. The stack follows index: a Next.js static export, React, Tailwind CSS 4, `motion`, and the self-hosted Instrument Sans and IBM Plex Mono fonts under the SIL Open Font License.
 3. The site uses Next.js 16.4.0, the current stable line. Index uses Next.js 15.
 4. The site uses TypeScript 6.0.3. Next.js type checks call the TypeScript API, and TypeScript 7 has no stable API.
-5. The design follows Prime Intellect, a tier A entry of the index catalog: a dark, monospace-first, terminal style. The page copies its numbered navigation tabs, its framed panels with `FIG` labels, its command loop diagram, its white mono buttons, its animated dot matrix, and its dot-matrix footer word.
+5. The design follows Prime Intellect, a tier A entry of the index catalog: a dark, monospace-first, terminal style. The page copies its numbered navigation tabs, its framed panels with `FIG` labels, its white mono buttons, its animated dot matrix, and its dot-matrix footer word.
 6. The logo is the dot-matrix word "ade." from the footer. `site/app/glyphs.ts` holds the glyphs. The header, the footer, the favicon, and the README logo use it. Run `node tools/build-logo.mjs` after a glyph change.
 7. Each command and each output line on the page comes from the real CLI.
 8. The page is static. It has no analytics and no server code.
+9. FIG.1 shows the capture, plan, apply, and share loop on a canvas dot grid. A green comet moves from one numbered station to the next. At each arrival, the station lights, a wave crosses the grid, and the center number changes. `site/app/loop-scene.ts` draws one frame as a pure function of time. One frame takes about 1.6 ms at desktop size, and the page draws at most 45 frames each second. The animation stops when the figure is off screen, and a still frame replaces it for reduced motion.
 
 ## Alternatives
 

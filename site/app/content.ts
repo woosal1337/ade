@@ -355,3 +355,42 @@ export const MODEL_SETTINGS: readonly ModelSetting[] = [
     value: '"Gemini 3.8 Flash (High)"',
   },
 ];
+
+export interface LoopStep {
+  readonly id: string;
+  readonly n: string;
+  readonly name: string;
+  readonly command: string;
+  readonly output: string;
+}
+
+export const LOOP_STEPS: readonly LoopStep[] = [
+  {
+    id: "capture",
+    n: "01",
+    name: "Capture",
+    command: "ade capture",
+    output: "Captured the setup of ~ into ~/agent-profile.",
+  },
+  {
+    id: "plan",
+    n: "02",
+    name: "Plan",
+    command: "ade plan",
+    output: "Plan: 7 to create, 0 to update, 0 to delete.",
+  },
+  {
+    id: "apply",
+    n: "03",
+    name: "Apply",
+    command: "ade apply",
+    output: "Applied 7 changes with 7 writes.",
+  },
+  {
+    id: "share",
+    n: "04",
+    name: "Share",
+    command: "ade share",
+    output: "Wrote ADE.md with 74 files.",
+  },
+];

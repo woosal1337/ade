@@ -31,7 +31,8 @@ ade reads a profile, builds the desired state for each harness, and compares it 
 | `src/cli/` | Arguments, prompts, human output, and JSON envelopes |
 | `src/index.ts` | The public SDK |
 | `site/` | The landing page, a separate Next.js package with its own lockfile |
-| `site/app/glyphs.ts`, `site/app/brands.ts`, `site/app/raster.ts` | The dot-matrix word, the logo path data, and the renderer that turns a path into dots |
+| `site/app/glyphs.ts`, `site/app/brands.ts`, `site/app/raster.ts` | The dot-matrix glyphs, the logo path data, and the renderer that turns a path into dots |
+| `site/app/loop-scene.ts` | The animated loop figure: one frame as a pure function of time |
 
 The engine does not know a harness file format. Each format stays in its adapter.
 
