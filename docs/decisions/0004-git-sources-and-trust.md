@@ -2,7 +2,7 @@
 
 Date: 2026-10-12
 
-Status: Accepted for version 0.1.0.
+Status: Accepted for version 0.1.0. [Decision 0009](0009-trust-by-entry-hash.md) replaces items 3 and 4 for the trust comparison.
 
 ## Context
 

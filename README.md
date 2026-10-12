@@ -169,7 +169,7 @@ Read [the architecture](docs/architecture.md) for the modules and the data flow.
 | `ade revert`, `ade history` | Undo an apply, list the apply records |
 | `ade inventory`, `ade harnesses`, `ade doctor` | List harness files, show harness paths, check the profile |
 | `ade share`, `ade verify`, `ade import` | Write and check `ADE.md`, import a shared setup into a profile |
-| `ade use`, `ade trust`, `ade update` | Set the default source, trust a Git source, lock Git skills |
+| `ade use`, `ade trust`, `ade update` | Set the default source, trust a Git source or a shared file, lock Git skills |
 | `ade remote <host> <command>` | Run plan, apply, status, revert, or capture on another machine over SSH |
 
 Every command takes `--json`. Run `ade help <command>` for its options.
@@ -177,7 +177,7 @@ Every command takes `--json`. Run `ade help <command>` for its options.
 ## Safety
 
 - **Plan first.** `ade apply` shows the plan and asks before it writes. `--yes` skips the question.
-- **Trust.** A Git source needs your trust before ade imports or applies it. ade lists the programs it runs, the files it writes, and the secrets it reads. A new program or file needs trust again.
+- **Trust.** A Git source or a shared `ADE.md` file needs your trust before ade imports or applies it. ade lists the programs it runs, the files it writes, and the secrets it reads. A change in any entry that ade writes or runs needs trust again.
 - **Secrets.** A profile holds `${secret:NAME}` references, never values. ade reads the values at apply time from the environment, a file, a command, or the macOS Keychain. `ade share` refuses values that look like tokens.
 - **Backups.** Each apply keeps backups and a record. A failed apply rolls back. `ade revert` restores one apply.
 - **Drift.** ade stops when an entry changed outside ade. `--force` overwrites it.

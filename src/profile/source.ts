@@ -3,16 +3,25 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import type { Context } from "../core/context.ts";
 import { AdeError, errnoCode, errorMessage } from "../core/errors.ts";
-import { atomicWrite, ensureDir, statOrUndefined, tempSibling } from "../core/fsx.ts";
+import {
+  atomicWrite,
+  ensureDir,
+  ensurePrivateDir,
+  statOrUndefined,
+  tempSibling,
+} from "../core/fsx.ts";
+import { isSharedGitUrl } from "../core/git-input.ts";
+import { sha256 } from "../core/hash.ts";
 import type { CommandRunner } from "../secrets/resolve.ts";
 import { materializeGitTree, resolveGitRef } from "../skills/git.ts";
 import { importBundle } from "./bundle.ts";
 import { type LoadedProfile, loadProfile, PROFILE_FILE } from "./load.ts";
-import { ADE_MD_FILE, parseMarkdown } from "./markdown.ts";
+import { ADE_MD_FILE, isMarkdownProfile, parseMarkdown } from "./markdown.ts";
+import { isGitSkill, isLinkSkill } from "./schema.ts";
 import { type ProfileSpec, parseProfileSpec } from "./spec.ts";
 
 export interface ProfileSource {
-  readonly kind: "local" | "git";
+  readonly kind: "local" | "git" | "file";
   readonly display: string;
   readonly canonical: string;
   readonly url?: string;
@@ -75,16 +84,22 @@ export function specFor(input: string, ctx: Context, cwd = process.cwd()): Profi
   return parseProfileSpec(input, { cwd, home: ctx.home, exists: existsSync });
 }
 
-export async function loadMarkdownProfile(file: string, ctx: Context): Promise<LoadedProfile> {
-  const parsed = parseMarkdown(await fs.readFile(file, "utf8"), file);
-  const dir = path.join(ctx.cacheDir, "md", parsed.digest.replace(/^sha256:/, "").slice(0, 32));
+async function cacheBundle(
+  ctx: Context,
+  kind: "md" | "bundles",
+  digest: string,
+  bundle: unknown,
+): Promise<LoadedProfile> {
+  await ensurePrivateDir(ctx.cacheDir);
+  const dir = path.join(ctx.cacheDir, kind, digest);
   if ((await statOrUndefined(path.join(dir, PROFILE_FILE)))?.isFile()) {
     return loadProfile(dir);
   }
   await fs.rm(dir, { recursive: true, force: true });
+  await ensureDir(path.dirname(dir));
   const staging = tempSibling(dir);
   try {
-    await importBundle(parsed.bundle, staging);
+    await importBundle(bundle, staging);
     await fs.rename(staging, dir);
   } catch (error) {
     await fs.rm(staging, { recursive: true, force: true });
@@ -95,17 +110,95 @@ export async function loadMarkdownProfile(file: string, ctx: Context): Promise<L
   return loadProfile(dir);
 }
 
-async function loadLocation(target: string, ctx: Context, label: string): Promise<LoadedProfile> {
+interface SharedFile {
+  readonly loaded: LoadedProfile;
+  readonly digest: string;
+}
+
+async function loadSharedFile(file: string, ctx: Context): Promise<SharedFile> {
+  const text = await fs.readFile(file, "utf8");
+  if (isMarkdownProfile(text)) {
+    const parsed = parseMarkdown(text, file);
+    const digest = parsed.digest.replace(/^sha256:/, "");
+    return { loaded: await cacheBundle(ctx, "md", digest, parsed.bundle), digest };
+  }
+  let input: unknown;
+  try {
+    input = JSON.parse(text);
+  } catch (error) {
+    throw new AdeError(
+      "bundle-invalid",
+      `The file is not an ADE.md and not a JSON bundle: ${file}.`,
+      {
+        cause: error,
+      },
+    );
+  }
+  const digest = sha256(text);
+  return { loaded: await cacheBundle(ctx, "bundles", digest, input), digest };
+}
+
+export async function loadMarkdownProfile(file: string, ctx: Context): Promise<LoadedProfile> {
+  return (await loadSharedFile(file, ctx)).loaded;
+}
+
+export function sharedProblems(loaded: LoadedProfile): string[] {
+  const problems: string[] = [];
+  for (const [name, skill] of Object.entries(loaded.profile.skills ?? {})) {
+    if (isLinkSkill(skill)) {
+      problems.push(`The skill ${name} links to the local path ${skill.link}.`);
+    } else if (isGitSkill(skill) && !isSharedGitUrl(skill.git)) {
+      problems.push(`The skill ${name} fetches ${skill.git}. Use an https or ssh URL.`);
+    }
+  }
+  for (const [name, locked] of Object.entries(loaded.lock.skills)) {
+    if (!isSharedGitUrl(locked.git)) {
+      problems.push(`The lock entry of the skill ${name} fetches ${locked.git}.`);
+    }
+  }
+  for (const entry of loaded.profile.files ?? []) {
+    if (entry.symlink !== undefined) {
+      problems.push(
+        `The file ${entry.root}:${entry.target} links to the local path ${entry.symlink}.`,
+      );
+    }
+  }
+  return problems;
+}
+
+function checkShared(loaded: LoadedProfile, label: string): void {
+  const problems = sharedProblems(loaded);
+  if (problems.length > 0) {
+    throw new AdeError(
+      "profile-invalid",
+      `The profile from ${label} names local paths or local repositories. ade refuses them in a shared profile.`,
+      {
+        details: problems,
+        hint: "Ask the author to write the profile with `ade share`, which copies local files into it.",
+      },
+    );
+  }
+}
+
+interface Located {
+  readonly loaded: LoadedProfile;
+  readonly file?: { readonly path: string; readonly digest: string };
+}
+
+async function loadLocation(target: string, ctx: Context, label: string): Promise<Located> {
   const stat = await statOrUndefined(target);
   if (stat?.isFile()) {
-    return loadMarkdownProfile(target, ctx);
+    const shared = await loadSharedFile(target, ctx);
+    return { loaded: shared.loaded, file: { path: target, digest: shared.digest } };
   }
   if (stat?.isDirectory()) {
     if ((await statOrUndefined(path.join(target, PROFILE_FILE)))?.isFile()) {
-      return loadProfile(target);
+      return { loaded: await loadProfile(target) };
     }
-    if ((await statOrUndefined(path.join(target, ADE_MD_FILE)))?.isFile()) {
-      return loadMarkdownProfile(path.join(target, ADE_MD_FILE), ctx);
+    const markdown = path.join(target, ADE_MD_FILE);
+    if ((await statOrUndefined(markdown))?.isFile()) {
+      const shared = await loadSharedFile(markdown, ctx);
+      return { loaded: shared.loaded, file: { path: markdown, digest: shared.digest } };
     }
   }
   throw new AdeError(
@@ -124,10 +217,22 @@ export async function resolveProfile(
 ): Promise<ResolvedProfile> {
   const spec = specFor(input, ctx, options.cwd);
   if (spec.kind === "local") {
-    const loaded = await loadLocation(spec.dir, ctx, spec.dir);
+    const located = await loadLocation(spec.dir, ctx, spec.dir);
+    if (located.file === undefined) {
+      return {
+        loaded: located.loaded,
+        source: { kind: "local", display: spec.dir, canonical: spec.dir },
+      };
+    }
+    checkShared(located.loaded, located.file.path);
     return {
-      loaded,
-      source: { kind: "local", display: spec.dir, canonical: spec.dir },
+      loaded: located.loaded,
+      source: {
+        kind: "file",
+        display: located.file.path,
+        canonical: located.file.path,
+        commit: located.file.digest,
+      },
     };
   }
   const markdownFile = spec.subdir?.toLowerCase().endsWith(".md")
@@ -161,11 +266,12 @@ export async function resolveProfile(
     { allowFetch: options.offline !== true, runner: options.runner },
   );
   const target = markdownFile === undefined ? dir : path.join(dir, markdownFile);
-  const loaded = await loadLocation(
+  const { loaded } = await loadLocation(
     target,
     ctx,
     `${spec.display} at commit ${commit.slice(0, 12)}`,
   );
+  checkShared(loaded, spec.display);
   if (options.offline !== true) {
     await ensureDir(ctx.stateDir, 0o700);
     await atomicWrite(

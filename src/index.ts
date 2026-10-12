@@ -104,11 +104,12 @@ export {
   type Skill,
 } from "./profile/schema.ts";
 export {
+  loadMarkdownProfile,
   type ProfileSource,
   type ResolvedProfile,
-  loadMarkdownProfile,
   readDefaultProfile,
   resolveProfile,
+  sharedProblems,
   writeDefaultProfile,
 } from "./profile/source.ts";
 export { type ProfileSpec, parseProfileSpec } from "./profile/spec.ts";
@@ -119,6 +120,7 @@ export {
   removeTrust,
   type TrustEntry,
   type TrustStatus,
+  trustEntries,
 } from "./profile/trust.ts";
 export {
   callRemote,

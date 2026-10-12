@@ -14,6 +14,7 @@ import {
   safeJoin,
   statOrUndefined,
 } from "../core/fsx.ts";
+import { printable } from "../core/text.ts";
 import { apply } from "../engine/apply.ts";
 import { type CaptureInclude, capture, writeCapture } from "../engine/capture.ts";
 import { doctor } from "../engine/doctor.ts";
@@ -54,7 +55,7 @@ import {
   saveProfile,
   writeSchemaFile,
 } from "../profile/load.ts";
-import { ADE_MD_FILE, isMarkdownProfile, parseMarkdown } from "../profile/markdown.ts";
+import { ADE_MD_FILE, parseMarkdown } from "../profile/markdown.ts";
 import { packProfile, scanBundle, shareProfile } from "../profile/pack.ts";
 import { type RiskItem, riskSummary } from "../profile/risk.ts";
 import {
@@ -67,9 +68,11 @@ import {
   type SecretSource,
 } from "../profile/schema.ts";
 import {
+  type ProfileSource,
   type ResolvedProfile,
   readDefaultProfile,
   resolveProfile,
+  sharedProblems,
   sourceLabel,
   specFor,
   writeDefaultProfile,
@@ -261,7 +264,7 @@ async function inspectSource(c: CommandContext, positional?: string): Promise<So
 
 function profileLabel(gate: SourceGate): string | undefined {
   const { source, loaded } = gate.resolved;
-  if (source.kind === "git") {
+  if (source.kind !== "local") {
     return sourceLabel(source);
   }
   return source.display === loaded.dir ? undefined : source.display;
@@ -312,13 +315,16 @@ function renderRisk(out: Output, gate: SourceGate): void {
   out.line();
   if (status.state === "changed") {
     out.line(
-      `${source.display} changed since you trusted it at ${status.entry.commit.slice(0, 12)}. These items are new or changed:`,
+      `${printable(source.display)} changed since you trusted it at ${status.entry.commit.slice(0, 12)}. These entries are new, changed, or removed:`,
     );
-    for (const line of status.added) {
-      out.line(`  ${out.style("yellow", "+")} ${line}`);
+    for (const key of status.added) {
+      out.line(`  ${out.style("yellow", "+")} ${printable(key)}`);
     }
-    for (const line of status.removed) {
-      out.line(`  ${out.style("dim", "-")} ${out.style("dim", line)}`);
+    for (const key of status.changed) {
+      out.line(`  ${out.style("yellow", "~")} ${printable(key)}`);
+    }
+    for (const key of status.removed) {
+      out.line(`  ${out.style("dim", "-")} ${out.style("dim", printable(key))}`);
     }
     out.line();
   }
@@ -370,9 +376,15 @@ async function requireTrust(
     return true;
   }
   if (c.json || !c.io.stdinIsTTY) {
-    throw new AdeError("untrusted", `The source ${sourceLabel(source)} is not trusted.`, {
-      hint: `Read the summary with \`ade trust ${source.display}\`. Then add --trust to trust it.`,
-    });
+    throw new AdeError(
+      "untrusted",
+      status.state === "changed"
+        ? `The source ${sourceLabel(source)} changed since you trusted it.`
+        : `The source ${sourceLabel(source)} is not trusted.`,
+      {
+        hint: `Read the summary with \`ade trust ${source.display}\`. Then add --trust to trust it.`,
+      },
+    );
   }
   if (!(await c.confirm(`Trust ${sourceLabel(source)}?`))) {
     return false;
@@ -396,6 +408,7 @@ interface VerifyReport {
   readonly files: number;
   readonly digest?: string;
   readonly findings: readonly TokenFinding[];
+  readonly problems: readonly string[];
   readonly risk: readonly RiskItem[];
 }
 
@@ -407,12 +420,14 @@ async function verifyInput(c: CommandContext, input: string): Promise<VerifyRepo
     try {
       const loaded = await importBundle(parsed.bundle, path.join(temp, "profile"));
       const findings = scanBundle(parsed.bundle);
+      const problems = sharedProblems(loaded);
       return {
-        ok: findings.length === 0,
+        ok: findings.length === 0 && problems.length === 0,
         kind: "ade-md",
         files: parsed.bundle.files.length,
         digest: parsed.digest,
         findings,
+        problems,
         risk: riskSummary(loaded.profile),
       };
     } finally {
@@ -427,6 +442,7 @@ async function verifyInput(c: CommandContext, input: string): Promise<VerifyRepo
     kind: "profile",
     files: bundle.files.length,
     findings,
+    problems: [],
     risk: riskSummary(loaded.profile),
   };
 }
@@ -1660,7 +1676,7 @@ const commands: Command[] = [
   {
     name: "trust",
     group: "Share",
-    summary: "Show, trust, or remove the trust of a Git profile source.",
+    summary: "Show, trust, or remove the trust of a Git source or a shared file.",
     usage: ["ade trust", "ade trust <source> [--yes]", "ade trust <source> --remove"],
     options: { remove: { type: "boolean" } },
     async run(c) {
@@ -1673,7 +1689,7 @@ const commands: Command[] = [
           return EXIT.ok;
         }
         if (entries.length === 0) {
-          c.out.line("No trusted Git sources exist in this home.");
+          c.out.line("No trusted sources exist in this home.");
         }
         for (const entry of entries) {
           c.out.line(
@@ -1684,23 +1700,28 @@ const commands: Command[] = [
       }
       if (boolFlag(c.flags, "remove")) {
         const spec = specFor(input, ctx, c.io.cwd);
-        if (spec.kind === "local") {
-          throw usageError("A local profile has no trust entry.");
+        let source: ProfileSource;
+        if (spec.kind === "git") {
+          source = {
+            kind: "git",
+            display: spec.display,
+            canonical: spec.canonical,
+            url: spec.url,
+            ...(spec.subdir === undefined ? {} : { subdir: spec.subdir }),
+          };
+        } else {
+          const stat = await statOrUndefined(spec.dir);
+          const file = stat?.isDirectory() ? path.join(spec.dir, ADE_MD_FILE) : spec.dir;
+          source = { kind: "file", display: file, canonical: file };
         }
-        const removed = await removeTrust(ctx, {
-          kind: "git",
-          display: spec.display,
-          canonical: spec.canonical,
-          url: spec.url,
-          ...(spec.subdir === undefined ? {} : { subdir: spec.subdir }),
-        });
+        const removed = await removeTrust(ctx, source);
         if (c.json) {
           c.emit({ removed });
         } else {
           c.out.line(
             removed
-              ? `Removed the trust of ${spec.display}.`
-              : `${spec.display} has no trust entry.`,
+              ? `Removed the trust of ${source.display}.`
+              : `${source.display} has no trust entry.`,
           );
         }
         return EXIT.ok;
@@ -1828,14 +1849,24 @@ const commands: Command[] = [
         if (report.ok) {
           c.out.line(c.out.style("green", `The ${label} is valid: ${report.files} files.`));
         } else {
-          c.out.line(
-            c.out.style(
-              "red",
-              `The ${label} holds ${report.findings.length} values that look like secrets.`,
-            ),
-          );
+          if (report.findings.length > 0) {
+            c.out.line(
+              c.out.style(
+                "red",
+                `The ${label} holds ${report.findings.length} values that look like secrets.`,
+              ),
+            );
+          }
           for (const finding of report.findings) {
             c.out.line(`  ${finding.file}:${finding.line}: ${finding.kind}`);
+          }
+          if (report.problems.length > 0) {
+            c.out.line(
+              c.out.style("red", `The ${label} names local paths that ade refuses to share:`),
+            );
+          }
+          for (const problem of report.problems) {
+            c.out.line(`  ${printable(problem)}`);
           }
         }
         if (report.digest !== undefined) {
@@ -1894,41 +1925,22 @@ const commands: Command[] = [
       }
       const out = stringFlag(c.flags, "out");
       const dir = out === undefined ? c.profileDir() : c.resolvePath(out);
-      const local = c.resolvePath(file);
-      let input: unknown;
-      if ((await statOrUndefined(local))?.isFile()) {
-        const text = await fs.readFile(local, "utf8");
-        if (isMarkdownProfile(text)) {
-          input = parseMarkdown(text, local).bundle;
-        } else {
-          try {
-            input = JSON.parse(text);
-          } catch (error) {
-            throw new AdeError(
-              "bundle-invalid",
-              `The file is not an ADE.md and not a JSON bundle: ${file}.`,
-              { cause: error },
-            );
-          }
-        }
-      } else {
-        const ctx = c.context();
-        const resolved = await resolveProfile(file, ctx, {
-          cwd: c.io.cwd,
-          offline: boolFlag(c.flags, "offline"),
-        });
-        const status = await checkTrust(ctx, resolved);
-        const gate: SourceGate = {
-          resolved,
-          status,
-          trusted: status.state === "local" || status.state === "trusted",
-        };
-        if (!(await requireTrust(c, gate))) {
-          c.out.line("Nothing changed.");
-          return EXIT.ok;
-        }
-        input = await exportBundle(resolved.loaded);
+      const ctx = c.context();
+      const resolved = await resolveProfile(file, ctx, {
+        cwd: c.io.cwd,
+        offline: boolFlag(c.flags, "offline"),
+      });
+      const status = await checkTrust(ctx, resolved);
+      const gate: SourceGate = {
+        resolved,
+        status,
+        trusted: status.state === "local" || status.state === "trusted",
+      };
+      if (!(await requireTrust(c, gate))) {
+        c.out.line("Nothing changed.");
+        return EXIT.ok;
       }
+      const input = await exportBundle(resolved.loaded);
       const loaded = await importBundle(input, dir, { force: boolFlag(c.flags, "force") });
       await writeSchemaFile(loaded.dir);
       if (c.json) {

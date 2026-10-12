@@ -109,7 +109,9 @@ if (trust.state === "untrusted" || trust.state === "changed") {
 await apply(resolved.loaded, ctx);
 ```
 
-The engine functions do not check trust. A host that applies a Git source must call `checkTrust` and show `riskSummary` before the apply. Use `createPreviewResolver` for a plan before trust.
+The engine functions do not check trust. A host that applies a Git source or a shared file must call `checkTrust` and show `riskSummary` before the apply. Use `createPreviewResolver` for a plan before trust.
+
+`resolveProfile` gives `source.kind` as `local`, `git`, or `file`. A `file` source is a local `ADE.md` or JSON bundle. It needs trust like a Git source. For a `changed` state, `added`, `changed`, and `removed` list the entry keys, for example `mcp:github` or `setting:claude:hooks.PreToolUse`.
 
 ## Remote machines
 
@@ -138,7 +140,7 @@ Expected failures throw `AdeError`. Each error has a `code`, a `message`, `detai
 | `revert-blocked` | An entry changed after the apply |
 | `locked` | Another apply holds the state lock |
 | `remote-failed` | The SSH session failed, or the remote has no Node.js |
-| `untrusted` | A Git source needs trust before the import or the apply |
+| `untrusted` | A Git source or a shared file needs trust before the import or the apply |
 
 ## Other harnesses
 

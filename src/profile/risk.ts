@@ -1,5 +1,6 @@
 import { formatPointer } from "../core/doc.ts";
 import { listLeaves } from "../core/merge.ts";
+import { printable } from "../core/text.ts";
 import { findSecretRefs } from "../secrets/refs.ts";
 import { isGitSkill, isLinkSkill, type Profile } from "./schema.ts";
 
@@ -19,11 +20,11 @@ export interface RiskItem {
   readonly level: RiskLevel;
   readonly area: RiskArea;
   readonly text: string;
-  readonly fingerprint: boolean;
 }
 
 const EXECUTION_KEY =
-  /^(hooks?|command|commands|notify|statusLine|apiKeyHelper|awsAuthRefresh|awsCredentialExport|shellPath|shellCommandPrefix|npmCommand|packages|plugins|enabledPlugins|extraKnownMarketplaces|marketplaces?|extensions|env|mcp_servers)$/i;
+  /^(hooks?|command|commands|notify|statusLine|apiKeyHelper|otelHeadersHelper|awsAuthRefresh|awsCredentialExport|shellPath|shellCommandPrefix|npmCommand|packages|plugins?|enabledPlugins|extraKnownMarketplaces|marketplaces?|extensions|env|mcp_servers|mcpServers|context_servers|enableAllProjectMcpServers|enabledMcpjsonServers|discoveryCommand|callCommand|model_providers|base_url|baseUrl|apiBase)$/i;
+const OUTSIDE_ROOTS = new Set(["home", "cursor-user"]);
 const PERMISSION_KEY =
   /(permission|approval|sandbox|yolo|dangerous|trust|autoMode|defaultMode|^allow$|^deny$|bypass)/i;
 
@@ -34,8 +35,8 @@ function compact(value: unknown, limit = 120): string {
 
 export function riskSummary(profile: Profile): RiskItem[] {
   const items: RiskItem[] = [];
-  const add = (level: RiskLevel, area: RiskArea, text: string, fingerprint = true): void => {
-    items.push({ level, area, text, fingerprint });
+  const add = (level: RiskLevel, area: RiskArea, text: string): void => {
+    items.push({ level, area, text: printable(text) });
   };
 
   add(
@@ -49,11 +50,11 @@ export function riskSummary(profile: Profile): RiskItem[] {
 
   for (const [name, server] of Object.entries(profile.mcp ?? {})) {
     if (server.transport === "stdio") {
-      const env = Object.keys(server.env ?? {});
+      const env = Object.entries(server.env ?? {}).map(([key, value]) => `${key}=${value}`);
       add(
         "high",
         "mcp",
-        `${name} runs: ${[server.command, ...(server.args ?? [])].join(" ")}${env.length === 0 ? "" : ` (env: ${env.join(", ")})`}`,
+        `${name} runs: ${[server.command, ...(server.args ?? [])].join(" ")}${env.length === 0 ? "" : ` (env: ${env.join(", ")})`}${server.cwd === undefined ? "" : ` in ${server.cwd}`}`,
       );
     } else {
       const secrets = [...findSecretRefs(server.headers ?? {})];
@@ -73,6 +74,14 @@ export function riskSummary(profile: Profile): RiskItem[] {
   }
 
   for (const [docKey, patch] of Object.entries(profile.settings ?? {})) {
+    const [root, file] = docKey.split(/:(.*)/s);
+    if (root !== undefined && OUTSIDE_ROOTS.has(root) && file !== undefined) {
+      add(
+        "high",
+        "setting",
+        `${docKey} edits ${root === "home" ? `~/${file}` : `the Cursor user file ${file}`}`,
+      );
+    }
     let other = 0;
     for (const [pointer, value] of listLeaves(patch)) {
       const execution = pointer.some((segment) => EXECUTION_KEY.test(segment));
@@ -88,7 +97,7 @@ export function riskSummary(profile: Profile): RiskItem[] {
       }
     }
     if (other > 0) {
-      add("normal", "setting", `${docKey}: ${other} other values`, false);
+      add("normal", "setting", `${docKey}: ${other} other values`);
     }
   }
 
@@ -165,5 +174,5 @@ export function riskSummary(profile: Profile): RiskItem[] {
 }
 
 export function riskLines(items: readonly RiskItem[]): string[] {
-  return items.filter((item) => item.fingerprint).map((item) => `${item.area}: ${item.text}`);
+  return items.map((item) => `${item.area}: ${item.text}`);
 }

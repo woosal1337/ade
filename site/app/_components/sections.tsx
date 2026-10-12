@@ -536,7 +536,7 @@ export function Safety() {
   const panels = [
     {
       title: "Trust",
-      body: "A Git source needs your trust before ade imports or applies it. ade lists what it runs, writes, and reads. A new program or file needs trust again.",
+      body: "A Git source or a shared ADE.md needs your trust before ade imports or applies it. ade lists what it runs, writes, and reads. A change in any entry needs trust again.",
       lines: [
         ["warn", "! mcp     github runs: npx -y …"],
         ["warn", "! file    writes ~/.npmrc"],

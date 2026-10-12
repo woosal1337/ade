@@ -65,6 +65,6 @@ ade runs on the machine that it configures, or it sends its engine to another ma
 
 ## Decisions
 
-Read [the foundation decision](decisions/0001-project-foundation.md), [the ownership decision](decisions/0002-entry-ownership.md), [the remote decision](decisions/0003-remote-agent.md), [the sources decision](decisions/0004-git-sources-and-trust.md), [the coverage decision](decisions/0005-full-coverage.md), [the ADE.md decision](decisions/0006-ade-md.md), [the site decision](decisions/0007-landing-page.md), [the logo decision](decisions/0008-brand-logos.md), and [the stack research](../research/stack.md).
+Read [the foundation decision](decisions/0001-project-foundation.md), [the ownership decision](decisions/0002-entry-ownership.md), [the remote decision](decisions/0003-remote-agent.md), [the sources decision](decisions/0004-git-sources-and-trust.md), [the coverage decision](decisions/0005-full-coverage.md), [the ADE.md decision](decisions/0006-ade-md.md), [the site decision](decisions/0007-landing-page.md), [the logo decision](decisions/0008-brand-logos.md), [the trust decision](decisions/0009-trust-by-entry-hash.md), and [the stack research](../research/stack.md).
 Add a decision record when a choice changes a boundary or creates a lasting tradeoff.
 Keep operational steps in [the runbook](runbook.md).

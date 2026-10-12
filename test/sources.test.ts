@@ -138,7 +138,7 @@ describe("git sources", () => {
     );
   });
 
-  test("trust follows the risk summary, not each commit", async () => {
+  test("trust follows the profile entries, not each commit", async () => {
     const { repo, url } = await publicRepo();
     const ctx = contextFor(await tempDir());
     const first = await resolveProfile(url, ctx);
@@ -146,12 +146,26 @@ describe("git sources", () => {
     await recordTrust(ctx, first);
     assert.equal((await checkTrust(ctx, first)).state, "trusted");
 
+    await fs.writeFile(path.join(repo, "README.md"), "Read me\n");
+    git(repo, "add", "README.md");
+    git(repo, "commit", "--quiet", "-m", "Add a readme");
+    const quiet = await checkTrust(ctx, await resolveProfile(url, ctx));
+    assert.equal(quiet.state === "trusted" && !quiet.sameCommit, true);
+
+    const changes = async (): Promise<string[]> => {
+      const resolved = await resolveProfile(url, ctx);
+      const status = await checkTrust(ctx, resolved);
+      await recordTrust(ctx, resolved);
+      return status.state === "changed"
+        ? [...status.added, ...status.changed, ...status.removed]
+        : [];
+    };
+
     await fs.writeFile(path.join(repo, "AGENTS.md"), "# Team rules, version 2\n");
     git(repo, "commit", "--quiet", "-am", "Change the rules");
-    const second = await resolveProfile(url, ctx);
-    const quiet = await checkTrust(ctx, second);
-    assert.equal(quiet.state === "trusted" && quiet.sameCommit, false);
+    assert.deepEqual(await changes(), ["instructions"]);
 
+    const long = `node ${"x".repeat(150)}`;
     await commitProfile(
       repo,
       (profile) => {
@@ -159,16 +173,163 @@ describe("git sources", () => {
           transport: "stdio",
           command: "npx",
           args: ["-y", "tools-mcp"],
+          env: { MODE: "one" },
+        };
+        (profile.settings as Record<string, Record<string, unknown>>).pi = {
+          defaultModel: "claude-opus-5-5",
+          shellCommandPrefix: `${long} one`,
         };
       },
-      "Add a stdio server",
+      "Add a stdio server and a long command",
     );
-    const third = await resolveProfile(url, ctx);
-    const changed = await checkTrust(ctx, third);
-    assert.equal(changed.state, "changed");
-    assert.deepEqual(changed.state === "changed" && changed.added, [
-      "mcp: tools runs: npx -y tools-mcp",
-    ]);
+    assert.deepEqual(await changes(), ["mcp:tools", "setting:pi:shellCommandPrefix"]);
+
+    await commitProfile(
+      repo,
+      (profile) => {
+        const tools = (profile.mcp as Record<string, Record<string, unknown>>).tools;
+        if (tools !== undefined) {
+          tools.env = { MODE: "two" };
+        }
+        (profile.settings as Record<string, Record<string, unknown>>).pi = {
+          defaultModel: "claude-opus-5-5",
+          shellCommandPrefix: `${long} two`,
+        };
+      },
+      "Change only the end of each value",
+    );
+    assert.deepEqual(await changes(), ["mcp:tools", "setting:pi:shellCommandPrefix"]);
+
+    await commitProfile(
+      repo,
+      (profile) => {
+        (profile.settings as Record<string, unknown>)["home:.claude.json"] = {
+          projects: { "/work": { mcpServers: { local: { command: "one" } } } },
+        };
+      },
+      "Add a nested server in a home file",
+    );
+    const added = await changes();
+    assert.equal(added.length, 1);
+    assert.equal(added[0]?.startsWith("setting:home:.claude.json:projects."), true);
+    const summary = riskSummary((await resolveProfile(url, ctx)).loaded.profile);
+    assert.equal(
+      summary.some(
+        (item) => item.level === "high" && item.text === "home:.claude.json edits ~/.claude.json",
+      ),
+      true,
+    );
+
+    await commitProfile(
+      repo,
+      (profile) => {
+        (profile.settings as Record<string, unknown>)["home:.claude.json"] = {
+          projects: { "/work": { mcpServers: { local: { command: "two" } } } },
+        };
+      },
+      "Change the nested server",
+    );
+    assert.equal((await changes()).length, 1);
+  });
+
+  test("a shared profile cannot name local paths", async () => {
+    const { repo, url } = await publicRepo();
+    await commitProfile(
+      repo,
+      (profile) => {
+        (profile.skills as Record<string, unknown>).mine = { link: "~/private/skill" };
+      },
+      "Link a local skill",
+    );
+    const ctx = contextFor(await tempDir());
+    await assert.rejects(
+      resolveProfile(url, ctx),
+      (error: unknown) => error instanceof AdeError && error.code === "profile-invalid",
+    );
+  });
+});
+
+describe("shared files", () => {
+  async function sharedFile(): Promise<{
+    root: string;
+    home: string;
+    file: string;
+    marker: string;
+  }> {
+    const root = await tempDir("ade-shared-");
+    const home = path.join(root, "home");
+    await fs.mkdir(home, { recursive: true });
+    const marker = path.join(root, "ran");
+    const dir = path.join(root, "profile");
+    await writeText(path.join(dir, "AGENTS.md"), "# Rules\n");
+    await saveProfile(dir, {
+      version: 1,
+      name: "team",
+      harnesses: ["pi"],
+      instructions: { file: "AGENTS.md" },
+      mcp: {
+        docs: {
+          transport: "http",
+          url: "https://docs.example.com/mcp",
+          headers: { Authorization: "Bearer ${secret:TOKEN}" },
+        },
+      },
+      secrets: {
+        TOKEN: {
+          from: "command",
+          argv: [
+            process.execPath,
+            "-e",
+            "require('node:fs').writeFileSync(process.argv[1], 'x'); process.stdout.write('value-123')",
+            marker,
+          ],
+        },
+      },
+    });
+    const file = path.join(root, "ADE.md");
+    const shared = await run(root, ["share", "--profile", dir, "--out", file, "--home", home]);
+    assert.equal(shared.code, EXIT.ok, shared.err);
+    return { root, home, file, marker };
+  }
+
+  test("a local ADE.md needs trust, and a plan of it runs no secret command", async () => {
+    const { root, home, file, marker } = await sharedFile();
+    const planned = await run(root, ["plan", file, "--home", home, "--json"]);
+    assert.equal(planned.code, EXIT.ok, planned.err);
+    assert.equal(
+      (JSON.parse(planned.out) as { result: { trust: string } }).result.trust,
+      "untrusted",
+    );
+    for (const command of ["status", "doctor"]) {
+      await run(root, [command, file, "--home", home]);
+    }
+    assert.equal(await exists(marker), false);
+    const refused = await run(root, ["apply", file, "--home", home, "--yes"]);
+    assert.equal(refused.code, EXIT.failure);
+    assert.match(refused.err, /not trusted/);
+    const applied = await run(root, ["apply", file, "--home", home, "--yes", "--trust"]);
+    assert.equal(applied.code, EXIT.ok, applied.err);
+    assert.equal(await exists(marker), true);
+    const again = await run(root, ["plan", file, "--home", home, "--json"]);
+    assert.equal((JSON.parse(again.out) as { result: { trust: string } }).result.trust, "trusted");
+  });
+
+  test("a new file at the same path needs trust again", async () => {
+    const { root, home, file } = await sharedFile();
+    assert.equal((await run(root, ["trust", file, "--home", home, "--yes"])).code, EXIT.ok);
+    const text = await fs.readFile(file, "utf8");
+    const dir = path.join(root, "edited");
+    assert.equal((await run(root, ["import", file, "--out", dir, "--home", home])).code, EXIT.ok);
+    await fs.writeFile(path.join(dir, "AGENTS.md"), "# Rules, version 2\n");
+    assert.equal(
+      (await run(root, ["share", "--profile", dir, "--out", file, "--home", home, "--force"])).code,
+      EXIT.ok,
+    );
+    assert.notEqual(await fs.readFile(file, "utf8"), text);
+    const changed = await run(root, ["apply", file, "--home", home, "--yes"]);
+    assert.equal(changed.code, EXIT.failure);
+    assert.match(changed.err, /changed since you trusted it/);
+    assert.equal((await run(root, ["trust", file, "--home", home, "--remove"])).code, EXIT.ok);
   });
 });
 
@@ -361,7 +522,7 @@ describe("pack", () => {
       "A runs: op read x",
     ]);
     assert.equal(
-      items.some((item) => item.text === "claude: 1 other values" && !item.fingerprint),
+      items.some((item) => item.text === "claude: 1 other values"),
       true,
     );
   });

@@ -138,7 +138,7 @@ Every command that reads a profile accepts an ADE.md:
 | A Git repository with an ADE.md at its root | `acme/agents` |
 | An ADE.md in a subfolder of a repository | `acme/agents/profiles/work` or `acme/agents/profiles/work/ADE.md` |
 
-A folder with both files uses `ade.json`. A Git source needs trust before ade imports or applies it. Read [the sources guide](sources.md).
+A folder with both files uses `ade.json`. A Git source and a local `ADE.md` file need trust before ade imports or applies them. ade records the trust of a local file by its path and its digest. Read [the sources guide](sources.md).
 
 ## Install scripts
 

@@ -175,7 +175,9 @@ describe("ADE.md sources", () => {
     assert.equal(fromFile.loaded.profile.name, "team");
     assert.equal(fromFolder.loaded.dir, fromFile.loaded.dir);
     assert.equal(fromFile.source.display, path.join(folder, "ADE.md"));
-    assert.equal((await checkTrust(ctx, fromFile)).state, "local");
+    assert.equal(fromFile.source.kind, "file");
+    assert.equal(fromFolder.source.kind, "file");
+    assert.equal((await checkTrust(ctx, fromFile)).state, "untrusted");
   });
 
   test("a Git repository with an ADE.md at its root or in a subfolder loads", async () => {
@@ -234,7 +236,13 @@ describe("ADE.md commands", () => {
     assert.match(edit.err, /ADE\.md file/);
 
     const imported = path.join(root, "imported");
-    assert.equal((await run(["import", file, "--out", imported])).code, EXIT.ok);
+    const refused = await run(["import", file, "--out", imported, "--home", home]);
+    assert.equal(refused.code, EXIT.failure);
+    assert.match(refused.err, /not trusted/);
+    assert.equal(
+      (await run(["import", file, "--out", imported, "--home", home, "--trust"])).code,
+      EXIT.ok,
+    );
     assert.equal((await loadProfile(imported)).profile.name, "team");
 
     const planned = JSON.parse((await run(["plan", file, "--home", home, "--json"])).out) as {

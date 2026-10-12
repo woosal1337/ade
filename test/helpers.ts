@@ -1,4 +1,4 @@
-import { rmSync } from "node:fs";
+import { mkdtempSync, rmSync } from "node:fs";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -39,6 +39,12 @@ process.once("exit", () => {
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+const isolatedRoot = mkdtempSync(path.join(os.tmpdir(), "ade-test-env-"));
+createdDirs.push(isolatedRoot);
+process.env.ADE_STATE_DIR = path.join(isolatedRoot, "state");
+process.env.ADE_CACHE_DIR = path.join(isolatedRoot, "cache");
+process.env.ADE_PROFILE = path.join(isolatedRoot, "profile");
 
 export async function tempDir(prefix = "ade-test-"): Promise<string> {
   const dir = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), prefix)));

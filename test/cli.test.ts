@@ -115,7 +115,13 @@ describe("cli", () => {
     const bundle = path.join(root, "bundle.json");
     assert.equal((await run(root, ["export", "--out", bundle, ...common])).code, EXIT.ok);
     const imported = path.join(root, "imported");
-    assert.equal((await run(root, ["import", bundle, "--out", imported])).code, EXIT.ok);
+    const untrusted = await run(root, ["import", bundle, "--out", imported, "--home", home]);
+    assert.equal(untrusted.code, EXIT.failure);
+    assert.match(untrusted.err, /not trusted/);
+    assert.equal(
+      (await run(root, ["import", bundle, "--out", imported, "--home", home, "--trust"])).code,
+      EXIT.ok,
+    );
     assert.equal(await exists(path.join(imported, "ade.json")), true);
 
     const report = json((await run(root, ["doctor", "--json", ...common])).out);

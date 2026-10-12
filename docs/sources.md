@@ -55,13 +55,15 @@ ade fetches a Git source into its cache at one commit. It remembers the commit, 
 
 ## Trust
 
-A profile can run programs and change files on your machine. A Git source needs your trust before ade imports or applies it. An imported copy is a local profile, so `ade import` asks for trust first.
+A profile can run programs and change files on your machine. A Git source or a shared file needs your trust before ade imports or applies it. A shared file is an `ADE.md` or a JSON bundle on disk, for example a download. An imported copy is a local profile, so `ade import` asks for trust first.
 
 1. ade shows a summary of the source. Items marked with `!` run programs, write files, read secrets, or change permissions.
 2. You type `yes`, or you add `--trust` to the command.
-3. ade records the source, the commit, and the summary in `trust.json` in the state folder.
+3. ade records the source, the commit or the file digest, and a hash of each entry in `trust.json` in the state folder.
 
-A new commit with the same summary needs no new trust. A new commit that adds a program, a file, a secret, a permission, a package, or a skill needs trust again. ade then shows the new and removed items. A change in the text of a skill or of the instructions does not change the summary. Pin a commit with `@<commit>` to stop all updates.
+A new commit stays trusted only when each entry that ade writes or runs is equal. A commit that changes only other files in the repository keeps trust. A change in an MCP server, a setting, a file, a patch, a plugin, a secret source, a skill, or the instructions needs trust again. ade then lists the new, changed, and removed entries. Pin a commit with `@<commit>` to stop all updates.
+
+A shared profile must carry its files. ade refuses a shared profile that links to local paths, links a skill to a local folder, or fetches a skill from a local repository. `ade share` copies local link targets into the file.
 
 Before trust, `plan`, `status`, and `doctor` do not resolve the secrets of the source. They never run a secret command, never read a secret file, and never read the Keychain for that source.
 
