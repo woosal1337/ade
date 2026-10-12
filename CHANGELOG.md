@@ -33,6 +33,7 @@ The first public version.
 - Trust keys of settings use JSON pointers, and two entries with one key fail.
 - Prompts, plan labels, and JSON output escape control characters. Text output also escapes line breaks and color codes that come from profile text.
 - A path in a profile cannot hold a `.` part, so a target cannot name a whole harness folder or the home folder.
+- The risk summary marks each MCP server, override, and setting that gets a secret, and names the secret. An environment secret is a high-risk line.
 - A source that names both a local path and a GitHub shorthand fails. Use `./<path>` or `github:<owner>/<repo>`.
 - A settings file name that differs only in case from a main settings file or an MCP file fails.
 - A Grok plugin install must come from the marketplace that the profile names. ade removes a plugin from another marketplace.

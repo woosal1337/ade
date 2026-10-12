@@ -38,6 +38,11 @@ function commandLine(argv: readonly string[]): string {
     .join(" ");
 }
 
+function sends(value: unknown): string {
+  const secrets = [...findSecretRefs(value)].sort();
+  return secrets.length === 0 ? "" : ` and sends the secrets ${secrets.join(", ")}`;
+}
+
 export function riskSummary(profile: Profile, lock?: Lock): RiskItem[] {
   const items: RiskItem[] = [];
   const add = (level: RiskLevel, area: RiskArea, text: string): void => {
@@ -56,26 +61,26 @@ export function riskSummary(profile: Profile, lock?: Lock): RiskItem[] {
   for (const [name, server] of Object.entries(profile.mcp ?? {})) {
     if (server.transport === "stdio") {
       const env = Object.entries(server.env ?? {}).map(([key, value]) => `${key}=${value}`);
+      const { overrides: _overrides, ...base } = server;
       add(
         "high",
         "mcp",
-        `${name} runs: ${commandLine([server.command, ...(server.args ?? [])])}${env.length === 0 ? "" : ` (env: ${env.join(", ")})`}${server.cwd === undefined ? "" : ` in ${server.cwd}`}`,
+        `${name} runs: ${commandLine([server.command, ...(server.args ?? [])])}${env.length === 0 ? "" : ` (env: ${env.join(", ")})`}${server.cwd === undefined ? "" : ` in ${server.cwd}`}${sends(base)}`,
       );
     } else {
-      const secrets = [...findSecretRefs(server.headers ?? {})];
-      add(
-        secrets.length > 0 ? "high" : "normal",
-        "mcp",
-        `${name} connects to ${server.url}${secrets.length === 0 ? "" : ` and sends the secrets ${secrets.join(", ")}`}`,
-      );
+      const { overrides: _overrides, ...base } = server;
+      const secrets = sends(base);
+      add(secrets === "" ? "normal" : "high", "mcp", `${name} connects to ${server.url}${secrets}`);
     }
     for (const [harness, override] of Object.entries(server.overrides ?? {})) {
+      const secrets = sends(override);
       add(
-        ["command", "args", "env", "cwd", "url", "headers"].some((key) => key in override)
+        secrets !== "" ||
+          ["command", "args", "env", "cwd", "url", "headers"].some((key) => key in override)
           ? "high"
           : "normal",
         "mcp",
-        `${name} for ${harness} adds ${compact(override)}`,
+        `${name} for ${harness} adds ${compact(override)}${secrets}`,
       );
     }
   }
@@ -93,11 +98,12 @@ export function riskSummary(profile: Profile, lock?: Lock): RiskItem[] {
     for (const [pointer, value] of listLeaves(patch)) {
       const execution = pointer.some((segment) => EXECUTION_KEY.test(segment));
       const permission = pointer.some((segment) => PERMISSION_KEY.test(segment));
-      if (execution || permission) {
+      const secrets = sends(value);
+      if (execution || permission || secrets !== "") {
         add(
           "high",
           "setting",
-          `${docKey} ${formatPointer(pointer)} = ${value === null ? "(deleted)" : compact(value)}`,
+          `${docKey} ${formatPointer(pointer)} = ${value === null ? "(deleted)" : compact(value)}${secrets}`,
         );
       } else {
         other += 1;
@@ -139,7 +145,7 @@ export function riskSummary(profile: Profile, lock?: Lock): RiskItem[] {
   for (const [name, source] of Object.entries(profile.secrets ?? {})) {
     switch (source.from) {
       case "env":
-        add("normal", "secret", `${name} reads the environment variable ${source.name}`);
+        add("high", "secret", `${name} reads the environment variable ${source.name}`);
         break;
       case "file":
         add("high", "secret", `${name} reads the file ${source.path}`);

@@ -950,3 +950,36 @@ describe("plugin installs and their undo", () => {
     assert.deepEqual(JSON.parse(await fs.readFile(state, "utf8")), []);
   });
 });
+
+describe("secret destinations in the risk summary", () => {
+  test("each place that gets a secret is a high-risk line that names the secret", () => {
+    const items = riskSummary({
+      version: 1,
+      mcp: {
+        query: {
+          transport: "http",
+          url: "https://collector.example.com/q?k=${secret:URL_KEY}",
+          overrides: { codex: { startup: "x".repeat(150), extra: "${secret:OVERRIDE_KEY}" } },
+        },
+      },
+      settings: { claude: { theme: "${secret:SETTING_KEY}" } },
+      secrets: {
+        URL_KEY: { from: "env", name: "URL_KEY" },
+        OVERRIDE_KEY: { from: "env", name: "OVERRIDE_KEY" },
+        SETTING_KEY: { from: "env", name: "SETTING_KEY" },
+      },
+    });
+    const high = items.filter((item) => item.level === "high").map((item) => item.text);
+    for (const name of ["URL_KEY", "OVERRIDE_KEY", "SETTING_KEY"]) {
+      assert.equal(
+        high.some((text) => text.includes(`sends the secrets ${name}`)),
+        true,
+        name,
+      );
+    }
+    assert.equal(
+      items.some((item) => item.area === "secret" && item.level !== "high"),
+      false,
+    );
+  });
+});
