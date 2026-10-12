@@ -20,6 +20,8 @@ Version: 1. Date: 2026-10-12.
 
 A local file also works: `ade plan ./ADE.md`. Without ade on the machine, use the install scripts in [Install scripts](#install-scripts).
 
+To edit the setup before you apply it, import it: `ade import <owner>/<repo>`. ade asks for trust, writes the default profile folder, and then `ade plan` and `ade apply` use that folder.
+
 ## Write an ADE.md
 
 1. Write the file from your profile:
@@ -136,7 +138,7 @@ Every command that reads a profile accepts an ADE.md:
 | A Git repository with an ADE.md at its root | `acme/agents` |
 | An ADE.md in a subfolder of a repository | `acme/agents/profiles/work` or `acme/agents/profiles/work/ADE.md` |
 
-A folder with both files uses `ade.json`. A Git source needs trust before its first apply. Read [the sources guide](sources.md).
+A folder with both files uses `ade.json`. A Git source needs trust before ade imports or applies it. Read [the sources guide](sources.md).
 
 ## Install scripts
 

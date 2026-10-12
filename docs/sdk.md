@@ -138,7 +138,7 @@ Expected failures throw `AdeError`. Each error has a `code`, a `message`, `detai
 | `revert-blocked` | An entry changed after the apply |
 | `locked` | Another apply holds the state lock |
 | `remote-failed` | The SSH session failed, or the remote has no Node.js |
-| `untrusted` | A Git source needs trust before the apply |
+| `untrusted` | A Git source needs trust before the import or the apply |
 
 ## Other harnesses
 

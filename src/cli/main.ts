@@ -1880,10 +1880,11 @@ const commands: Command[] = [
   {
     name: "import",
     group: "Share",
-    summary: "Create an editable profile folder from an ADE.md, a bundle file, or a source.",
+    summary: "Copy a shared setup into an editable profile folder. A Git source needs trust.",
     usage: [
-      "ade import <ADE.md|bundle.json|source> [--out <dir>] [--force]",
-      "Example: ade import acme/agents --out ~/agent-profile",
+      "ade import <ADE.md|bundle.json|source> [--out <dir>] [--force] [--trust]",
+      "Without --out, ade writes the default profile folder, so ade plan and ade apply use it.",
+      "Example: ade import acme/agents",
     ],
     options: { out: { type: "string", short: "o" } },
     async run(c) {
@@ -1911,7 +1912,21 @@ const commands: Command[] = [
           }
         }
       } else {
-        const resolved = await c.resolve(file);
+        const ctx = c.context();
+        const resolved = await resolveProfile(file, ctx, {
+          cwd: c.io.cwd,
+          offline: boolFlag(c.flags, "offline"),
+        });
+        const status = await checkTrust(ctx, resolved);
+        const gate: SourceGate = {
+          resolved,
+          status,
+          trusted: status.state === "local" || status.state === "trusted",
+        };
+        if (!(await requireTrust(c, gate))) {
+          c.out.line("Nothing changed.");
+          return EXIT.ok;
+        }
         input = await exportBundle(resolved.loaded);
       }
       const loaded = await importBundle(input, dir, { force: boolFlag(c.flags, "force") });
@@ -1920,8 +1935,14 @@ const commands: Command[] = [
         c.emit({ dir: loaded.dir, profile: loaded.profile });
         return EXIT.ok;
       }
+      const bare =
+        c.io.env.ADE_PROFILE ?? (await readDefaultProfile(c.context())) ?? defaultProfileDir();
+      const bareSpec = specFor(bare, c.context(), c.io.cwd);
+      const usesDefault =
+        bareSpec.kind === "local" && path.resolve(bareSpec.dir) === path.resolve(loaded.dir);
+      const flag = usesDefault ? "" : ` --profile ${loaded.dir}`;
       c.out.line(`Imported the profile into ${loaded.dir}.`);
-      c.out.line(`Next: run \`ade doctor --profile ${loaded.dir}\` to check the secrets.`);
+      c.out.line(`Next: run \`ade plan${flag}\` to see the changes, then \`ade apply${flag}\`.`);
       return EXIT.ok;
     },
   },

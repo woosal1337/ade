@@ -13,7 +13,7 @@ Users want to sync a machine 1:1 with a published setup, the way `brew tap owner
 1. A command that reads a profile takes a source: a local folder, `owner/repo[/subfolder][@ref]` on GitHub, or a Git URL with `//subfolder` and `#ref`.
 2. ade resolves the ref to a commit, checks out that commit into the cache, and loads the profile from there. The tree in the cache does not change.
 3. ade derives a risk summary from the profile. The summary lists programs, connections that send secrets, home and harness files, secret sources, permission and execution settings, link skills, Git skills, and skill names.
-4. A Git source needs trust before an apply. Trust records the source, the commit, and the summary lines. A new commit with the same summary lines stays trusted. A new commit with other lines needs trust again.
+4. A Git source needs trust before an import or an apply. An imported copy is a local profile, and a local profile needs no trust, so `ade import` asks first. Trust records the source, the commit, and the summary lines. A new commit with the same summary lines stays trusted. A new commit with other lines needs trust again.
 5. Before trust, a plan uses placeholder secret values. It never runs a secret command and never reads a secret file or the Keychain.
 6. `ade pack` writes a self-contained profile for publication and refuses values that look like tokens or private keys.
 

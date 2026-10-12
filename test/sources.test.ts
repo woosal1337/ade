@@ -254,6 +254,29 @@ describe("cli sources", () => {
     });
   });
 
+  test("import of a Git source needs trust, then writes an editable copy", async () => {
+    const { url } = await publicRepo();
+    const root = await tempDir("ade-cli-");
+    const home = path.join(root, "home");
+    await fs.mkdir(home, { recursive: true });
+    const out = path.join(root, "imported");
+    const refused = await run(root, ["import", url, "--out", out, "--home", home]);
+    assert.equal(refused.code, EXIT.failure);
+    assert.match(refused.err, /not trusted/);
+    assert.equal(await exists(out), false);
+
+    const imported = await run(root, ["import", url, "--out", out, "--home", home, "--trust"]);
+    assert.equal(imported.code, EXIT.ok, imported.err);
+    assert.match(imported.out, /does these things on this machine/);
+    assert.match(imported.out, /Next: run `ade plan --profile .+` to see the changes/);
+    assert.equal((await loadProfile(out)).profile.name, "team");
+
+    const second = path.join(root, "second");
+    const again = await run(root, ["import", url, "--out", second, "--home", home]);
+    assert.equal(again.code, EXIT.ok, again.err);
+    assert.doesNotMatch(again.out, /does these things on this machine/);
+  });
+
   test("use sets the default source, and edits refuse a Git source", async () => {
     const { url } = await publicRepo();
     const root = await tempDir("ade-cli-");

@@ -34,6 +34,8 @@ A profile source is a local folder or a Git repository that holds an `ade.json` 
    ade remote devbox apply cobanov/agents
    ```
 
+To edit a setup before you apply it, import it first. `ade import cobanov/agents` asks for trust, then writes the default profile folder. Then run `ade plan` and `ade apply`.
+
 ## Source forms
 
 | Form | Example | Meaning |
@@ -53,7 +55,7 @@ ade fetches a Git source into its cache at one commit. It remembers the commit, 
 
 ## Trust
 
-A profile can run programs and change files on your machine. A Git source needs your trust before its first apply.
+A profile can run programs and change files on your machine. A Git source needs your trust before ade imports or applies it. An imported copy is a local profile, so `ade import` asks for trust first.
 
 1. ade shows a summary of the source. Items marked with `!` run programs, write files, read secrets, or change permissions.
 2. You type `yes`, or you add `--trust` to the command.
