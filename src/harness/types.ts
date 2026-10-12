@@ -57,6 +57,7 @@ export interface PluginSupport {
   removeMarketplace(name: string): string[];
   install(id: string): string[];
   uninstall(id: string, handle: string): string[];
+  replaces?(id: string, installed: string): boolean;
 }
 
 export interface HarnessAdapter {

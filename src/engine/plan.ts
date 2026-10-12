@@ -2,7 +2,7 @@ import path from "node:path";
 import { type Context, displayPath } from "../core/context.ts";
 import { type DocFormat, docFormatFor, getAt, type LoadedDoc, loadDoc } from "../core/doc.ts";
 import { inspectPath, type PathState, pathStateHash } from "../core/fsx.ts";
-import { ABSENT, type Absent, hashValue, sha256 } from "../core/hash.ts";
+import { ABSENT, type Absent, compareText, hashValue, sha256 } from "../core/hash.ts";
 import { getAdapter } from "../harness/registry.ts";
 import type { LoadedProfile } from "../profile/load.ts";
 import type { HarnessId } from "../profile/schema.ts";
@@ -295,15 +295,29 @@ export async function computePlan(
     }
     const current =
       item.target === "marketplace" ? list.marketplaces[item.id] : list.installed[item.id];
+    const replaced =
+      current === undefined && item.target !== "marketplace"
+        ? Object.keys(list.installed)
+            .sort(compareText)
+            .find((key) => adapter.plugins?.replaces?.(item.id, key) === true)
+        : undefined;
     const currentHash =
       current === undefined
-        ? "absent"
+        ? replaced === undefined
+          ? "absent"
+          : `replaces:${replaced}`
         : item.target === "marketplace"
           ? `marketplace:${current}`
           : "present";
     const desiredHash =
       item.target === "marketplace" ? `marketplace:${item.source ?? ""}` : "present";
-    const decision = decide(currentHash, desiredHash, prior?.hash, current === undefined, false);
+    const decision = decide(
+      currentHash,
+      desiredHash,
+      prior?.hash,
+      current === undefined && replaced === undefined,
+      false,
+    );
     record(
       {
         key: item.key,
@@ -313,7 +327,9 @@ export async function computePlan(
         action: decision.action,
         path: item.path,
         ...(current === undefined
-          ? {}
+          ? replaced === undefined
+            ? {}
+            : { before: replaced }
           : { before: item.target === "marketplace" ? current : "installed" }),
         after: item.target === "marketplace" ? (item.source ?? "") : "installed",
         drift: decision.drift,
@@ -343,7 +359,13 @@ export async function computePlan(
         target: item.target,
         action: decision.action,
         ops,
-        undo: undoOf(last, current),
+        undo:
+          replaced === undefined
+            ? undoOf(last, current)
+            : [
+                { harness: item.harness, op: "uninstall", id: item.id },
+                { harness: item.harness, op: "install", id: replaced },
+              ],
       });
     }
     if (decision.action !== "noop") {

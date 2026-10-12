@@ -34,6 +34,11 @@ function marketplaceSource(source: unknown): string | undefined {
   return undefined;
 }
 
+function before(id: string, separator: string): string {
+  const index = id.lastIndexOf(separator);
+  return index <= 0 ? id : id.slice(0, index);
+}
+
 export function claudePlugins(home: (ctx: Context) => string): PluginSupport {
   return {
     program: "claude",
@@ -142,6 +147,7 @@ export function grokPlugins(): PluginSupport {
     removeMarketplace: () => [],
     install: (id) => ["grok", "plugin", "install", id.split("@")[0] as string, "--trust"],
     uninstall: (_id, handle) => ["grok", "plugin", "uninstall", handle, "--confirm"],
+    replaces: (id, installed) => before(id, "@") === before(installed, "@"),
   };
 }
 
@@ -178,6 +184,7 @@ export function geminiExtensions(home: (ctx: Context) => string): PluginSupport 
       return ["gemini", "extensions", "install", source, ...ref, "--consent", "--skip-settings"];
     },
     uninstall: (_id, handle) => ["gemini", "extensions", "uninstall", handle],
+    replaces: (id, installed) => before(id, "#") === before(installed, "#"),
   };
 }
 
@@ -206,6 +213,8 @@ export function cursorExtensions(dir: (ctx: Context) => string): PluginSupport {
     removeMarketplace: () => [],
     install: (id) => ["cursor", "--install-extension", id, "--force"],
     uninstall: (_id, handle) => ["cursor", "--uninstall-extension", handle],
+    replaces: (id, installed) =>
+      before(id, "@").toLowerCase() === before(installed, "@").toLowerCase(),
   };
 }
 

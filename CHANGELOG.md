@@ -29,9 +29,11 @@ The first public version.
 - The ADE.md digest and the trust hash hold the file mode. Paths that differ only in case fail.
 - Capture skips credential files in harness folders, skill folders, and referenced files.
 - A revert of a revert keeps mode 600 on a file with a secret.
-- A locked skill commit must be on its ref.
+- The risk summary names the ref and the locked commit of each Git skill.
 - Trust keys of settings use JSON pointers, and two entries with one key fail.
 - Prompts, plan labels, and JSON output escape control characters.
 - A source that names both a local path and a GitHub shorthand fails. Use `./<path>` or `github:<owner>/<repo>`.
 - A settings file name that differs only in case from a main settings file or an MCP file fails.
-- A Grok plugin install must come from the marketplace that the profile names.
+- A Grok plugin install must come from the marketplace that the profile names. ade removes a plugin from another marketplace.
+- A marketplace that Claude Code or Codex adds under another name fails, and ade removes it again.
+- A plugin install that replaces another version records the old version, so a revert reinstalls it.

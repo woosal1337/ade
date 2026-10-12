@@ -7,6 +7,7 @@ import { pathToFileURL } from "node:url";
 import { EXIT, runCli } from "../src/cli/main.ts";
 import { type CliIO, createOutput, terminalText } from "../src/cli/output.ts";
 import { renderChanges } from "../src/cli/render.ts";
+import { type Context, createContext } from "../src/core/context.ts";
 import { AdeError } from "../src/core/errors.ts";
 import { isSafeRelative, listFiles } from "../src/core/fsx.ts";
 import { escapeJsonControls } from "../src/core/text.ts";
@@ -16,7 +17,7 @@ import { checkInstalledMarketplace, numstatPaths } from "../src/engine/external.
 import { revert } from "../src/engine/history.ts";
 import { plan } from "../src/engine/plan.ts";
 import { type Bundle, importBundle, modeFlags } from "../src/profile/bundle.ts";
-import { loadProfile, profileText, saveLock, saveProfile } from "../src/profile/load.ts";
+import { loadProfile, profileText, saveProfile } from "../src/profile/load.ts";
 import { parseMarkdown, writeMarkdown } from "../src/profile/markdown.ts";
 import { buildProfileBundle, scanBundle } from "../src/profile/pack.ts";
 import { riskSummary } from "../src/profile/risk.ts";
@@ -24,12 +25,12 @@ import { ProfileSchema } from "../src/profile/schema.ts";
 import { trustEntries } from "../src/profile/trust.ts";
 import { semanticProblems } from "../src/profile/validate.ts";
 import { remoteHistory } from "../src/remote/client.ts";
-import { createSecretResolver } from "../src/secrets/resolve.ts";
+import { type CommandRunner, createSecretResolver } from "../src/secrets/resolve.ts";
 import { materializeGitTree, resolveGitRef, treeCacheDir } from "../src/skills/git.ts";
-import { lockGitSkill } from "../src/skills/source.ts";
 import {
   contextFor,
   exists,
+  fakeClaude,
   fakeIO,
   offlineRunner,
   POSIX,
@@ -628,35 +629,24 @@ describe("audit run 2 fixes", () => {
     );
   });
 
-  test("a locked skill commit must be on its ref", async () => {
-    const { repo, url } = await repoWith({ "skills/a/SKILL.md": "---\nname: a\n---\n" });
-    const skill = { git: url, ref: "main", subdir: "skills/a" };
-    const locked = await lockGitSkill(contextFor(await tempDir()), skill);
-    await writeText(
-      path.join(repo, "skills", "a", "SKILL.md"),
-      "---\nname: a\ndescription: v2\n---\n",
+  test("the risk summary names the ref and the locked commit of a Git skill", () => {
+    const commit = "c".repeat(40);
+    const items = riskSummary(
+      { version: 1, skills: { a: { git: "https://example.com/skills.git", ref: "main" } } },
+      {
+        version: 1,
+        skills: {
+          a: { git: "https://example.com/skills.git", ref: "main", commit, hash: "d".repeat(64) },
+        },
+      },
     );
-    git(repo, "commit", "--quiet", "-am", "Second");
-    git(repo, "checkout", "--quiet", "-b", "other");
-    await writeText(
-      path.join(repo, "skills", "a", "SKILL.md"),
-      "---\nname: a\ndescription: other\n---\n",
-    );
-    git(repo, "commit", "--quiet", "-am", "Other");
-    const other = git(repo, "rev-parse", "HEAD");
-    git(repo, "checkout", "--quiet", "main");
-    const dir = await tempDir("ade-profile-");
-    await saveProfile(dir, { version: 1, harnesses: ["pi"], skills: { a: skill } });
-    await saveLock(dir, { version: 1, skills: { a: locked } });
-    const older = await plan(await loadProfile(dir), contextFor(await tempDir()));
     assert.equal(
-      older.changes.some((change) => change.key === "skill:shared:a"),
+      items.some((item) =>
+        item.text.endsWith(
+          `comes from https://example.com/skills.git at main, commit ${"c".repeat(12)}`,
+        ),
+      ),
       true,
-    );
-    await saveLock(dir, { version: 1, skills: { a: { ...locked, commit: other } } });
-    await assert.rejects(
-      plan(await loadProfile(dir), contextFor(await tempDir())),
-      isCode("conflict"),
     );
   });
 
@@ -819,5 +809,134 @@ describe("settings names, Grok installs, and extension keys", () => {
       items.some((item) => item.level === "high" && item.text.includes("auto_install_extensions")),
       true,
     );
+  });
+});
+
+function pluginContext(home: string): Context {
+  return createContext({
+    home,
+    env: { PATH: process.env.PATH ?? "" },
+    stateDir: path.join(home, ".ade-state"),
+    cacheDir: path.join(home, ".ade-cache"),
+  });
+}
+
+describe("plugin installs and their undo", () => {
+  test("a revert reinstalls the Cursor version that the apply replaced", async () => {
+    const home = await tempDir();
+    const registry = path.join(home, ".cursor", "extensions", "extensions.json");
+    await writeText(
+      registry,
+      JSON.stringify([{ identifier: { id: "marker.ext" }, version: "2.0.0" }]),
+    );
+    const read = async () =>
+      JSON.parse(await fs.readFile(registry, "utf8")) as {
+        identifier: { id: string };
+        version: string;
+      }[];
+    const runner: CommandRunner = async (argv) => {
+      if (argv[0] !== "cursor") {
+        throw Object.assign(new Error(`spawn ${argv[0]} ENOENT`), { code: "ENOENT" });
+      }
+      if (argv[1] === "--version") {
+        return { code: 0, stdout: "1.0.0\n", stderr: "" };
+      }
+      const list = await read();
+      const target = argv[2] ?? "";
+      if (argv[1] === "--install-extension") {
+        const at = target.lastIndexOf("@");
+        const id = target.slice(0, at);
+        const next = list.filter((item) => item.identifier.id !== id);
+        next.push({ identifier: { id }, version: target.slice(at + 1) });
+        await fs.writeFile(registry, JSON.stringify(next));
+      } else if (argv[1] === "--uninstall-extension") {
+        await fs.writeFile(
+          registry,
+          JSON.stringify(list.filter((item) => item.identifier.id !== target)),
+        );
+      }
+      return { code: 0, stdout: "", stderr: "" };
+    };
+    const dir = await tempDir("ade-profile-");
+    await saveProfile(dir, {
+      version: 1,
+      harnesses: ["cursor"],
+      plugins: { cursor: { install: ["marker.ext@1.0.0"] } },
+    });
+    const ctx = pluginContext(home);
+    const loaded = await loadProfile(dir);
+    const planned = await plan(loaded, ctx, { runner });
+    const change = planned.changes.find((item) => item.key.startsWith("plugin:"));
+    assert.equal(change?.action, "update");
+    assert.equal(change?.before, "marker.ext@2.0.0");
+    await apply(loaded, ctx, { runner });
+    assert.deepEqual(
+      (await read()).map((item) => item.version),
+      ["1.0.0"],
+    );
+    await revert(ctx, { runner });
+    assert.deepEqual(
+      (await read()).map((item) => item.version),
+      ["2.0.0"],
+    );
+  });
+
+  test("a marketplace that gets another name fails, and ade removes it", async () => {
+    const home = await tempDir();
+    const claude = fakeClaude({ "acme/plugins": "acme-official" });
+    const dir = await tempDir("ade-profile-");
+    await saveProfile(dir, {
+      version: 1,
+      harnesses: ["claude"],
+      plugins: { claude: { marketplaces: { acme: "acme/plugins" } } },
+    });
+    await assert.rejects(
+      apply(await loadProfile(dir), pluginContext(home), { runner: claude.runner }),
+      (error: unknown) =>
+        error instanceof AdeError &&
+        error.code === "conflict" &&
+        /acme-official/.test(error.message),
+    );
+    const known = await readJson(path.join(home, ".claude", "plugins", "known_marketplaces.json"));
+    assert.deepEqual(Object.keys(known), []);
+  });
+
+  test("a Grok install from another marketplace fails, and ade removes it", async () => {
+    const home = await tempDir();
+    const state = path.join(home, "grok-plugins.json");
+    await writeText(state, "[]");
+    const runner: CommandRunner = async (argv) => {
+      if (argv[0] !== "grok") {
+        throw Object.assign(new Error(`spawn ${argv[0]} ENOENT`), { code: "ENOENT" });
+      }
+      if (argv[1] === "--version") {
+        return { code: 0, stdout: "1.0.0\n", stderr: "" };
+      }
+      const list = JSON.parse(await fs.readFile(state, "utf8")) as {
+        name: string;
+        marketplace: string;
+      }[];
+      if (argv[2] === "list") {
+        return { code: 0, stdout: JSON.stringify(list), stderr: "" };
+      }
+      if (argv[2] === "install") {
+        list.push({ name: argv[3] ?? "", marketplace: "other" });
+      } else if (argv[2] === "uninstall") {
+        list.splice(0, list.length, ...list.filter((item) => item.name !== argv[3]));
+      }
+      await fs.writeFile(state, JSON.stringify(list));
+      return { code: 0, stdout: "", stderr: "" };
+    };
+    const dir = await tempDir("ade-profile-");
+    await saveProfile(dir, {
+      version: 1,
+      harnesses: ["grok"],
+      plugins: { grok: { install: ["deploy@team"] } },
+    });
+    await assert.rejects(
+      apply(await loadProfile(dir), pluginContext(home), { runner }),
+      (error: unknown) => error instanceof AdeError && error.code === "conflict",
+    );
+    assert.deepEqual(JSON.parse(await fs.readFile(state, "utf8")), []);
   });
 });

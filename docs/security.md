@@ -37,7 +37,7 @@ ade refuses a shared profile that links a file or a skill to a local path, or th
 - ade passes `--` before each URL and ref, and it refuses values that Git can read as an option.
 - A ref matches only `HEAD`, `refs/heads/<ref>`, or `refs/tags/<ref>`. A ref that names both a branch and a tag fails.
 - The cache key of a tree holds the repository URL and the commit.
-- A locked skill commit must be on the locked ref. ade checks the ancestry before the first use of the commit.
+- The risk summary names the ref and the locked commit of each Git skill. A change of the locked commit needs trust again.
 - ade checks out trees with `core.symlinks=false`, so Git writes a symbolic link as a plain file with the link text. A source or skill folder that is itself a symbolic link fails.
 - The cache folder has mode 700.
 

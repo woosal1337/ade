@@ -5,7 +5,7 @@ import { atomicWrite, isSafeRelative, readFileIfExists, statOrUndefined } from "
 import { compareText } from "../core/hash.ts";
 import { pluginEnv } from "../harness/plugins.ts";
 import { getAdapter } from "../harness/registry.ts";
-import type { InstalledPlugins } from "../harness/types.ts";
+import type { InstalledPlugins, PluginSupport } from "../harness/types.ts";
 import type { HarnessId } from "../profile/schema.ts";
 import { type CommandRunner, runCommand } from "../secrets/resolve.ts";
 import { isolatedGitEnv } from "../skills/git.ts";
@@ -178,6 +178,31 @@ export async function runPluginOp(
   if (argv.length === 0) {
     return;
   }
+  await runPluginCommand(ctx, runner, op.harness, argv);
+  if (op.op === "addMarketplace" && support.marketplaces) {
+    await checkMarketplaceName(ctx, runner, support, op, list);
+  }
+  if (op.op === "install" && op.harness === "grok") {
+    const after = await support.list(ctx, runner);
+    try {
+      await checkInstalledMarketplace(op.id, Object.keys(after.installed));
+    } catch (error) {
+      for (const [key, handle] of Object.entries(after.installed)) {
+        if (key !== op.id && list.installed[key] === undefined) {
+          await runPluginCommand(ctx, runner, op.harness, support.uninstall(key, handle));
+        }
+      }
+      throw error;
+    }
+  }
+}
+
+async function runPluginCommand(
+  ctx: Context,
+  runner: CommandRunner,
+  harness: HarnessId,
+  argv: readonly string[],
+): Promise<void> {
   const result = await runner(argv, { env: pluginEnv(ctx), timeoutMs: 300_000, cwd: ctx.home });
   if (result.code !== 0) {
     const detail = (result.stderr.trim() || result.stdout.trim()).split("\n").slice(-3);
@@ -186,16 +211,42 @@ export async function runPluginOp(
       `The command failed with exit code ${result.code}: ${argv.join(" ")}.`,
       {
         details: detail,
-        hint: `Run the command by hand to read the full error from ${getAdapter(op.harness).label}.`,
+        hint: `Run the command by hand to read the full error from ${getAdapter(harness).label}.`,
       },
     );
   }
-  if (op.op === "install" && op.harness === "grok") {
-    await checkInstalledMarketplace(
-      op.id,
-      Object.keys((await support.list(ctx, runner)).installed),
-    );
+}
+
+async function checkMarketplaceName(
+  ctx: Context,
+  runner: CommandRunner,
+  support: PluginSupport,
+  op: PluginOp,
+  before: InstalledPlugins,
+): Promise<void> {
+  const after = await support.list(ctx, runner);
+  if (after.marketplaces[op.id] !== undefined) {
+    return;
   }
+  const added = Object.keys(after.marketplaces)
+    .filter((name) => before.marketplaces[name] === undefined)
+    .sort(compareText);
+  for (const name of added) {
+    await runPluginCommand(ctx, runner, op.harness, support.removeMarketplace(name));
+  }
+  const label = getAdapter(op.harness).label;
+  throw new AdeError(
+    "conflict",
+    added.length === 1
+      ? `${label} added the marketplace ${op.source ?? op.id} as ${added[0]}, not as ${op.id}. ade removed it again.`
+      : `${label} did not add the marketplace ${op.id}.`,
+    {
+      hint:
+        added.length === 1
+          ? `Use ${added[0]} as the marketplace name in the profile.`
+          : "Check the marketplace source, then run the command again.",
+    },
+  );
 }
 
 export async function checkInstalledMarketplace(
