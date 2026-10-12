@@ -2,11 +2,43 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import type { Context } from "../core/context.ts";
 import { AdeError, errnoCode } from "../core/errors.ts";
-import { ensureDir, isSafeRelative, statOrUndefined, tempSibling } from "../core/fsx.ts";
+import {
+  ensureDir,
+  ensurePrivateDir,
+  findSymlink,
+  isSafeRelative,
+  lstatOrUndefined,
+  statOrUndefined,
+  tempSibling,
+} from "../core/fsx.ts";
+import { FULL_COMMIT, isGitRef, isGitUrl, isSharedGitUrl } from "../core/git-input.ts";
 import { sha256 } from "../core/hash.ts";
 import { type CommandResult, type CommandRunner, runCommand } from "../secrets/resolve.ts";
 
-export const FULL_COMMIT = /^[0-9a-f]{40}$/;
+export { FULL_COMMIT, isGitRef, isGitUrl, isSharedGitUrl };
+
+function checkGitInput(url: string, ref: string): void {
+  if (!isGitUrl(url)) {
+    throw new AdeError("usage", `The Git URL is not valid: ${JSON.stringify(url)}.`, {
+      hint: "Use an https or ssh URL, a user@host:path form, or a local path.",
+    });
+  }
+  if (!isGitRef(ref)) {
+    throw new AdeError("usage", `The Git ref is not valid: ${JSON.stringify(ref)}.`, {
+      hint: "Use a branch name, a tag name, HEAD, or a full commit hash.",
+    });
+  }
+}
+
+function refCandidates(ref: string): string[] {
+  if (ref === "HEAD") {
+    return ["HEAD"];
+  }
+  if (ref.startsWith("refs/")) {
+    return [ref, `${ref}^{}`];
+  }
+  return [`refs/heads/${ref}`, `refs/tags/${ref}`, `refs/tags/${ref}^{}`];
+}
 
 export const GIT_LOCAL_VARIABLES = [
   "GIT_ALTERNATE_OBJECT_DIRECTORIES",
@@ -81,30 +113,66 @@ export async function resolveGitRef(
   ref: string,
   runner: CommandRunner = runCommand,
 ): Promise<string> {
+  checkGitInput(url, ref);
   if (FULL_COMMIT.test(ref)) {
     return ref;
   }
-  const output = await git(ctx, runner, ["ls-remote", url, ref], `read the ref ${ref} from ${url}`);
-  const lines = output
-    .split("\n")
-    .map((line) => line.trim().split(/\s+/))
-    .filter((parts) => parts.length === 2 && FULL_COMMIT.test(parts[0] ?? ""));
-  const peeled = lines.find((parts) => parts[1]?.endsWith("^{}"));
-  const chosen = peeled ?? lines[0];
-  if (chosen?.[0] === undefined) {
+  const wanted = refCandidates(ref);
+  const output = await git(
+    ctx,
+    runner,
+    ["ls-remote", "--", url, ...wanted],
+    `read the ref ${ref} from ${url}`,
+  );
+  const found = new Map<string, string>();
+  for (const line of output.split("\n")) {
+    const [hash, name] = line.trim().split(/\s+/);
+    if (
+      hash !== undefined &&
+      name !== undefined &&
+      FULL_COMMIT.test(hash) &&
+      wanted.includes(name)
+    ) {
+      found.set(name, hash);
+    }
+  }
+  const pick = (name: string): string | undefined => found.get(`${name}^{}`) ?? found.get(name);
+  let commit: string | undefined;
+  if (ref === "HEAD" || ref.startsWith("refs/")) {
+    commit = pick(ref);
+  } else {
+    const branch = found.get(`refs/heads/${ref}`);
+    const tag = pick(`refs/tags/${ref}`);
+    if (branch !== undefined && tag !== undefined) {
+      throw new AdeError("conflict", `The ref ${ref} names both a branch and a tag: ${url}.`, {
+        hint: `Use refs/heads/${ref} or refs/tags/${ref}.`,
+      });
+    }
+    commit = branch ?? tag;
+  }
+  if (commit === undefined) {
     throw new AdeError("git-failed", `The repository has no ref ${ref}: ${url}.`, {
       hint: "Use a branch, a tag, or a full commit hash that exists.",
     });
   }
-  return chosen[0];
+  return commit;
 }
 
 function repoCacheDir(ctx: Context, url: string): string {
   return path.join(ctx.cacheDir, "git", sha256(url).slice(0, 24));
 }
 
-export function treeCacheDir(ctx: Context, commit: string, subdir: string | undefined): string {
-  return path.join(ctx.cacheDir, "trees", `${commit}-${sha256(subdir ?? "").slice(0, 12)}`);
+export function treeCacheDir(
+  ctx: Context,
+  url: string,
+  commit: string,
+  subdir: string | undefined,
+): string {
+  return path.join(
+    ctx.cacheDir,
+    "trees",
+    `${commit}-${sha256(`${url}\n${subdir ?? ""}`).slice(0, 32)}`,
+  );
 }
 
 async function hasCommit(
@@ -135,13 +203,17 @@ export async function materializeGitTree(
   options: { readonly allowFetch: boolean; readonly runner?: CommandRunner | undefined },
 ): Promise<string> {
   const runner = options.runner ?? runCommand;
+  checkGitInput(request.url, request.ref);
+  if (!FULL_COMMIT.test(request.commit)) {
+    throw new AdeError("usage", `The Git commit is not a full commit hash: ${request.commit}.`);
+  }
   if (request.subdir !== undefined && !isSafeRelative(request.subdir)) {
     throw new AdeError(
       "path-outside-root",
       `The Git subdirectory is not valid: ${request.subdir}.`,
     );
   }
-  const output = treeCacheDir(ctx, request.commit, request.subdir);
+  const output = treeCacheDir(ctx, request.url, request.commit, request.subdir);
   const tree = path.join(output, "tree");
   if ((await statOrUndefined(tree))?.isDirectory()) {
     return tree;
@@ -151,6 +223,7 @@ export async function materializeGitTree(
       hint: "Run the command without --offline to fetch it.",
     });
   }
+  await ensurePrivateDir(ctx.cacheDir);
   const repo = repoCacheDir(ctx, request.url);
   if (!(await statOrUndefined(path.join(repo, "HEAD")))) {
     await ensureDir(repo);
@@ -164,6 +237,7 @@ export async function materializeGitTree(
       "--quiet",
       "--depth",
       "1",
+      "--",
       request.url,
       request.commit,
     ]);
@@ -171,7 +245,7 @@ export async function materializeGitTree(
       await git(
         ctx,
         runner,
-        ["-C", repo, "fetch", "--quiet", request.url, request.ref],
+        ["-C", repo, "fetch", "--quiet", "--", request.url, request.ref],
         `fetch ${request.ref} from ${request.url}`,
       );
     }
@@ -194,6 +268,8 @@ export async function materializeGitTree(
         "core.autocrlf=false",
         "-c",
         "core.eol=lf",
+        "-c",
+        "core.symlinks=false",
         "--git-dir",
         repo,
         "--work-tree",
@@ -207,10 +283,18 @@ export async function materializeGitTree(
       `check out ${request.commit}`,
     );
     const source = request.subdir === undefined ? staging : path.join(staging, request.subdir);
-    if (!(await statOrUndefined(source))?.isDirectory()) {
+    if (!(await lstatOrUndefined(source))?.isDirectory()) {
       throw new AdeError(
         "not-found",
         `The repository has no directory ${request.subdir ?? "."} at ${request.commit}.`,
+      );
+    }
+    const link = await findSymlink(source);
+    if (link !== undefined) {
+      throw new AdeError(
+        "conflict",
+        `The repository holds a symbolic link at ${request.commit}: ${link}.`,
+        { hint: "ade refuses symbolic links in a Git tree. Replace the link with a file." },
       );
     }
     await ensureDir(output);

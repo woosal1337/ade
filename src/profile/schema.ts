@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { isSafeRelative } from "../core/fsx.ts";
+import { isGitRef, isGitUrl } from "../core/git-input.ts";
 
 export const HARNESS_IDS = [
   "claude",
@@ -43,6 +44,18 @@ const relativePath = z
   .min(1)
   .refine(isSafeRelative, "Use a relative path that stays inside its root.");
 const harnessList = z.array(HarnessIdSchema).min(1);
+const gitUrl = z
+  .string()
+  .min(1)
+  .refine(isGitUrl, "Use a Git URL or a local path that does not start with '-'.");
+const gitRef = z
+  .string()
+  .min(1)
+  .refine(isGitRef, "Use a branch name, a tag name, HEAD, or a full commit hash.");
+const commandValue = z
+  .string()
+  .min(1)
+  .refine((value) => !value.startsWith("-"), "The value must not start with '-'.");
 const jsonObject = z.record(z.string(), z.json());
 const overrides = z.partialRecord(HarnessIdSchema, jsonObject);
 
@@ -74,9 +87,9 @@ export const McpServerSchema = z.discriminatedUnion("transport", [
 ]);
 
 export const SkillOriginSchema = z.strictObject({
-  git: z.string().min(1),
+  git: gitUrl,
   subdir: z.string().optional(),
-  ref: z.string().optional(),
+  ref: gitRef.optional(),
 });
 
 export const PathSkillSchema = z.strictObject({
@@ -86,8 +99,8 @@ export const PathSkillSchema = z.strictObject({
 });
 
 export const GitSkillSchema = z.strictObject({
-  git: z.string().min(1),
-  ref: z.string().min(1).optional(),
+  git: gitUrl,
+  ref: gitRef.optional(),
   subdir: relativePath.optional(),
   harnesses: harnessList.optional(),
 });
@@ -140,8 +153,8 @@ export const SettingsSchema = z.record(
 );
 
 export const PluginSetSchema = z.strictObject({
-  marketplaces: z.record(z.string().min(1), z.string().min(1)).optional(),
-  install: z.array(z.string().min(1)).optional(),
+  marketplaces: z.record(commandValue, commandValue).optional(),
+  install: z.array(commandValue).optional(),
 });
 
 export const PatchEntrySchema = z.strictObject({
@@ -170,8 +183,8 @@ export const ProfileSchema = z.strictObject({
 });
 
 export const LockedSkillSchema = z.strictObject({
-  git: z.string().min(1),
-  ref: z.string().min(1),
+  git: gitUrl,
+  ref: gitRef,
   subdir: z.string().optional(),
   commit: z.string().regex(/^[0-9a-f]{40}$/),
   hash: z.string().regex(/^[0-9a-f]{64}$/),

@@ -4,6 +4,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { AdeError, errnoCode } from "./errors.ts";
 import { sha256 } from "./hash.ts";
+import { hasControlCharacter } from "./text.ts";
 
 export type PathState =
   | { readonly type: "absent" }
@@ -155,6 +156,41 @@ export async function ensureDir(dir: string, mode?: number): Promise<void> {
   await fs.mkdir(dir, mode === undefined ? { recursive: true } : { recursive: true, mode });
 }
 
+export async function ensurePrivateDir(dir: string): Promise<void> {
+  await fs.mkdir(dir, { recursive: true, mode: 0o700 });
+  if (process.platform === "win32") {
+    return;
+  }
+  const stat = await fs.stat(dir);
+  if ((stat.mode & 0o077) !== 0) {
+    await fs.chmod(dir, 0o700).catch(() => undefined);
+  }
+}
+
+export async function findSymlink(root: string): Promise<string | undefined> {
+  if ((await fs.lstat(root)).isSymbolicLink()) {
+    return ".";
+  }
+  const walk = async (dir: string, relative: string): Promise<string | undefined> => {
+    for (const name of (await fs.readdir(dir)).sort()) {
+      const full = path.join(dir, name);
+      const child = relative === "" ? name : `${relative}/${name}`;
+      const stat = await fs.lstat(full);
+      if (stat.isSymbolicLink() || (stat.isDirectory() && (await isJunction(full)))) {
+        return child;
+      }
+      if (stat.isDirectory()) {
+        const found = await walk(full, child);
+        if (found !== undefined) {
+          return found;
+        }
+      }
+    }
+    return undefined;
+  };
+  return walk(root, "");
+}
+
 export async function atomicWrite(
   file: string,
   data: string | Uint8Array,
@@ -229,10 +265,15 @@ export function isInside(child: string, parent: string): boolean {
 }
 
 export function isSafeRelative(relative: string): boolean {
-  if (relative === "" || path.isAbsolute(relative) || /^[A-Za-z]:/.test(relative)) {
+  if (
+    relative === "" ||
+    path.isAbsolute(relative) ||
+    /^[A-Za-z]:/.test(relative) ||
+    hasControlCharacter(relative)
+  ) {
     return false;
   }
-  return !relative.split(/[\\/]+/).some((part) => part === "..");
+  return !relative.split(/[\\/]+/).some((part) => part === ".." || part.toLowerCase() === ".git");
 }
 
 export function safeJoin(root: string, relative: string, label: string): string {

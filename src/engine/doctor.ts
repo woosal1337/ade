@@ -133,7 +133,9 @@ export async function doctor(
           `Run \`ade update ${name}\`.`,
         );
       } else if (
-        !(await statOrUndefined(path.join(treeCacheDir(ctx, locked.commit, locked.subdir), "tree")))
+        !(await statOrUndefined(
+          path.join(treeCacheDir(ctx, locked.git, locked.commit, locked.subdir), "tree"),
+        ))
       ) {
         add("warn", "skill", `The skill ${name} is not in the cache. Apply fetches it.`);
       } else {
