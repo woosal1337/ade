@@ -33,4 +33,4 @@ ade needs a public page that shows what it is, how to install it, and how to use
 
 - The quality gates run the site build. A commit takes about 3 seconds more.
 - CI installs the site dependencies in the `checks` job.
-- A deploy needs a host and a domain. Ege decides both.
+- [Decision 0010](0010-site-hosting.md) gives the host and the domain: Vercel at `ade.chele.bi`.

@@ -50,7 +50,7 @@ node src/cli.ts plan --profile <profile-dir> --home <scratch-home>
 npm --prefix site run dev
 ```
 
-`npm --prefix site run build` writes the static site to `site/out`. The site has no server code.
+`npm --prefix site run build` writes the static site to `site/out`. The site has no server code. Vercel builds the same folder for https://ade.chele.bi on each push to `main`.
 
 ## Use the CLI from this clone
 

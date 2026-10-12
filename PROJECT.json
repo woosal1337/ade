@@ -19,7 +19,7 @@
     "owner": "woosal1337",
     "url": "https://github.com/woosal1337/ade",
     "description": "Plan, apply, and revert one agent development environment (MCP servers, skills, instructions, settings, plugins, and config files) across 10 coding agents. CLI and TypeScript SDK.",
-    "homepage": "",
+    "homepage": "https://ade.chele.bi",
     "topics": [
       "agent-skills",
       "ai-agents",
@@ -29,14 +29,24 @@
       "cursor",
       "developer-tools",
       "dotfiles",
+      "gemini-cli",
       "grok",
       "mcp",
+      "opencode",
       "pi-coding-agent",
       "sdk",
-      "typescript"
+      "typescript",
+      "zed"
     ],
-    "visibility": "private",
+    "visibility": "public",
     "default_branch": "main"
+  },
+  "site": {
+    "url": "https://ade.chele.bi",
+    "host": "Vercel",
+    "root": "site",
+    "branch": "main",
+    "dns": "Cloudflare CNAME, DNS only"
   },
   "stack": {
     "runtime": {

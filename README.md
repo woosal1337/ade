@@ -12,7 +12,7 @@
 ![macOS, Linux, Windows](https://img.shields.io/badge/os-macOS%20%7C%20Linux%20%7C%20Windows-555)
 ![Version 0.1.0](https://img.shields.io/badge/version-0.1.0-555)
 
-[Install](#install) · [Quick start](#quick-start) · [Share a setup](#share-a-setup) · [Harnesses](#supported-harnesses) · [Models](#models) · [Commands](#commands) · [Docs](#documentation)
+[Website](https://ade.chele.bi) · [Install](#install) · [Quick start](#quick-start) · [Share a setup](#share-a-setup) · [Harnesses](#supported-harnesses) · [Models](#models) · [Commands](#commands) · [Docs](#documentation)
 
 ![The ade landing page: an ade apply run with a trust prompt and a plan](docs/assets/ade-site.png)
 
@@ -247,7 +247,7 @@ python3 tools/quality.py check
 |---|---|
 | `src/` | The engine, the CLI, and the SDK |
 | `test/` | Tests that run in scratch home folders |
-| `site/` | The landing page: Next.js, Tailwind CSS, and motion |
+| `site/` | The landing page at https://ade.chele.bi: Next.js, Tailwind CSS, and motion |
 | `scripts/` | The install scripts |
 | `tools/build-logo.mjs` | Writes the favicon, the README logo, and the logo strips from `site/app/glyphs.ts` and `site/app/brands.ts` |
 | `examples/` | A sample profile folder and a sample `ADE.md` |

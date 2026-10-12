@@ -117,6 +117,28 @@ node src/cli.ts apply --profile <profile-dir> --home /tmp/ade-home --yes
 2. Read the warnings and the generated README.
 3. Push the folder to a public repository.
 
+## Deploy the site
+
+Vercel deploys the `site` folder to https://ade.chele.bi on each push to `main`.
+
+1. Push the commit to `main`.
+2. Open the Vercel project `ade`. Make sure that the new deployment shows Ready.
+3. Run this command. Make sure that it prints 200:
+
+   ```bash
+   curl -s -o /dev/null -w '%{http_code}\n' https://ade.chele.bi/
+   ```
+
+4. If the site is broken, promote the last good deployment in Vercel.
+
+## Update the GitHub social preview
+
+GitHub has no API for this image. Do these steps after a change to the social card:
+
+1. Open https://github.com/woosal1337/ade/settings.
+2. In Social preview, select Edit, then Upload an image.
+3. Select the file from https://ade.chele.bi/social-preview.png.
+
 ## Undo an apply
 
 ```bash
