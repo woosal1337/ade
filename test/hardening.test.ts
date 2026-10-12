@@ -10,7 +10,8 @@ import { renderChanges } from "../src/cli/render.ts";
 import { type Context, createContext } from "../src/core/context.ts";
 import { AdeError } from "../src/core/errors.ts";
 import { isSafeRelative, listFiles } from "../src/core/fsx.ts";
-import { escapeJsonControls } from "../src/core/text.ts";
+import { isGitUrl } from "../src/core/git-input.ts";
+import { escapeJsonControls, printable } from "../src/core/text.ts";
 import { apply } from "../src/engine/apply.ts";
 import { capture, writeCapture } from "../src/engine/capture.ts";
 import { checkInstalledMarketplace, numstatPaths } from "../src/engine/external.ts";
@@ -980,6 +981,59 @@ describe("secret destinations in the risk summary", () => {
     assert.equal(
       items.some((item) => item.area === "secret" && item.level !== "high"),
       false,
+    );
+  });
+});
+
+describe("patch links and invisible characters", () => {
+  test("a patch that adds a symbolic link fails", async () => {
+    const home = await tempDir("ade-home-");
+    const repo = path.join(home, ".pi", "agent", "git", "github.com", "acme", "tool");
+    await writeText(path.join(repo, "a.txt"), "a\n");
+    git(repo, "init", "--quiet", "-b", "main");
+    git(repo, "add", ".");
+    git(repo, "commit", "--quiet", "-m", "First");
+    const patch = [
+      "diff --git a/x b/x",
+      "new file mode 120000",
+      "index 0000000..1111111",
+      "--- /dev/null",
+      "+++ b/x",
+      "@@ -0,0 +1 @@",
+      "+../../../../../../.ssh",
+      "\\ No newline at end of file",
+      "",
+    ].join("\n");
+    const dir = await tempDir("ade-profile-");
+    await writeText(path.join(dir, "patches", "tool.patch"), patch);
+    await saveProfile(dir, {
+      version: 1,
+      harnesses: ["pi"],
+      patches: [{ root: "pi", target: "git/github.com/acme/tool", source: "patches/tool.patch" }],
+    });
+    await assert.rejects(
+      plan(await loadProfile(dir), contextFor(home), { runner: offlineRunner }),
+      isCode("unsupported"),
+    );
+  });
+
+  test("invisible characters are escaped in output and refused in paths and URLs", () => {
+    for (const char of ["\u200b", "\u2028", "\ufeff", "\u{e0041}", "\u00ad"]) {
+      assert.equal(printable(`a${char}b`).includes(char), false, JSON.stringify(char));
+      assert.equal(isSafeRelative(`skills/a${char}b`), false, JSON.stringify(char));
+      assert.equal(isGitUrl(`https://example.com/a${char}b.git`), false, JSON.stringify(char));
+    }
+    assert.equal(printable("Ege Çelebi 日本"), "Ege Çelebi 日本");
+  });
+
+  test("the risk line of a secret command quotes each argument", () => {
+    const items = riskSummary({
+      version: 1,
+      secrets: { A: { from: "command", argv: ["op", "read", "a b"] } },
+    });
+    assert.equal(
+      items.some((item) => item.text === 'A runs: op read "a b"'),
+      true,
     );
   });
 });

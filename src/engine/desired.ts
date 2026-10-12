@@ -410,6 +410,15 @@ export async function buildDesired(
     }
     const source = safeJoin(loaded.dir, entry.source, "the profile directory");
     const patch = await readRequired(source, "patch file");
+    if (
+      /^(?:new file mode|deleted file mode|new mode|old mode) 120000$/m.test(patch.toString("utf8"))
+    ) {
+      throw new AdeError(
+        "unsupported",
+        `The patch ${entry.source} adds or changes a symbolic link. ade refuses links in a patch.`,
+        { hint: "Remove the link from the patch, then capture or write it again." },
+      );
+    }
     items.push({
       type: "patch",
       key: `patch:${entry.root}:${entry.target}`,

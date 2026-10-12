@@ -151,7 +151,7 @@ export function riskSummary(profile: Profile, lock?: Lock): RiskItem[] {
         add("high", "secret", `${name} reads the file ${source.path}`);
         break;
       case "command":
-        add("high", "secret", `${name} runs: ${source.argv.join(" ")}`);
+        add("high", "secret", `${name} runs: ${commandLine(source.argv)}`);
         break;
       case "keychain":
         add(

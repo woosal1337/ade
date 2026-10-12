@@ -82,7 +82,18 @@ export class ExternalProbe {
     const paths = new Set<string>();
     for (const reverse of [false, true]) {
       const result = await this.#runner(
-        ["git", "-C", dir, "apply", ...(reverse ? ["-R"] : []), "--numstat", "-z", file],
+        [
+          "git",
+          "-c",
+          "core.symlinks=false",
+          "-C",
+          dir,
+          "apply",
+          ...(reverse ? ["-R"] : []),
+          "--numstat",
+          "-z",
+          file,
+        ],
         { env, timeoutMs: 60_000 },
       );
       if (result.code === 0) {
@@ -107,17 +118,23 @@ export class ExternalProbe {
       return "missing";
     }
     const env = isolatedGitEnv(this.#ctx.env);
-    const reverse = await this.#runner(["git", "-C", dir, "apply", "--check", "-R", file], {
-      env,
-      timeoutMs: 60_000,
-    });
+    const reverse = await this.#runner(
+      ["git", "-c", "core.symlinks=false", "-C", dir, "apply", "--check", "-R", file],
+      {
+        env,
+        timeoutMs: 60_000,
+      },
+    );
     if (reverse.code === 0) {
       return "applied";
     }
-    const forward = await this.#runner(["git", "-C", dir, "apply", "--check", file], {
-      env,
-      timeoutMs: 60_000,
-    });
+    const forward = await this.#runner(
+      ["git", "-c", "core.symlinks=false", "-C", dir, "apply", "--check", file],
+      {
+        env,
+        timeoutMs: 60_000,
+      },
+    );
     return forward.code === 0 ? "clean" : "conflict";
   }
 }
@@ -274,7 +291,17 @@ export async function gitApply(
   reverse: boolean,
 ): Promise<void> {
   const result = await runner(
-    ["git", "-C", dir, "apply", ...(reverse ? ["-R"] : []), "--whitespace=nowarn", file],
+    [
+      "git",
+      "-c",
+      "core.symlinks=false",
+      "-C",
+      dir,
+      "apply",
+      ...(reverse ? ["-R"] : []),
+      "--whitespace=nowarn",
+      file,
+    ],
     { env: isolatedGitEnv(ctx.env), timeoutMs: 60_000 },
   );
   if (result.code !== 0) {
