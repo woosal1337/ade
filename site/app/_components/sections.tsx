@@ -4,8 +4,8 @@ import {
   DOCS_URL,
   FEATURES,
   HARNESSES,
+  INSTALL_COMMAND,
   MODEL_SETTINGS,
-  PACKAGE,
   QUICK_START,
   REPO_URL,
   type Support,
@@ -126,7 +126,7 @@ export function Hero() {
             </Button>
           </div>
           <div className="max-w-[34rem]">
-            <CopyCommand command={`npm install -g ${PACKAGE}`} size="sm" />
+            <CopyCommand command={INSTALL_COMMAND} size="sm" />
           </div>
         </div>
         <div className="h-[460px] min-w-0">

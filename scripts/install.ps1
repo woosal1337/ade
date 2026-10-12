@@ -16,9 +16,38 @@ if (-not (Get-Command npm -ErrorAction SilentlyContinue)) {
 
 if ($env:ADE_SKIP_INSTALL -ne '1') {
   Write-Host "Installing ade from $adePackage"
-  & npm install -g $adePackage
-  if ($LASTEXITCODE -ne 0) {
-    throw "ade install: npm could not install $adePackage."
+  $failure = "ade install: npm could not build and install $adePackage. Make sure that Git is installed."
+  if ($adePackage -match '\.(tgz|tar\.gz|tar)$') {
+    & npm install -g $adePackage | Out-Host
+    if ($LASTEXITCODE -ne 0) {
+      throw $failure
+    }
+  } else {
+    $sourceSpec = $adePackage
+    if (Test-Path -LiteralPath $sourceSpec -PathType Container) {
+      $sourceSpec = (Resolve-Path -LiteralPath $sourceSpec).Path
+    }
+    $work = Join-Path ([IO.Path]::GetTempPath()) ('ade-' + [Guid]::NewGuid().ToString('N'))
+    New-Item -ItemType Directory -Path $work | Out-Null
+    try {
+      Push-Location -LiteralPath $work
+      try {
+        & npm pack $sourceSpec --pack-destination $work --loglevel=error | Out-Null
+        $packed = $LASTEXITCODE
+      } finally {
+        Pop-Location
+      }
+      $tarball = Get-ChildItem -LiteralPath $work -Filter '*.tgz' | Select-Object -First 1
+      if ($packed -ne 0 -or -not $tarball) {
+        throw $failure
+      }
+      & npm install -g $tarball.FullName | Out-Host
+      if ($LASTEXITCODE -ne 0) {
+        throw $failure
+      }
+    } finally {
+      Remove-Item -LiteralPath $work -Recurse -Force -ErrorAction SilentlyContinue
+    }
   }
 }
 

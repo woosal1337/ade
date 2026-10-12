@@ -40,6 +40,14 @@ jobs:
           export PATH="$npm_config_prefix/bin:$PATH"
           sh scripts/install.sh ./examples/single-file/ADE.md
           ade verify examples/single-file/ADE.md
+      - name: Install script from a source folder
+        run: |
+          export npm_config_prefix="$RUNNER_TEMP/ade-prefix-source"
+          export ADE_PACKAGE="$GITHUB_WORKSPACE"
+          export PATH="$npm_config_prefix/bin:$PATH"
+          sh scripts/install.sh
+          test "$(command -v ade)" = "$npm_config_prefix/bin/ade"
+          ade --version
   platforms:
     if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
     strategy:
@@ -82,3 +90,13 @@ jobs:
           $env:ADE_PACKAGE = Join-Path $env:RUNNER_TEMP 'woosal1337-ade-0.1.0.tgz'
           $env:Path = "$env:npm_config_prefix;$env:Path"
           ./scripts/install.ps1 ./examples/single-file/ADE.md
+      - name: Install script from a source folder on Windows
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $env:npm_config_prefix = Join-Path $env:RUNNER_TEMP 'ade-prefix-source'
+          $env:ADE_PACKAGE = $env:GITHUB_WORKSPACE
+          $env:Path = "$env:npm_config_prefix;$env:Path"
+          ./scripts/install.ps1
+          & (Join-Path $env:npm_config_prefix 'ade.cmd') --version
+          if ($LASTEXITCODE -ne 0) { exit 1 }

@@ -9,7 +9,6 @@ import { isGitSkill, isLinkSkill, type Profile } from "./schema.ts";
 
 export const ADE_MD_FILE = "ADE.md";
 export const ADE_MD_VERSION = 1;
-export const INSTALL_PACKAGE = "github:woosal1337/ade";
 export const INSTALL_SH =
   "https://raw.githubusercontent.com/woosal1337/ade/main/scripts/install.sh";
 export const INSTALL_PS1 =
@@ -129,11 +128,13 @@ function useSection(source: string): string[] {
   return [
     "## Use this setup",
     "",
-    "1. Install ade. It needs Node.js 22 or later:",
+    "1. Install ade. It needs Node.js 22 or later and Git:",
     "",
     "   ```bash",
-    `   npm install -g ${INSTALL_PACKAGE}`,
+    `   curl -fsSL ${INSTALL_SH} | sh`,
     "   ```",
+    "",
+    `   On Windows, run \`irm ${INSTALL_PS1} | iex\` in PowerShell.`,
     "",
     "2. Show the changes for your machine. The plan writes nothing:",
     "",

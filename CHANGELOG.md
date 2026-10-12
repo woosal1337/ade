@@ -11,7 +11,7 @@ The first public version.
 - `ADE.md`: one Markdown file that holds a whole setup, with `share`, `verify`, and `import`.
 - `ade remote` to plan, apply, and capture over SSH.
 - A TypeScript SDK with the same operations.
-- Install scripts for macOS, Linux, and Windows.
+- Install scripts for macOS, Linux, and Windows. They build a package file with `npm pack`, then install it, because `npm install -g` of a Git source fails in npm (npm/cli#8440).
 
 ### Security
 

@@ -5,6 +5,8 @@ export const INSTALL_SH =
   "https://raw.githubusercontent.com/woosal1337/ade/main/scripts/install.sh";
 export const INSTALL_PS1 =
   "https://raw.githubusercontent.com/woosal1337/ade/main/scripts/install.ps1";
+export const INSTALL_COMMAND = `curl -fsSL ${INSTALL_SH} | sh`;
+export const NPM_INSTALL_COMMAND = `npm install -g "$(npm pack ${PACKAGE} | tail -1)"`;
 
 export const NAV = [
   { label: "Capture", n: "01", href: "#capture" },

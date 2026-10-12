@@ -17,11 +17,13 @@ A small public ade profile: global rules, one skill, and one documentation MCP s
 
 ## Use this setup
 
-1. Install ade. It needs Node.js 22 or later:
+1. Install ade. It needs Node.js 22 or later and Git:
 
    ```bash
-   npm install -g github:woosal1337/ade
+   curl -fsSL https://raw.githubusercontent.com/woosal1337/ade/main/scripts/install.sh | sh
    ```
+
+   On Windows, run `irm https://raw.githubusercontent.com/woosal1337/ade/main/scripts/install.ps1 | iex` in PowerShell.
 
 2. Show the changes for your machine. The plan writes nothing:
 

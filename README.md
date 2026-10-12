@@ -31,18 +31,22 @@ ade changes only the entries that the profile declares: one server, one key, one
 
 ade needs Node.js 22 or later and Git.
 
-```bash
-npm install -g github:woosal1337/ade
-```
+| Platform | Command |
+|---|---|
+| macOS and Linux | `curl -fsSL https://raw.githubusercontent.com/woosal1337/ade/main/scripts/install.sh \| sh` |
+| Windows (PowerShell) | `irm https://raw.githubusercontent.com/woosal1337/ade/main/scripts/install.ps1 \| iex` |
+| npm | `npm install -g "$(npm pack github:woosal1337/ade \| tail -1)"` |
 
-One command can also install ade and set up a machine from a shared setup:
+Each command builds a package file from the GitHub source, then installs it. Do not use `npm install -g github:woosal1337/ade`. In a global install, npm runs the build step of a Git package without its build tools, so the build fails ([npm/cli#8440](https://github.com/npm/cli/issues/8440)).
+
+To install ade and set up a machine from a shared setup in one step, give the source to the script:
 
 | Platform | Command |
 |---|---|
 | macOS and Linux | `curl -fsSL https://raw.githubusercontent.com/woosal1337/ade/main/scripts/install.sh \| sh -s -- <owner>/<repo>` |
 | Windows (PowerShell) | `$env:ADE_SOURCE = "<owner>/<repo>"; irm https://raw.githubusercontent.com/woosal1337/ade/main/scripts/install.ps1 \| iex` |
 
-The scripts install ade, show the plan, and ask before the apply.
+The scripts show the plan and ask before the apply.
 
 ## Quick start
 

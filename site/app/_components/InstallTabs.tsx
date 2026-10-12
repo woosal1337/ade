@@ -1,35 +1,35 @@
 "use client";
 
 import { useId, useState } from "react";
-import { INSTALL_PS1, INSTALL_SH, PACKAGE } from "../content";
+import { INSTALL_COMMAND, INSTALL_PS1, NPM_INSTALL_COMMAND } from "../content";
 import { CopyCommand } from "./CopyCommand";
 
 const TABS = [
   {
-    id: "npm",
-    label: "npm",
-    prompt: "$",
-    command: `npm install -g ${PACKAGE}`,
-    note: "Needs Node.js 22 or later and Git.",
-  },
-  {
     id: "unix",
     label: "macOS / Linux",
     prompt: "$",
-    command: `curl -fsSL ${INSTALL_SH} | sh -s -- you/agents`,
-    note: "Installs ade, shows the plan for the source, then asks before the apply.",
+    command: INSTALL_COMMAND,
+    note: "Needs Node.js 22 or later and Git. Add -s -- <owner>/<repo> to plan and apply a setup in the same step.",
   },
   {
     id: "windows",
     label: "Windows",
     prompt: ">",
-    command: `$env:ADE_SOURCE = "you/agents"; irm ${INSTALL_PS1} | iex`,
-    note: "PowerShell. Installs ade, shows the plan, then asks before the apply.",
+    command: `irm ${INSTALL_PS1} | iex`,
+    note: "PowerShell. Needs Node.js 22 or later and Git. Set $env:ADE_SOURCE first to plan and apply a setup.",
+  },
+  {
+    id: "npm",
+    label: "npm",
+    prompt: "$",
+    command: NPM_INSTALL_COMMAND,
+    note: "Builds a package file from GitHub, then installs it. Needs Node.js 22 or later and Git.",
   },
 ] as const;
 
 export function InstallTabs() {
-  const [active, setActive] = useState<(typeof TABS)[number]["id"]>("npm");
+  const [active, setActive] = useState<(typeof TABS)[number]["id"]>("unix");
   const base = useId();
   const tab = TABS.find((item) => item.id === active) ?? TABS[0];
   return (

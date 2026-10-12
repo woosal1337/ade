@@ -149,7 +149,7 @@ The ade repository has two scripts that install ade and then run `ade plan` and 
 | macOS and Linux | `curl -fsSL https://raw.githubusercontent.com/woosal1337/ade/main/scripts/install.sh \| sh -s -- <owner>/<repo>` |
 | Windows | `$env:ADE_SOURCE = "<owner>/<repo>"; irm https://raw.githubusercontent.com/woosal1337/ade/main/scripts/install.ps1 \| iex` |
 
-The scripts need Node.js 22 or later. They install the npm package in `ADE_PACKAGE`. The default is the ade repository on GitHub. The apply step asks for trust and confirmation, as a normal `ade apply` does.
+The scripts need Node.js 22 or later and Git. They build a package file with `npm pack` from the source in `ADE_PACKAGE`, then install that file. The default source is the ade repository on GitHub. A path to a `.tgz` file installs that file directly. The apply step asks for trust and confirmation, as a normal `ade apply` does.
 
 ## Check an ADE.md in CI
 
