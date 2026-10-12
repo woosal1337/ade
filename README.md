@@ -5,7 +5,7 @@
   </picture>
 </h1>
 
-**Own your agent setup.** ade captures the MCP servers, skills, instructions, settings, and plugins of 10 coding agents into one profile. It plans each change, applies it with a backup, and shares the whole setup as one `ADE.md` file.
+**Own your agent setup.** ade captures the MCP servers, skills, instructions, settings, and plugins of 10 coding agents into one profile. Share the whole setup as one `ADE.md` file, and import any shared setup 1:1. ade plans each change and applies it with a backup.
 
 [![Checks](https://github.com/woosal1337/ade/actions/workflows/checks.yml/badge.svg)](https://github.com/woosal1337/ade/actions/workflows/checks.yml)
 ![Node.js 22+](https://img.shields.io/badge/node-%3E%3D22-3c873a)
@@ -81,11 +81,15 @@ Run `ade inventory` to see each file of each agent on your machine, and which fi
    ```
 
 2. Read the file, then commit `ADE.md` to the repository.
-3. Others apply it:
+3. Others import it, then plan and apply it. `ade import` asks for trust first:
 
    ```bash
-   ade apply you/agents
+   ade import you/agents
+   ade plan
+   ade apply
    ```
+
+   To skip the editable copy, run `ade apply you/agents`. It fetches, plans, and applies in one command.
 
 GitHub shows `ADE.md` as a normal page: the install steps, what the setup runs and writes, the secret names, and every file. Each file has a SHA-256 hash, so `ade verify ADE.md` fails on a hand edit. Use it in CI:
 
@@ -164,7 +168,7 @@ Read [the architecture](docs/architecture.md) for the modules and the data flow.
 | `ade plan`, `ade apply`, `ade status` | Compare, apply, and show drift |
 | `ade revert`, `ade history` | Undo an apply, list the apply records |
 | `ade inventory`, `ade harnesses`, `ade doctor` | List harness files, show harness paths, check the profile |
-| `ade share`, `ade verify`, `ade import` | Write and check `ADE.md`, copy a source into a folder |
+| `ade share`, `ade verify`, `ade import` | Write and check `ADE.md`, import a shared setup into a profile |
 | `ade use`, `ade trust`, `ade update` | Set the default source, trust a Git source, lock Git skills |
 | `ade remote <host> <command>` | Run plan, apply, status, revert, or capture on another machine over SSH |
 
@@ -173,7 +177,7 @@ Every command takes `--json`. Run `ade help <command>` for its options.
 ## Safety
 
 - **Plan first.** `ade apply` shows the plan and asks before it writes. `--yes` skips the question.
-- **Trust.** A Git source needs your trust before its first apply. ade lists the programs it runs, the files it writes, and the secrets it reads. A new program or file needs trust again.
+- **Trust.** A Git source needs your trust before ade imports or applies it. ade lists the programs it runs, the files it writes, and the secrets it reads. A new program or file needs trust again.
 - **Secrets.** A profile holds `${secret:NAME}` references, never values. ade reads the values at apply time from the environment, a file, a command, or the macOS Keychain. `ade share` refuses values that look like tokens.
 - **Backups.** Each apply keeps backups and a record. A failed apply rolls back. `ade revert` restores one apply.
 - **Drift.** ade stops when an entry changed outside ade. `--force` overwrites it.

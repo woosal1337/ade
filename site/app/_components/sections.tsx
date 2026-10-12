@@ -51,6 +51,14 @@ function MiniFig({ lines }: { lines: readonly (readonly [Tone, string])[] }) {
   );
 }
 
+const FEATURE_CELLS = [
+  "border-b lg:border-r xl:col-span-2",
+  "border-b xl:col-span-2 xl:border-r",
+  "border-b lg:border-r xl:col-span-2 xl:border-r-0",
+  "border-b xl:col-span-3 xl:border-r xl:border-b-0",
+  "lg:col-span-2 xl:col-span-3",
+];
+
 const FIGURES: Record<string, readonly (readonly [Tone, string])[]> = {
   capture: [
     ["fg", "claude"],
@@ -78,6 +86,14 @@ const FIGURES: Record<string, readonly (readonly [Tone, string])[]> = {
     ["fg", "$ ade revert"],
     ["add", "Reverted the record 20261012-091500-120-c3d4."],
   ],
+  import: [
+    ["fg", "$ ade import acme/agents"],
+    ["warn", "  ! mcp     github runs: npx -y …"],
+    ["muted", "    skill   instructions for agents: review"],
+    ["fg", "Trust acme/agents @ 9c54b4369133? yes"],
+    ["add", "Imported the profile into ~/.config/ade."],
+    ["muted", "Next: run `ade plan` to see the changes, …"],
+  ],
   share: [
     ["faint", "---"],
     ["muted", "ade: 1"],
@@ -100,8 +116,8 @@ export function Hero() {
           </h1>
           <p className="max-w-[34rem] text-[18px] leading-[1.55] text-muted">
             ade captures the MCP servers, skills, instructions, settings, and plugins of 10 coding
-            agents. It plans each change, applies it with a backup, and shares the whole setup as
-            one ADE.md file.
+            agents. Share the whole setup as one ADE.md file. Import any shared setup 1:1, see the
+            plan, and apply it with a backup.
           </p>
           <div className="flex flex-wrap gap-2">
             <Button href="#install">Get started</Button>
@@ -181,7 +197,8 @@ export function Loop() {
           </div>
           <div className="relative space-y-5 p-6 pb-28 sm:p-8 sm:pb-36">
             <SectionTitle lead="Loop.">
-              Capture a machine, plan the change, apply it, and share it.
+              Capture a setup, share it, and import it on any machine. Then plan and apply each
+              change.
             </SectionTitle>
             <div className="flex flex-wrap gap-2">
               <Button href="#install">Install ade</Button>
@@ -235,14 +252,12 @@ export function Loop() {
             </div>
           </div>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2">
+        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-6">
           {FEATURES.map((feature, index) => (
             <article
               key={feature.id}
               id={feature.id}
-              className={`flex flex-col justify-between gap-8 border-line p-6 ${
-                index % 2 === 0 ? "sm:border-r" : ""
-              } ${index < 2 ? "border-b" : index === 2 ? "border-b sm:border-b-0" : ""}`}
+              className={`flex flex-col justify-between gap-8 border-line p-6 ${FEATURE_CELLS[index] ?? ""}`}
             >
               <div className="space-y-4">
                 <Fig n={String(index + 3)} />
@@ -250,7 +265,7 @@ export function Loop() {
                   <MiniFig lines={FIGURES[feature.id] ?? []} />
                 </div>
               </div>
-              <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+              <div className="space-y-4">
                 <div className="space-y-2">
                   <h3 className="text-[19px] text-fg">
                     <span className="mr-2 text-faint">{feature.n}</span>
@@ -393,7 +408,7 @@ export function Models() {
           </div>
           <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.6fr)]">
             <div className="flex flex-col justify-between gap-6 border-b border-line p-6 lg:border-r lg:border-b-0">
-              <Fig n="9" />
+              <Fig n="8" />
               <p className="max-w-sm text-[16px] leading-[1.55] text-muted">
                 <span className="text-fg">The model is one more key.</span> A profile can set it for
                 each harness. ade does not change model names and does not sync sign-ins.
@@ -473,7 +488,8 @@ export function Share() {
   const steps = [
     { title: "Write one file from your profile", command: "ade share --repo you/agents" },
     { title: "Check it, then commit it", command: "ade verify ADE.md" },
-    { title: "Others apply it 1:1", command: "ade apply you/agents" },
+    { title: "Others import it 1:1", command: "ade import you/agents" },
+    { title: "Then they plan and apply it", command: "ade apply" },
   ];
   return (
     <section id="ade-md" className={`${FRAME} pt-24`}>
@@ -507,7 +523,7 @@ export function Share() {
         <div className="flex flex-col">
           <div className="flex items-center justify-between border-b border-line px-4 py-2">
             <span className="font-mono text-[11px] text-muted">ADE.md</span>
-            <Fig n="7" />
+            <Fig n="9" />
           </div>
           <CodePanel code={ADE_MD_SAMPLE} />
         </div>
@@ -520,7 +536,7 @@ export function Safety() {
   const panels = [
     {
       title: "Trust",
-      body: "A Git source needs your trust before its first apply. ade lists what it runs, writes, and reads. A new program or file needs trust again.",
+      body: "A Git source needs your trust before ade imports or applies it. ade lists what it runs, writes, and reads. A new program or file needs trust again.",
       lines: [
         ["warn", "! mcp     github runs: npx -y …"],
         ["warn", "! file    writes ~/.npmrc"],
@@ -601,7 +617,7 @@ export function Install() {
         <div className="space-y-5 p-6 sm:p-8">
           <div className="flex items-center justify-between">
             <h3 className="font-mono text-[12px] text-muted">Quick start</h3>
-            <Fig n="8" />
+            <Fig n="10" />
           </div>
           <ol className="space-y-5">
             {QUICK_START.map((step, index) => (

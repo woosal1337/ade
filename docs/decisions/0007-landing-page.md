@@ -18,7 +18,7 @@ ade needs a public page that shows what it is, how to install it, and how to use
 6. The logo is the dot-matrix word "ade." from the footer. `site/app/glyphs.ts` holds the glyphs. The header, the footer, the favicon, and the README logo use it. Run `node tools/build-logo.mjs` after a glyph change.
 7. Each command and each output line on the page comes from the real CLI.
 8. The page is static. It has no analytics and no server code.
-9. FIG.1 shows the capture, plan, apply, and share loop on a canvas dot grid. A green comet moves from one numbered station to the next. At each arrival, the station lights, a wave crosses the grid, and the center number changes. `site/app/loop-scene.ts` draws one frame as a pure function of time. One frame takes about 1.6 ms at desktop size, and the page draws at most 45 frames each second. The animation stops when the figure is off screen, and a still frame replaces it for reduced motion.
+9. Fig. 1 shows the capture, share, import, plan, and apply loop on a canvas dot grid. A green comet moves from one numbered station to the next. At each arrival, the station lights, a wave crosses the grid, and the center number changes. `site/app/loop-scene.ts` draws one frame as a pure function of time. One frame takes about 1.6 ms at desktop size, and the page draws at most 45 frames each second. The animation stops when the figure is off screen, and a still frame replaces it for reduced motion.
 10. Labels, buttons, tabs, table headers, and figure labels use capitalized words, for example "Get started" and "Fig. 1". The page does not set text in all capitals. Ege asked for this rule, and `test/site.test.ts` checks it.
 
 ## Alternatives

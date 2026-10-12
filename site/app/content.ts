@@ -8,9 +8,10 @@ export const INSTALL_PS1 =
 
 export const NAV = [
   { label: "Capture", n: "01", href: "#capture" },
-  { label: "Plan", n: "02", href: "#plan" },
-  { label: "Apply", n: "03", href: "#apply" },
-  { label: "Share", n: "04", href: "#share" },
+  { label: "Share", n: "02", href: "#share" },
+  { label: "Import", n: "03", href: "#import" },
+  { label: "Plan", n: "04", href: "#plan" },
+  { label: "Apply", n: "05", href: "#apply" },
 ] as const;
 
 export type Support = "yes" | "no" | "partial";
@@ -138,11 +139,35 @@ export const FEATURES: readonly Feature[] = [
       "Tokens become ${secret:NAME} references",
       "ade inventory shows each file and its status",
     ],
-    command: "ade capture --out ~/agent-profile",
+    command: "ade capture",
+  },
+  {
+    id: "share",
+    n: "02",
+    title: "Share",
+    body: "Put the whole setup in one ADE.md, in any repository.",
+    points: [
+      "A SHA-256 hash for each file",
+      "A trust summary for each person who imports it",
+      "ade verify checks the file in CI",
+    ],
+    command: "ade share --repo you/agents",
+  },
+  {
+    id: "import",
+    n: "03",
+    title: "Import",
+    body: "Copy any shared setup into the profile folder on this machine.",
+    points: [
+      "Reads ADE.md from a repository, a folder, or a file",
+      "Shows what the setup runs and writes, then asks for trust",
+      "Edit the copy before you apply it",
+    ],
+    command: "ade import acme/agents",
   },
   {
     id: "plan",
-    n: "02",
+    n: "04",
     title: "Plan",
     body: "See every change before ade writes a file. A plan never writes.",
     points: [
@@ -154,7 +179,7 @@ export const FEATURES: readonly Feature[] = [
   },
   {
     id: "apply",
-    n: "03",
+    n: "05",
     title: "Apply",
     body: "Make the machine match the profile. Each apply keeps a backup.",
     points: [
@@ -163,18 +188,6 @@ export const FEATURES: readonly Feature[] = [
       "ade remote applies over SSH",
     ],
     command: "ade apply",
-  },
-  {
-    id: "share",
-    n: "04",
-    title: "Share",
-    body: "Put the whole setup in one ADE.md, in any repository.",
-    points: [
-      "A SHA-256 hash for each file",
-      "A trust summary before the first apply",
-      "ade verify checks the file in CI",
-    ],
-    command: "ade share --repo you/agents",
   },
 ];
 
@@ -209,7 +222,7 @@ export const COMMANDS: readonly CommandGroup[] = [
     rows: [
       ["ade share", "Write ADE.md"],
       ["ade verify", "Check an ADE.md"],
-      ["ade import", "Copy a source into a folder"],
+      ["ade import", "Copy a shared setup into a profile"],
       ["ade trust", "Trust a Git source"],
       ["ade use", "Set the default source"],
       ["ade remote", "Run a command over SSH"],
@@ -218,10 +231,11 @@ export const COMMANDS: readonly CommandGroup[] = [
 ];
 
 export const QUICK_START = [
-  { title: "Capture this machine", command: "ade capture --out ~/agent-profile" },
-  { title: "Show the plan", command: "ade plan --profile ~/agent-profile" },
-  { title: "Write ADE.md", command: "ade share --profile ~/agent-profile --repo you/agents" },
-  { title: "Apply it on another machine", command: "ade apply you/agents" },
+  { title: "Capture this machine", command: "ade capture" },
+  { title: "Write ADE.md, then push it to you/agents", command: "ade share --repo you/agents" },
+  { title: "Import it on another machine", command: "ade import you/agents" },
+  { title: "Show the plan", command: "ade plan" },
+  { title: "Apply it", command: "ade apply" },
 ] as const;
 
 export type TermLine =
@@ -359,27 +373,34 @@ export const LOOP_STEPS: readonly LoopStep[] = [
     n: "01",
     name: "Capture",
     command: "ade capture",
-    output: "Captured the setup of ~ into ~/agent-profile.",
+    output: "Captured the setup of ~ into ~/.config/ade.",
+  },
+  {
+    id: "share",
+    n: "02",
+    name: "Share",
+    command: "ade share",
+    output: "Wrote ADE.md with 74 files.",
+  },
+  {
+    id: "import",
+    n: "03",
+    name: "Import",
+    command: "ade import",
+    output: "Imported the profile into ~/.config/ade.",
   },
   {
     id: "plan",
-    n: "02",
+    n: "04",
     name: "Plan",
     command: "ade plan",
     output: "Plan: 7 to create, 0 to update, 0 to delete.",
   },
   {
     id: "apply",
-    n: "03",
+    n: "05",
     name: "Apply",
     command: "ade apply",
     output: "Applied 7 changes with 7 writes.",
-  },
-  {
-    id: "share",
-    n: "04",
-    name: "Share",
-    command: "ade share",
-    output: "Wrote ADE.md with 74 files.",
   },
 ];

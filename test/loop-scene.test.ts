@@ -7,13 +7,14 @@ import {
   LOOP_CYCLE_MS,
   LOOP_DWELL_MS,
   LOOP_STAGE_MS,
+  LOOP_STAGES,
   LOOP_STILL_MS,
   LOOP_TRAVEL_MS,
   loopTiming,
   type Painter,
 } from "../site/app/loop-scene.ts";
 
-const DIGITS = ["0", "1", "2", "3", "4"].map((digit) => GLYPHS[digit] ?? []);
+const DIGITS = ["0", "1", "2", "3", "4", "5"].map((digit) => GLYPHS[digit] ?? []);
 
 interface Rect {
   readonly x: number;
@@ -47,7 +48,7 @@ function green(rect: Rect): boolean {
 }
 
 describe("loop timing", () => {
-  test("dwells at a station, then travels a quarter turn with easing", () => {
+  test("dwells at a station, then travels to the next station with easing", () => {
     const start = loopTiming(0);
     assert.equal(start.stage, 0);
     assert.equal(start.travelling, false);
@@ -55,10 +56,11 @@ describe("loop timing", () => {
     const middle = loopTiming(LOOP_DWELL_MS + LOOP_TRAVEL_MS / 2);
     assert.equal(middle.travelling, true);
     assert.ok(Math.abs(middle.progress - 0.5) < 1e-9);
-    assert.ok(Math.abs(middle.angle + Math.PI / 4) < 1e-9);
+    assert.ok(Math.abs(middle.angle - (-Math.PI / 2 + Math.PI / LOOP_STAGES)) < 1e-9);
     assert.equal(middle.speed, 1);
     assert.equal(loopTiming(LOOP_STAGE_MS).stage, 1);
-    assert.ok(Math.abs(loopTiming(LOOP_STAGE_MS).angle) < 1e-9);
+    const next = loopTiming(LOOP_STAGE_MS).angle;
+    assert.ok(Math.abs(next - (-Math.PI / 2 + (2 * Math.PI) / LOOP_STAGES)) < 1e-9);
   });
 
   test("repeats every cycle, also for negative times", () => {
@@ -69,17 +71,18 @@ describe("loop timing", () => {
 
 describe("loop scene", () => {
   for (const size of [300, 460]) {
-    test(`fits four chips and the number inside a ${size} px square`, () => {
+    test(`fits ${LOOP_STAGES} station chips and the number inside a ${size} px square`, () => {
       const scene = buildLoopScene({ size, digits: DIGITS });
       for (const station of scene.stations) {
         assert.ok(station.x - 5 >= 0 && station.x + 5 < scene.cells, `x ${station.x}`);
         assert.ok(station.y - 6 >= 0 && station.y + 6 < scene.cells, `y ${station.y}`);
       }
       const chipCells = [...scene.chip].filter((value) => value >= 0).length;
-      assert.equal(chipCells, 4 * (11 * 13 - 4));
+      assert.equal(chipCells, LOOP_STAGES * (11 * 13 - 4));
       scene.panel.forEach((value, index) => {
         if (value === 1) {
           assert.ok((scene.distance[index] ?? 0) < scene.radius - 5, `panel cell ${index}`);
+          assert.equal(scene.chip[index], -1, `panel cell ${index} under a chip`);
         }
       });
     });

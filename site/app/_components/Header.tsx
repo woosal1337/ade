@@ -27,16 +27,16 @@ export function Header() {
         href="#share"
         className="block border-b border-line bg-panel py-1.5 text-center font-mono text-[12px] text-muted transition-colors hover:text-fg"
       >
-        New: share a whole agent setup as one ADE.md file <ArrowUpRight />
+        New: share and import a whole agent setup as one ADE.md file <ArrowUpRight />
       </a>
       <nav aria-label="Main" className="mx-auto flex h-14 max-w-[1400px] items-center gap-4 px-5">
         <Logo />
-        <ul className="ml-6 hidden items-center gap-1 lg:flex">
+        <ul className="ml-6 hidden items-center gap-1 xl:flex">
           {NAV.map((item) => (
             <li key={item.href}>
               <a
                 href={item.href}
-                className="flex w-36 items-center justify-between bg-tab px-2 py-1.5 font-mono text-[12px] text-fg transition-colors hover:bg-line-strong"
+                className="flex w-28 items-center justify-between bg-tab px-2 py-1.5 font-mono text-[12px] text-fg transition-colors hover:bg-line-strong"
               >
                 {item.label}
                 <span className="text-faint">{item.n}</span>

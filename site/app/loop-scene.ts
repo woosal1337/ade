@@ -4,7 +4,7 @@ export interface Painter {
   fillRect(x: number, y: number, width: number, height: number): void;
 }
 
-export const LOOP_STAGES = 4;
+export const LOOP_STAGES = 5;
 export const LOOP_DWELL_MS = 900;
 export const LOOP_TRAVEL_MS = 1300;
 export const LOOP_STAGE_MS = LOOP_DWELL_MS + LOOP_TRAVEL_MS;
@@ -13,8 +13,8 @@ export const LOOP_STILL_MS = LOOP_DWELL_MS - 1;
 export const LOOP_PITCH = 5;
 
 const TAU = Math.PI * 2;
-const QUARTER = Math.PI / 2;
-const START_ANGLE = -QUARTER;
+const STATION_STEP = TAU / LOOP_STAGES;
+const START_ANGLE = -Math.PI / 2;
 const DISSOLVE_MS = 450;
 const WAVE_MS = 1500;
 const FIRE_MS = 450;
@@ -123,7 +123,7 @@ function random(seed: number): () => number {
 }
 
 export function stationAngle(index: number): number {
-  return START_ANGLE + index * QUARTER;
+  return START_ANGLE + index * STATION_STEP;
 }
 
 export function loopTiming(time: number): LoopTiming {

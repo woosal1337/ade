@@ -12,7 +12,7 @@ import {
   loopTiming,
 } from "../loop-scene";
 
-const DIGITS = ["0", "1", "2", "3", "4"].map((digit) => GLYPHS[digit] ?? []);
+const DIGITS = ["0", "1", "2", "3", "4", "5"].map((digit) => GLYPHS[digit] ?? []);
 const FRAME_MS = 1000 / 45;
 
 export function LoopFigure() {
@@ -107,7 +107,7 @@ export function LoopFigure() {
         <canvas
           ref={canvasRef}
           role="img"
-          aria-label="Animation of the ade loop: a light moves from capture to plan, apply, and share, then back to capture."
+          aria-label="Animation of the ade loop: a light moves from capture to share, import, plan, and apply, then back to capture."
           className="block aspect-square w-full"
         />
         <div
@@ -116,17 +116,17 @@ export function LoopFigure() {
           style={{ top: readoutTop ?? "60%" }}
         >
           <span className="block text-fg">{step?.name}</span>
-          <span className="block text-muted">
+          <span className="hidden text-muted sm:block">
             <span className="text-accent">$</span> {step?.command}
           </span>
         </div>
       </div>
-      <ol className="grid grid-cols-2 border-t border-l border-line sm:grid-cols-4">
+      <ol className="grid grid-cols-5 border-t border-l border-line">
         {LOOP_STEPS.map((item, index) => (
           <li key={item.id} className="border-r border-b border-line">
             <a
               href={`#${item.id}`}
-              className="relative block px-3 py-2.5 font-mono text-[11px] transition-colors hover:bg-raised"
+              className="relative block whitespace-nowrap px-2 py-2.5 text-center font-mono text-[11px] transition-colors hover:bg-raised sm:text-left"
             >
               <span aria-hidden="true" className="absolute inset-x-0 -top-px h-[2px]">
                 <span
@@ -137,8 +137,13 @@ export function LoopFigure() {
                   style={{ transform: "scaleX(0)" }}
                 />
               </span>
-              <span className={index === active ? "text-accent" : "text-faint"}>{item.n}</span>{" "}
-              <span className={index === active ? "text-fg" : "text-muted"}>{item.name}</span>
+              <span className={index === active ? "text-accent" : "text-faint"}>{item.n}</span>
+              <span
+                className={`sr-only sm:not-sr-only ${index === active ? "text-fg" : "text-muted"}`}
+              >
+                {" "}
+                {item.name}
+              </span>
             </a>
           </li>
         ))}
