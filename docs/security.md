@@ -67,6 +67,11 @@ In text output, ade escapes control characters and line breaks that come from da
 
 ## Audit
 
-The maintainer audited the source on 2026-10-12 with the [security-audit skill](https://github.com/cloudflare/security-audit-skill). The audit found 18 problems in the trust gate, the path checks, and the secret handling. Version 0.1.0 fixes all of them, and each fix has a regression test in `test/hardening.test.ts` or `test/sources.test.ts`.
+The maintainer audited the source two times on 2026-10-12 with the [security-audit skill](https://github.com/cloudflare/security-audit-skill).
+
+1. Run 1 at commit `e3e8f0c` proposed 18 problems in the trust gate, the path checks, and the secret handling.
+2. Run 2 at commit `3aecb52` checked the fixes. It confirmed 15 more problems: 4 medium and 11 low, none high or critical. Five more records need a fact outside the source, such as the behavior of a terminal or a harness CLI.
+
+Version 0.1.0 fixes each problem of both runs. Each fix has a regression test in `test/hardening.test.ts`. Run 2 stopped its coverage loop after five critic rounds. One area, Git network contact before trust, has a fix and a test but no audit review yet.
 
 Report a new problem through [SECURITY.md](../SECURITY.md).
