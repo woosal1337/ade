@@ -73,3 +73,5 @@ SOFTWARE.
 ## Fonts
 
 The site uses Instrument Sans and IBM Plex Mono under the SIL Open Font License 1.1. The license texts are in `site/public/fonts/OFL-InstrumentSans.txt` and `site/public/fonts/OFL-IBMPlexMono.txt`.
+
+`site/assets/fonts/` holds TTF copies of the same fonts for the social images. The image renderer cannot read WOFF2 or variable fonts. fonttools converted the WOFF2 files, and it made a static Regular instance of Instrument Sans. The same license applies.

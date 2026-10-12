@@ -1,13 +1,26 @@
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import "./globals.css";
+import { SOCIAL_ALT } from "./social-image";
 
 const DESCRIPTION =
   "ade captures the MCP servers, skills, instructions, settings, and plugins of 10 coding agents. Share the whole setup as one ADE.md file, and import any shared setup 1:1. ade plans each change and applies it with a backup.";
 
+export const SITE_URL = "https://ade.chele.bi";
+
+const SOCIAL_IMAGE = {
+  url: "/og.png",
+  width: 1200,
+  height: 630,
+  alt: SOCIAL_ALT,
+  type: "image/png",
+};
+
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
   title: "ade: own your agent setup",
   description: DESCRIPTION,
+  alternates: { canonical: "/" },
   applicationName: "ade",
   keywords: [
     "agent development environment",
@@ -25,11 +38,16 @@ export const metadata: Metadata = {
     title: "ade: own your agent setup",
     description: DESCRIPTION,
     type: "website",
+    url: "/",
+    siteName: "ade",
+    locale: "en_US",
+    images: [SOCIAL_IMAGE],
   },
   twitter: {
     card: "summary_large_image",
     title: "ade: own your agent setup",
     description: DESCRIPTION,
+    images: [SOCIAL_IMAGE],
   },
 };
 

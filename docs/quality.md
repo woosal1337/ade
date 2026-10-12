@@ -46,7 +46,7 @@ Keep the exclusions narrow. Do not exclude a source directory merely because it 
 Exceptions:
 
 - `package-lock.json` is a generated file. The check skips it, also in `site/`.
-- Fonts and images (`.woff2`, `.png`, `.ico`, `.jpg`, `.webp`) are binary files. The check skips them.
+- Fonts and images (`.woff2`, `.ttf`, `.png`, `.ico`, `.jpg`, `.webp`) are binary files. The check skips them.
 - `site/public/fonts/OFL-*.txt` are third-party license texts. The check skips them.
 - Next.js writes `site/next-env.d.ts` with comments. Git ignores the file.
 - ade writes `ade.json`, `ade.lock.json`, and `ade.schema.json` in `examples/`. Biome does not format them. The source check parses them as JSON.
