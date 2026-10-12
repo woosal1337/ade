@@ -382,6 +382,7 @@ export async function computePlan(
       );
       return;
     }
+    const files = await probe.patchPaths(item.path, file);
     const desiredHash = `patch:${item.hash}`;
     const currentHash = status === "applied" ? desiredHash : "unpatched";
     const decision = decide(currentHash, desiredHash, prior?.hash, false, false);
@@ -394,7 +395,7 @@ export async function computePlan(
         action: decision.action,
         path: item.path,
         before: status === "applied" ? "patched" : "original",
-        after: `patched, ${item.files.length} files`,
+        after: `patched, ${files.length} files`,
         drift: decision.drift,
         notes: item.notes,
       },
@@ -402,7 +403,7 @@ export async function computePlan(
       currentHash,
     );
     if (isWriteAction(decision.action)) {
-      patchSteps.push({ key: item.key, action: "create", dir: item.path, file, files: item.files });
+      patchSteps.push({ key: item.key, action: "create", dir: item.path, file, files });
     }
     if (decision.action !== "noop") {
       stateUpdates.push({
@@ -413,7 +414,7 @@ export async function computePlan(
           path: item.path,
           hash: desiredHash,
           appliedAt: now,
-          meta: { patch: item.hash, files: item.files.join("\n") },
+          meta: { patch: item.hash, files: files.join("\n") },
         },
       });
     }

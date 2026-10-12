@@ -23,6 +23,7 @@ import {
   lstatOrUndefined,
   pathStateHash,
   removePath,
+  safeJoin,
   statOrUndefined,
   tempSibling,
   treeHash,
@@ -444,7 +445,7 @@ export class Journal {
     const runner = this.#requireRunner();
     const befores: { file: string; snapshot: Snapshot }[] = [];
     for (const relative of step.files) {
-      const file = path.join(step.dir, ...relative.split("/"));
+      const file = safeJoin(step.dir, relative, "the patch folder");
       befores.push({ file, snapshot: await this.snapshot(file) });
     }
     await gitApply(this.#ctx, runner, step.dir, step.file, step.action === "delete");

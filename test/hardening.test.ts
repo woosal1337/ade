@@ -8,6 +8,8 @@ import { terminalText } from "../src/cli/output.ts";
 import { AdeError } from "../src/core/errors.ts";
 import { apply } from "../src/engine/apply.ts";
 import { capture } from "../src/engine/capture.ts";
+import { numstatPaths } from "../src/engine/external.ts";
+import { revert } from "../src/engine/history.ts";
 import { plan } from "../src/engine/plan.ts";
 import { importBundle } from "../src/profile/bundle.ts";
 import { loadProfile, saveProfile } from "../src/profile/load.ts";
@@ -302,5 +304,63 @@ describe("secret handling", () => {
     );
     assert.match(JSON.stringify(result.profile.mcp?.tools), /\$\{secret:/);
     assert.match(JSON.stringify(result.profile.mcp?.web), /access_token=\$\{secret:/);
+  });
+});
+
+describe("patches and ADE.md paths", () => {
+  test("the numstat reader keeps both names of a rename", () => {
+    assert.deepEqual(numstatPaths("1\t0\tb.txt\u00000\t0\t\u0000a.txt\u0000c.txt\u0000"), [
+      "b.txt",
+      "a.txt",
+      "c.txt",
+    ]);
+  });
+
+  test("revert restores each file of a patch with a rename", { skip: !POSIX }, async () => {
+    const home = await tempDir("ade-home-");
+    const repo = path.join(home, ".pi", "agent", "git", "github.com", "acme", "tool");
+    await writeText(path.join(repo, "a.txt"), "a\n");
+    await writeText(path.join(repo, "b.txt"), "b\n");
+    git(repo, "init", "--quiet", "-b", "main");
+    git(repo, "add", ".");
+    git(repo, "commit", "--quiet", "-m", "First");
+    git(repo, "mv", "a.txt", "c.txt");
+    await writeText(path.join(repo, "b.txt"), "b\nx\n");
+    git(repo, "add", "-A");
+    const patch = `${git(repo, "diff", "--cached", "-M")}\n`;
+    git(repo, "reset", "--quiet", "--hard");
+    const dir = await tempDir("ade-profile-");
+    await writeText(path.join(dir, "patches", "tool.patch"), patch);
+    await saveProfile(dir, {
+      version: 1,
+      harnesses: ["pi"],
+      patches: [{ root: "pi", target: "git/github.com/acme/tool", source: "patches/tool.patch" }],
+    });
+    const ctx = contextFor(home);
+    await apply(await loadProfile(dir), ctx, { runner: offlineRunner });
+    assert.equal(await fs.readFile(path.join(repo, "c.txt"), "utf8"), "a\n");
+    await assert.rejects(fs.stat(path.join(repo, "a.txt")));
+    await revert(ctx, { runner: offlineRunner });
+    assert.equal(await fs.readFile(path.join(repo, "a.txt"), "utf8"), "a\n");
+    assert.equal(await fs.readFile(path.join(repo, "b.txt"), "utf8"), "b\n");
+    await assert.rejects(fs.stat(path.join(repo, "c.txt")));
+  });
+
+  test("an ADE.md path with a control character fails", async () => {
+    const dir = await tempDir("ade-profile-");
+    await writeText(path.join(dir, "AGENTS.md"), "# Rules\n");
+    await saveProfile(dir, { version: 1, instructions: { file: "AGENTS.md" } });
+    const loaded = await loadProfile(dir);
+    const built = await buildProfileBundle(loaded, contextFor(await tempDir()), {
+      vendorGit: false,
+      vendorLinks: false,
+    });
+    const markdown = writeMarkdown(built.bundle, built.profile, { createdAt: new Date(0) });
+    const edited = markdown.replace('path="AGENTS.md"', 'path="AGENTS\\nmd"');
+    assert.notEqual(edited, markdown);
+    assert.throws(
+      () => parseMarkdown(edited, "ADE.md"),
+      (error: unknown) => error instanceof AdeError && error.code === "bundle-invalid",
+    );
   });
 });

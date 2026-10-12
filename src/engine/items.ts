@@ -53,18 +53,6 @@ export interface PatchItem extends ItemBase {
   readonly path: string;
   readonly patch: Buffer;
   readonly hash: string;
-  readonly files: readonly string[];
 }
 
 export type DesiredItem = DocItem | PathItem | PluginItem | PatchItem;
-
-export function patchFiles(patch: string): string[] {
-  const files = new Set<string>();
-  for (const line of patch.split(/\r?\n/)) {
-    const match = /^(?:\+\+\+|---) (?:a|b)\/(.+?)\t?$/.exec(line);
-    if (match?.[1] !== undefined && match[1] !== "/dev/null") {
-      files.add(match[1]);
-    }
-  }
-  return [...files];
-}

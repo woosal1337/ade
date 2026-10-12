@@ -1,7 +1,8 @@
 import path from "node:path";
 import type { Context } from "../core/context.ts";
 import { AdeError, errnoCode } from "../core/errors.ts";
-import { atomicWrite, readFileIfExists, statOrUndefined } from "../core/fsx.ts";
+import { atomicWrite, isSafeRelative, readFileIfExists, statOrUndefined } from "../core/fsx.ts";
+import { compareText } from "../core/hash.ts";
 import { pluginEnv } from "../harness/plugins.ts";
 import { getAdapter } from "../harness/registry.ts";
 import type { InstalledPlugins } from "../harness/types.ts";
@@ -76,6 +77,31 @@ export class ExternalProbe {
     return file;
   }
 
+  async patchPaths(dir: string, file: string): Promise<string[]> {
+    const env = isolatedGitEnv(this.#ctx.env);
+    const paths = new Set<string>();
+    for (const reverse of [false, true]) {
+      const result = await this.#runner(
+        ["git", "-C", dir, "apply", ...(reverse ? ["-R"] : []), "--numstat", "-z", file],
+        { env, timeoutMs: 60_000 },
+      );
+      if (result.code === 0) {
+        for (const name of numstatPaths(result.stdout)) {
+          paths.add(name);
+        }
+      }
+    }
+    const list = [...paths].sort(compareText);
+    const unsafe = list.find((name) => !isSafeRelative(name));
+    if (unsafe !== undefined) {
+      throw new AdeError(
+        "path-outside-root",
+        `The patch changes a path outside ${dir}: ${JSON.stringify(unsafe)}.`,
+      );
+    }
+    return list;
+  }
+
   async patchState(dir: string, file: string): Promise<PatchState> {
     if (!(await statOrUndefined(path.join(dir, ".git")))) {
       return "missing";
@@ -94,6 +120,28 @@ export class ExternalProbe {
     });
     return forward.code === 0 ? "clean" : "conflict";
   }
+}
+
+export function numstatPaths(output: string): string[] {
+  const tokens = output.split("\0");
+  const paths: string[] = [];
+  for (let index = 0; index < tokens.length; index += 1) {
+    const match = /^(?:\d+|-)\t(?:\d+|-)\t(.*)$/s.exec(tokens[index] ?? "");
+    if (match === null) {
+      continue;
+    }
+    if (match[1] !== undefined && match[1] !== "") {
+      paths.push(match[1]);
+    } else {
+      for (const name of [tokens[index + 1], tokens[index + 2]]) {
+        if (name !== undefined && name !== "") {
+          paths.push(name);
+        }
+      }
+      index += 2;
+    }
+  }
+  return paths;
 }
 
 export function pluginOpArgv(op: PluginOp, list: InstalledPlugins): string[] {

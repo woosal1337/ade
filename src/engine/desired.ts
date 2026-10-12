@@ -27,7 +27,7 @@ import {
 } from "../profile/schema.ts";
 import { expandUserPath, runCommand, type SecretResolver } from "../secrets/resolve.ts";
 import type { SkillResolver } from "../skills/source.ts";
-import { type DesiredItem, type PathWant, patchFiles, type Scope } from "./items.ts";
+import type { DesiredItem, PathWant, Scope } from "./items.ts";
 
 export interface DesiredOptions {
   readonly harnesses?: readonly HarnessId[] | undefined;
@@ -419,7 +419,6 @@ export async function buildDesired(
       path: safeJoin(rootDir(ctx, entry.root), entry.target, `the ${entry.root} root`),
       patch,
       hash: sha256(patch),
-      files: patchFiles(patch.toString("utf8")),
       notes: [],
       secrets: [],
     });
