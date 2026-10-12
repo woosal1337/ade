@@ -284,6 +284,8 @@ const MARK: Record<Support, { text: string; label: string; className: string }> 
   no: { text: "—", label: "No", className: "text-faint" },
 };
 
+const STATUS_COLUMNS = ["Instructions", "MCP", "Skills", "Settings", "Plugins"] as const;
+
 function Cell({ value }: { value: Support }) {
   const mark = MARK[value];
   return (
@@ -304,13 +306,19 @@ export function Harnesses() {
           One profile writes the native format of each agent, on macOS, Linux, and Windows.
         </SectionTitle>
         <div className="relative overflow-x-auto border border-line">
-          <table className="w-full min-w-[820px] border-collapse text-left">
+          <table className="w-full min-w-[620px] table-fixed border-collapse text-left">
+            <colgroup>
+              <col className="w-[30%]" />
+              {STATUS_COLUMNS.map((column) => (
+                <col key={column} className="w-[14%]" />
+              ))}
+            </colgroup>
             <thead>
               <tr className="font-mono text-[11px] text-faint">
                 <th scope="col" className="border-b border-line px-4 py-3 font-normal">
                   Harness
                 </th>
-                {["Instructions", "MCP", "Skills", "Settings", "Plugins"].map((column) => (
+                {STATUS_COLUMNS.map((column) => (
                   <th
                     key={column}
                     scope="col"
@@ -319,9 +327,6 @@ export function Harnesses() {
                     {column}
                   </th>
                 ))}
-                <th scope="col" className="border-b border-line px-4 py-3 font-normal">
-                  Also synced
-                </th>
               </tr>
             </thead>
             <tbody>
@@ -344,17 +349,14 @@ export function Harnesses() {
                   <Cell value={row.skills} />
                   <Cell value={row.settings} />
                   <Cell value={row.plugins} />
-                  <td className="border-b border-line px-4 py-3 text-[13px] text-muted">
-                    {row.extras}
-                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
         <p className="font-mono text-[11px] text-faint">
-          <span className="text-accent">●</span> synced &nbsp; <span className="text-warn">◐</span>{" "}
-          partly &nbsp; — not available. ade never syncs sign-ins, tokens, sessions, history, or
+          <span className="text-accent">●</span> Synced &nbsp; <span className="text-warn">◐</span>{" "}
+          Partly &nbsp; — Not available. ade never syncs sign-ins, tokens, sessions, history, or
           caches.{" "}
           <a
             href={`${DOCS_URL}/harnesses.md`}
@@ -424,7 +426,7 @@ export function Models() {
                             paths={brandById(row.harness)?.paths ?? []}
                             className="h-3.5 w-3.5 shrink-0 text-muted"
                           />
-                          {row.harness}
+                          {brandById(row.harness)?.name ?? row.harness}
                         </span>
                       </th>
                       <td className="py-2 pr-4 text-faint">{row.file}</td>

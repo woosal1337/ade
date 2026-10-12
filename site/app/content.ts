@@ -23,7 +23,6 @@ export interface HarnessRow {
   readonly skills: Support;
   readonly settings: Support;
   readonly plugins: Support;
-  readonly extras: string;
 }
 
 export const HARNESSES: readonly HarnessRow[] = [
@@ -35,7 +34,6 @@ export const HARNESSES: readonly HarnessRow[] = [
     skills: "yes",
     settings: "yes",
     plugins: "yes",
-    extras: "agents, commands, hooks, output styles, local MCP servers",
   },
   {
     id: "codex",
@@ -45,7 +43,6 @@ export const HARNESSES: readonly HarnessRow[] = [
     skills: "yes",
     settings: "yes",
     plugins: "yes",
-    extras: "prompts, rules, agents, hooks",
   },
   {
     id: "cursor",
@@ -55,7 +52,6 @@ export const HARNESSES: readonly HarnessRow[] = [
     skills: "yes",
     settings: "yes",
     plugins: "yes",
-    extras: "CLI and IDE settings, hooks, agents, commands, rules",
   },
   {
     id: "grok",
@@ -65,7 +61,6 @@ export const HARNESSES: readonly HarnessRow[] = [
     skills: "yes",
     settings: "yes",
     plugins: "yes",
-    extras: "hooks, agents, commands, local plugins",
   },
   {
     id: "pi",
@@ -75,7 +70,6 @@ export const HARNESSES: readonly HarnessRow[] = [
     skills: "yes",
     settings: "yes",
     plugins: "yes",
-    extras: "packages, extensions, prompts, themes, package patches",
   },
   {
     id: "gemini",
@@ -85,7 +79,6 @@ export const HARNESSES: readonly HarnessRow[] = [
     skills: "yes",
     settings: "yes",
     plugins: "yes",
-    extras: "agents, commands, policies",
   },
   {
     id: "opencode",
@@ -95,7 +88,6 @@ export const HARNESSES: readonly HarnessRow[] = [
     skills: "yes",
     settings: "yes",
     plugins: "partial",
-    extras: "agents, commands, modes, tools, themes",
   },
   {
     id: "zed",
@@ -105,7 +97,6 @@ export const HARNESSES: readonly HarnessRow[] = [
     skills: "no",
     settings: "yes",
     plugins: "yes",
-    extras: "key map, tasks, snippets, themes",
   },
   {
     id: "claude-desktop",
@@ -115,7 +106,6 @@ export const HARNESSES: readonly HarnessRow[] = [
     skills: "no",
     settings: "yes",
     plugins: "partial",
-    extras: "desktop extensions",
   },
   {
     id: "antigravity",
@@ -125,7 +115,6 @@ export const HARNESSES: readonly HarnessRow[] = [
     skills: "yes",
     settings: "yes",
     plugins: "no",
-    extras: "hooks, global workflows",
   },
 ];
 
