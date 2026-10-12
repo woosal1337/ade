@@ -1,4 +1,4 @@
-<h1>
+<h1 align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/assets/ade-logo-dark.svg">
     <img alt="ade" src="docs/assets/ade-logo-light.svg" width="228">
