@@ -1,4 +1,5 @@
 import { styleText } from "node:util";
+import { printable } from "../core/text.ts";
 
 export type Style = "bold" | "dim" | "red" | "green" | "yellow" | "cyan" | "gray";
 
@@ -20,6 +21,28 @@ export interface Output {
   error(text?: string): void;
 }
 
+const STYLE_CODES = new Set(["1", "2", "22", "31", "32", "33", "36", "39", "90"]);
+
+export function terminalText(text: string, color: boolean): string {
+  let result = "";
+  let plain = "";
+  let index = 0;
+  while (index < text.length) {
+    if (color && text.charCodeAt(index) === 0x1b && text[index + 1] === "[") {
+      const end = text.indexOf("m", index + 2);
+      if (end !== -1 && STYLE_CODES.has(text.slice(index + 2, end))) {
+        result += printable(plain, true) + text.slice(index, end + 1);
+        plain = "";
+        index = end + 1;
+        continue;
+      }
+    }
+    plain += text[index];
+    index += 1;
+  }
+  return result + printable(plain, true);
+}
+
 export function createOutput(io: CliIO, colorAllowed: boolean): Output {
   const color = colorAllowed && io.stdoutIsTTY && io.env.NO_COLOR === undefined;
   return {
@@ -28,10 +51,10 @@ export function createOutput(io: CliIO, colorAllowed: boolean): Output {
       return color ? styleText(style, text) : text;
     },
     line(text = "") {
-      io.stdout(`${text}\n`);
+      io.stdout(`${terminalText(text, color)}\n`);
     },
     error(text = "") {
-      io.stderr(`${text}\n`);
+      io.stderr(`${terminalText(text, color)}\n`);
     },
   };
 }

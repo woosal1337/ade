@@ -1,22 +1,29 @@
-export type ErrorCode =
-  | "usage"
-  | "profile-not-found"
-  | "profile-invalid"
-  | "profile-exists"
-  | "secret-undeclared"
-  | "secret-unresolved"
-  | "parse-failed"
-  | "conflict"
-  | "target-changed"
-  | "locked"
-  | "path-outside-root"
-  | "git-failed"
-  | "not-found"
-  | "unsupported"
-  | "revert-blocked"
-  | "bundle-invalid"
-  | "remote-failed"
-  | "untrusted";
+export const ERROR_CODES = [
+  "usage",
+  "profile-not-found",
+  "profile-invalid",
+  "profile-exists",
+  "secret-undeclared",
+  "secret-unresolved",
+  "parse-failed",
+  "conflict",
+  "target-changed",
+  "locked",
+  "path-outside-root",
+  "git-failed",
+  "not-found",
+  "unsupported",
+  "revert-blocked",
+  "bundle-invalid",
+  "remote-failed",
+  "untrusted",
+] as const;
+
+export type ErrorCode = (typeof ERROR_CODES)[number];
+
+export function isErrorCode(value: string): value is ErrorCode {
+  return (ERROR_CODES as readonly string[]).includes(value);
+}
 
 export interface AdeErrorOptions {
   hint?: string;

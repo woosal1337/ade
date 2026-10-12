@@ -4,9 +4,12 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { describe, test } from "node:test";
 import { pathToFileURL } from "node:url";
+import { terminalText } from "../src/cli/output.ts";
 import { AdeError } from "../src/core/errors.ts";
 import { isSafeRelative } from "../src/core/fsx.ts";
+import { riskSummary } from "../src/profile/risk.ts";
 import { ProfileSchema } from "../src/profile/schema.ts";
+import { remoteHistory } from "../src/remote/client.ts";
 import { materializeGitTree, resolveGitRef, treeCacheDir } from "../src/skills/git.ts";
 import { contextFor, POSIX, tempDir, testGitEnv, writeText } from "./helpers.ts";
 
@@ -112,6 +115,59 @@ describe("git trees", { skip: !POSIX }, () => {
     await assert.rejects(
       materializeGitTree(ctx, { url, ref: "main", commit, subdir: "skills" }, { allowFetch: true }),
       (error: unknown) => error instanceof AdeError,
+    );
+  });
+});
+
+describe("terminal output", () => {
+  const esc = String.fromCharCode(27);
+
+  test("output escapes control characters in data and keeps the ade styles", () => {
+    const styled = `${esc}[31m!${esc}[39m`;
+    const shown = terminalText(`${styled} a${esc}[2Jb\rc\u202ed`, true);
+    assert.equal(shown.startsWith(styled), true);
+    assert.equal(shown.includes(`${esc}[2J`), false);
+    assert.equal(shown.includes("\r"), false);
+    assert.equal(shown.includes("\u202e"), false);
+    assert.equal(terminalText(styled, false).includes(esc), false);
+    assert.equal(terminalText("one\ntwo", false), "one\ntwo");
+  });
+
+  test("risk lines hold no control character", () => {
+    const items = riskSummary({
+      version: 1,
+      mcp: { tool: { transport: "stdio", command: `run${esc}[2J` } },
+    });
+    for (const item of items) {
+      for (const char of item.text) {
+        assert.equal(char.charCodeAt(0) >= 0x20, true, JSON.stringify(item.text));
+      }
+    }
+  });
+
+  test("a remote result needs the envelope shape", async () => {
+    const agentPath = path.join(await tempDir(), "agent.mjs");
+    await writeText(agentPath, "");
+    const reply = (envelope: unknown) => ({
+      target: { host: "far" },
+      agentPath,
+      transport: async () => ({
+        code: 0,
+        stdout: `ADE-REMOTE-RESULT ${JSON.stringify(envelope)}\n`,
+        stderr: "",
+      }),
+    });
+    await assert.rejects(
+      remoteHistory(reply({ protocol: 1, ok: true, result: [] })),
+      isCode("remote-failed"),
+    );
+    await assert.rejects(
+      remoteHistory(reply({ protocol: 1, ok: false, error: { code: "other", message: "m" } })),
+      isCode("remote-failed"),
+    );
+    await assert.rejects(
+      remoteHistory(reply({ protocol: 1, ok: false, error: { code: "locked", message: "m" } })),
+      isCode("locked"),
     );
   });
 });

@@ -1,8 +1,9 @@
 import { spawn } from "node:child_process";
 import fs from "node:fs/promises";
 import { fileURLToPath } from "node:url";
+import { z } from "zod";
 import type { Context } from "../core/context.ts";
-import { AdeError, type ErrorCode, errnoCode } from "../core/errors.ts";
+import { AdeError, errnoCode, isErrorCode } from "../core/errors.ts";
 import type { ApplyResult } from "../engine/apply.ts";
 import type { CaptureInclude } from "../engine/capture.ts";
 import type { DoctorReport } from "../engine/doctor.ts";
@@ -152,6 +153,36 @@ function transportFailure(target: RemoteTarget, result: TransportResult): AdeErr
   );
 }
 
+const RemoteInfoSchema = z.object({
+  hostname: z.string(),
+  platform: z.string(),
+  arch: z.string(),
+  node: z.string(),
+  home: z.string(),
+  stateDir: z.string(),
+  adeVersion: z.string(),
+});
+
+const EnvelopeSchema = z.discriminatedUnion("ok", [
+  z.object({
+    protocol: z.number(),
+    ok: z.literal(true),
+    remote: RemoteInfoSchema,
+    result: z.unknown(),
+  }),
+  z.object({
+    protocol: z.number(),
+    ok: z.literal(false),
+    remote: RemoteInfoSchema.optional(),
+    error: z.object({
+      code: z.string(),
+      message: z.string(),
+      hint: z.string().optional(),
+      details: z.array(z.string()).optional(),
+    }),
+  }),
+]);
+
 export async function callRemote<T>(
   payload: Omit<RemotePayload, "protocol" | "adeVersion" | "home">,
   options: RemoteOptions,
@@ -174,19 +205,20 @@ export async function callRemote<T>(
   }
   let envelope: RemoteEnvelope;
   try {
-    envelope = JSON.parse(line.slice(RESULT_MARKER.length)) as RemoteEnvelope;
+    envelope = EnvelopeSchema.parse(JSON.parse(line.slice(RESULT_MARKER.length))) as RemoteEnvelope;
   } catch (error) {
     throw new AdeError(
       "remote-failed",
-      `The result from ${options.target.host} is not valid JSON.`,
+      `The result from ${options.target.host} is not a valid ade result.`,
       {
         cause: error,
       },
     );
   }
   if (!envelope.ok) {
+    const code = envelope.error.code;
     throw new AdeError(
-      envelope.error.code === "unexpected" ? "remote-failed" : (envelope.error.code as ErrorCode),
+      code !== "unexpected" && isErrorCode(code) ? code : "remote-failed",
       `${options.target.host}: ${envelope.error.message}`,
       {
         ...(envelope.error.hint === undefined ? {} : { hint: envelope.error.hint }),
