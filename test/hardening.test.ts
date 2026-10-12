@@ -6,12 +6,20 @@ import { describe, test } from "node:test";
 import { pathToFileURL } from "node:url";
 import { terminalText } from "../src/cli/output.ts";
 import { AdeError } from "../src/core/errors.ts";
+import { apply } from "../src/engine/apply.ts";
+import { capture } from "../src/engine/capture.ts";
+import { plan } from "../src/engine/plan.ts";
+import { importBundle } from "../src/profile/bundle.ts";
+import { loadProfile, saveProfile } from "../src/profile/load.ts";
+import { parseMarkdown, writeMarkdown } from "../src/profile/markdown.ts";
+import { buildProfileBundle, scanBundle } from "../src/profile/pack.ts";
 import { isSafeRelative } from "../src/core/fsx.ts";
 import { riskSummary } from "../src/profile/risk.ts";
 import { ProfileSchema } from "../src/profile/schema.ts";
 import { remoteHistory } from "../src/remote/client.ts";
+import { createSecretResolver } from "../src/secrets/resolve.ts";
 import { materializeGitTree, resolveGitRef, treeCacheDir } from "../src/skills/git.ts";
-import { contextFor, POSIX, tempDir, testGitEnv, writeText } from "./helpers.ts";
+import { contextFor, offlineRunner, POSIX, tempDir, testGitEnv, writeText } from "./helpers.ts";
 
 function git(cwd: string, ...args: string[]): string {
   return execFileSync("git", args, {
@@ -169,5 +177,130 @@ describe("terminal output", () => {
       remoteHistory(reply({ protocol: 1, ok: false, error: { code: "locked", message: "m" } })),
       isCode("locked"),
     );
+  });
+});
+
+describe("secret handling", () => {
+  test("plan output masks a long secret with a quote in it", async () => {
+    const secret = `start"${"z".repeat(90)}end`;
+    const home = await tempDir();
+    const ctx = contextFor(home, { TOKEN: secret });
+    const dir = await tempDir("ade-profile-");
+    await saveProfile(dir, {
+      version: 1,
+      harnesses: ["pi"],
+      settings: { pi: { apiKey: "${secret:TOKEN}", other: { nested: "${secret:TOKEN}" } } },
+      secrets: { TOKEN: { from: "env", name: "TOKEN" } },
+    });
+    const loaded = await loadProfile(dir);
+    const result = await plan(loaded, ctx, {
+      resolver: createSecretResolver(loaded.profile, ctx),
+    });
+    assert.equal(result.changes.length > 0, true);
+    assert.equal(JSON.stringify(result).includes("z".repeat(10)), false);
+  });
+
+  test("apply sets mode 600 on a file that gets a secret", { skip: !POSIX }, async () => {
+    const home = await tempDir();
+    const ctx = contextFor(home, { TOKEN: "value-1234567890" });
+    const settings = path.join(home, ".pi", "agent", "settings.json");
+    await writeText(settings, "{}\n");
+    await fs.chmod(settings, 0o644);
+    const dir = await tempDir("ade-profile-");
+    await saveProfile(dir, {
+      version: 1,
+      harnesses: ["pi"],
+      settings: { pi: { apiKey: "${secret:TOKEN}" } },
+      secrets: { TOKEN: { from: "env", name: "TOKEN" } },
+    });
+    await apply(await loadProfile(dir), ctx, { runner: offlineRunner });
+    assert.equal((await fs.stat(settings)).mode & 0o777, 0o600);
+  });
+
+  test("the token scan reads files that a bundle stores as base64", () => {
+    const content = Buffer.from(`\u0000ghp_${"a".repeat(30)}\n`).toString("base64");
+    const findings = scanBundle({
+      format: "ade-bundle",
+      version: 1,
+      createdAt: new Date(0).toISOString(),
+      files: [
+        { path: "ade.json", encoding: "utf8", content: '{"version":1}\n' },
+        { path: "blob.bin", encoding: "base64", content },
+      ],
+    });
+    assert.deepEqual(
+      findings.map((finding) => finding.file),
+      ["blob.bin"],
+    );
+  });
+
+  test("a private link target stays private in a bundle and an ADE.md", {
+    skip: !POSIX,
+  }, async () => {
+    const home = await tempDir();
+    const ctx = contextFor(home);
+    const target = path.join(home, "private.txt");
+    await writeText(target, "private text\n");
+    await fs.chmod(target, 0o600);
+    const dir = await tempDir("ade-profile-");
+    await saveProfile(dir, {
+      version: 1,
+      harnesses: ["pi"],
+      files: [{ root: "home", target: ".config/tool/private.txt", symlink: target }],
+    });
+    const loaded = await loadProfile(dir);
+    const built = await buildProfileBundle(loaded, ctx, { vendorGit: false, vendorLinks: true });
+    const vendored = built.bundle.files.find((file) => file.path.startsWith("vendor/files/"));
+    assert.equal(vendored?.private, true);
+    const markdown = writeMarkdown(built.bundle, built.profile, { createdAt: new Date(0) });
+    assert.match(markdown, /mode="600"/);
+    const parsed = parseMarkdown(markdown, "ADE.md");
+    const out = path.join(await tempDir(), "profile");
+    await importBundle(parsed.bundle, out);
+    const copy = path.join(out, vendored?.path ?? "");
+    assert.equal((await fs.stat(copy)).mode & 0o777, 0o600);
+  });
+
+  test("capture skips credential files and replaces credential arguments", async () => {
+    const home = await tempDir();
+    const ctx = contextFor(home);
+    const gemini = path.join(home, ".gemini");
+    await writeText(
+      path.join(gemini, "settings.json"),
+      `${JSON.stringify(
+        {
+          mcpServers: {
+            tools: { command: "tool", args: ["--api-key", "abcd1234efgh5678", "--verbose"] },
+            web: { httpUrl: "https://mcp.example.com/mcp?access_token=qrst1234uvwx5678&mode=fast" },
+          },
+        },
+        null,
+        2,
+      )}\n`,
+    );
+    await writeText(path.join(gemini, ".env"), "GEMINI_API_KEY=dummy-value-12345678\n");
+    await writeText(path.join(gemini, "notes.txt"), "deploy_token: lmno1234pqrs5678\n");
+    await writeText(path.join(gemini, "style.txt"), "Use short sentences.\n");
+    const result = await capture(ctx, { harnesses: ["gemini"], runner: offlineRunner });
+    const text =
+      JSON.stringify(result.profile) +
+      result.files.map((file) => file.content?.toString("utf8") ?? "").join("\n");
+    for (const value of [
+      "abcd1234efgh5678",
+      "qrst1234uvwx5678",
+      "dummy-value-12345678",
+      "lmno1234pqrs5678",
+    ]) {
+      assert.equal(text.includes(value), false, value);
+    }
+    assert.equal(text.includes("Use short sentences."), true);
+    assert.equal(
+      result.warnings.some(
+        (warning) => warning.includes("notes.txt") && warning.includes("secret"),
+      ),
+      true,
+    );
+    assert.match(JSON.stringify(result.profile.mcp?.tools), /\$\{secret:/);
+    assert.match(JSON.stringify(result.profile.mcp?.web), /access_token=\$\{secret:/);
   });
 });

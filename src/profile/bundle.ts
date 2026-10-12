@@ -12,6 +12,21 @@ export interface BundleFile {
   readonly encoding: "utf8" | "base64";
   readonly content: string;
   readonly executable?: boolean;
+  readonly private?: boolean;
+}
+
+export function modeFlags(mode: number): Pick<BundleFile, "executable" | "private"> {
+  return {
+    ...((mode & 0o111) !== 0 ? { executable: true } : {}),
+    ...(process.platform !== "win32" && (mode & 0o044) === 0 ? { private: true } : {}),
+  };
+}
+
+function fileMode(file: BundleFile): number {
+  if (file.private === true) {
+    return file.executable === true ? 0o700 : 0o600;
+  }
+  return file.executable === true ? 0o755 : 0o644;
 }
 
 export interface Bundle {
@@ -47,7 +62,7 @@ export async function dirToBundleFiles(dir: string, prefix: string): Promise<Bun
     files.push({
       path: `${prefix}/${relative}`,
       ...encode(content),
-      ...((stat.mode & 0o111) !== 0 ? { executable: true } : {}),
+      ...modeFlags(stat.mode),
     });
   }
   return files;
@@ -123,7 +138,7 @@ export async function exportBundle(loaded: LoadedProfile, now: Date = new Date()
     files.push({
       path: relative,
       ...encode(content),
-      ...((stat.mode & 0o111) !== 0 ? { executable: true } : {}),
+      ...modeFlags(stat.mode),
     });
   }
   return {
@@ -196,7 +211,8 @@ export async function importBundle(
       file.encoding === "utf8"
         ? Buffer.from(file.content, "utf8")
         : Buffer.from(file.content, "base64");
-    await fs.writeFile(target, content, { mode: file.executable === true ? 0o755 : 0o644 });
+    await fs.writeFile(target, content, { mode: fileMode(file) });
+    await fs.chmod(target, fileMode(file));
   }
   return loadProfile(root);
 }

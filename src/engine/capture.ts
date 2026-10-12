@@ -106,6 +106,34 @@ const CONTAINER_KEYS = new Set([
   "antigravity",
 ]);
 
+function isSecretFlag(flag: string): boolean {
+  return SENSITIVE_KEY.test(flag) && !/(file|path|dir|url|uri|name|id|env)$/i.test(flag);
+}
+
+function looksLikePath(value: string): boolean {
+  return /^(?:[~.]?\/|[A-Za-z]:[\\/]|https?:\/\/)/.test(value);
+}
+
+function holdsSecret(text: string): boolean {
+  if (new RegExp(TOKEN_PATTERN.source).test(text)) {
+    return true;
+  }
+  for (const line of text.split(/\r?\n/)) {
+    const assignment =
+      /^\s*(?:export\s+)?["']?([A-Za-z0-9_.-]+)["']?\s*[=:]\s*["']?([^"'\s#]+)/.exec(line);
+    if (
+      assignment?.[1] !== undefined &&
+      assignment[2] !== undefined &&
+      SENSITIVE_KEY.test(assignment[1]) &&
+      assignment[2].length >= 8 &&
+      !assignment[2].includes("${")
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
 class SecretCollector {
   readonly sources: Record<string, SecretSource> = {};
   readonly found: CapturedSecret[] = [];
@@ -147,15 +175,38 @@ class SecretCollector {
     return !/^[A-Z][A-Z0-9_]*$/.test(value);
   }
 
+  #reference(base: string, value: string, where: string): string {
+    const name = this.#nameFor(base, value);
+    this.found.push({ name, where });
+    return `\${secret:${name}}`;
+  }
+
+  #scrubUrl(value: string, base: string, where: string): string {
+    if (!/^[A-Za-z][A-Za-z0-9+.-]*:\/\//.test(value)) {
+      return value;
+    }
+    let result = value.replace(
+      /^([A-Za-z][A-Za-z0-9+.-]*:\/\/[^:/@?#]+:)([^@/?#]+)@/,
+      (match, prefix: string, password: string) =>
+        password.includes("${")
+          ? match
+          : `${prefix}${this.#reference(`${base}_password`, password, where)}@`,
+    );
+    result = result.replace(
+      /([?&])([^=&#]+)=([^&#]*)/g,
+      (match, separator: string, name: string, item: string) =>
+        SENSITIVE_KEY.test(name) && item.length >= 8 && !item.includes("${")
+          ? `${separator}${name}=${this.#reference(`${base}_${name}`, item, where)}`
+          : match,
+    );
+    return result;
+  }
+
   scrubString(value: string, key: string | undefined, base: string, where: string): string {
     if (!this.#looksSecret(key, value)) {
-      const token = TOKEN_PATTERN.exec(value);
-      if (token?.[0] !== undefined && value.includes(token[0])) {
-        const name = this.#nameFor(base, token[0]);
-        this.found.push({ name, where });
-        return value.replace(token[0], `\${secret:${name}}`);
-      }
-      return value;
+      const tokens = new RegExp(TOKEN_PATTERN.source, "g");
+      const replaced = value.replace(tokens, (token) => this.#reference(base, token, where));
+      return this.#scrubUrl(replaced, base, where);
     }
     const scheme = SCHEME_PREFIX.exec(value);
     const secret = scheme?.[2] ?? value;
@@ -164,12 +215,53 @@ class SecretCollector {
     return scheme === null ? `\${secret:${name}}` : `${scheme[1]} \${secret:${name}}`;
   }
 
+  #scrubFlags(items: unknown[], base: string, where: string): unknown[] {
+    const result = [...items];
+    for (let index = 0; index < result.length; index += 1) {
+      const item = result[index];
+      if (typeof item !== "string") {
+        continue;
+      }
+      const inline = /^(--?[A-Za-z][A-Za-z0-9_-]*)=(.+)$/.exec(item);
+      if (inline?.[1] !== undefined && inline[2] !== undefined) {
+        if (
+          isSecretFlag(inline[1]) &&
+          !inline[2].includes("${") &&
+          !looksLikePath(inline[2]) &&
+          inline[2].length >= 8
+        ) {
+          result[index] =
+            `${inline[1]}=${this.#reference(`${base}_${inline[1]}`, inline[2], where)}`;
+        }
+        continue;
+      }
+      const next = result[index + 1];
+      if (
+        /^--?[A-Za-z][A-Za-z0-9_-]*$/.test(item) &&
+        isSecretFlag(item) &&
+        typeof next === "string" &&
+        !next.startsWith("-") &&
+        !next.includes("${") &&
+        !looksLikePath(next) &&
+        next.length >= 8
+      ) {
+        result[index + 1] = this.#reference(`${base}_${item}`, next, where);
+        index += 1;
+      }
+    }
+    return result;
+  }
+
   scrub(value: unknown, key: string | undefined, base: string, where: string): unknown {
     if (typeof value === "string") {
       return this.scrubString(value, key, base, where);
     }
     if (Array.isArray(value)) {
-      return value.map((item) => this.scrub(item, key, base, where));
+      return this.#scrubFlags(
+        value.map((item) => this.scrub(item, key, base, where)),
+        base,
+        where,
+      );
     }
     if (isPlainObject(value)) {
       const result: Record<string, unknown> = {};
@@ -667,6 +759,12 @@ export async function capture(ctx: Context, options: CaptureOptions = {}): Promi
           `${row.display} is not valid ${format.toUpperCase()}. ade captures it as a file.`,
         );
       }
+    }
+    if (holdsSecret(await fs.readFile(row.path, "utf8"))) {
+      warnings.push(
+        `${row.display} holds a value that looks like a secret. ade does not capture it.`,
+      );
+      continue;
     }
     await addFileEntry(row.root, row.name, row.path, false);
   }

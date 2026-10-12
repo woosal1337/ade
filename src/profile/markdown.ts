@@ -34,7 +34,15 @@ interface Block {
   readonly bytes: Buffer;
   readonly hash: string;
   readonly executable: boolean;
+  readonly private: boolean;
 }
+
+const MODE_ATTRIBUTE: Record<string, { executable: boolean; private: boolean }> = {
+  "755": { executable: true, private: false },
+  "700": { executable: true, private: true },
+  "600": { executable: false, private: true },
+  "644": { executable: false, private: false },
+};
 
 function bundleBytes(file: BundleFile): Buffer {
   return file.encoding === "base64"
@@ -222,8 +230,8 @@ function fileBlock(block: Block): string[] {
       body = `${text}\n`;
     }
   }
-  if (block.executable) {
-    attributes.push('mode="755"');
+  if (block.executable || block.private) {
+    attributes.push(`mode="${block.private ? (block.executable ? "700" : "600") : "755"}"`);
   }
   const fence = "`".repeat(Math.max(3, longestBacktickRun(body) + 1));
   return [
@@ -243,7 +251,13 @@ export function writeMarkdown(
   const blocks: Block[] = bundle.files
     .map((file) => {
       const bytes = bundleBytes(file);
-      return { path: file.path, bytes, hash: sha256(bytes), executable: file.executable === true };
+      return {
+        path: file.path,
+        bytes,
+        hash: sha256(bytes),
+        executable: file.executable === true,
+        private: file.private === true,
+      };
     })
     .sort((left, right) => compareText(left.path, right.path));
   if (!blocks.some((block) => block.path === PROFILE_FILE)) {
@@ -401,7 +415,17 @@ export function parseMarkdown(text: string, label: string): ParsedMarkdown {
     if (hash !== attributes.sha256) {
       problems.push(`${path}: the content does not match its sha256 attribute.`);
     }
-    blocks.push({ path, bytes, hash, executable: attributes.mode === "755" });
+    const mode = MODE_ATTRIBUTE[attributes.mode ?? "644"];
+    if (mode === undefined) {
+      problems.push(`${path}: the mode attribute is not 600, 644, 700, or 755.`);
+    }
+    blocks.push({
+      path,
+      bytes,
+      hash,
+      executable: mode?.executable === true,
+      private: mode?.private === true,
+    });
   }
   if (!seen.has(PROFILE_FILE)) {
     throw new AdeError("bundle-invalid", `The file has no ${PROFILE_FILE} block: ${label}.`);
@@ -427,6 +451,7 @@ export function parseMarkdown(text: string, label: string): ParsedMarkdown {
       ? { encoding: "base64" as const, content: block.bytes.toString("base64") }
       : { encoding: "utf8" as const, content: block.bytes.toString("utf8") }),
     ...(block.executable ? { executable: true } : {}),
+    ...(block.private ? { private: true } : {}),
   }));
   return {
     meta,

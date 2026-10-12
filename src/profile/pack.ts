@@ -13,6 +13,7 @@ import {
   dirToBundleFiles,
   exportBundle,
   importBundle,
+  modeFlags,
 } from "./bundle.ts";
 import {
   LOCK_FILE,
@@ -112,6 +113,7 @@ export async function buildProfileBundle(
         ...(content.includes(0)
           ? { encoding: "base64" as const, content: content.toString("base64") }
           : { encoding: "utf8" as const, content: content.toString("utf8") }),
+        ...modeFlags(stat.mode),
       });
     }
     entries[index] = { root: entry.root, target: entry.target, source: prefix };
@@ -151,9 +153,14 @@ export async function buildProfileBundle(
 }
 
 export function scanBundle(bundle: Bundle): TokenFinding[] {
-  return bundle.files
-    .filter((file) => file.encoding === "utf8")
-    .flatMap((file) => findTokens(file.content, file.path));
+  return bundle.files.flatMap((file) =>
+    findTokens(
+      file.encoding === "utf8"
+        ? file.content
+        : Buffer.from(file.content, "base64").toString("latin1"),
+      file.path,
+    ),
+  );
 }
 
 export interface PackOptions {

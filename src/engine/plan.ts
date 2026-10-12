@@ -165,6 +165,21 @@ function compact(value: unknown): string {
   return text.length > 80 ? `${text.slice(0, 77)}...` : text;
 }
 
+function maskDeep(value: unknown, mask: (text: string) => string): unknown {
+  if (typeof value === "string") {
+    return mask(value);
+  }
+  if (Array.isArray(value)) {
+    return value.map((item) => maskDeep(item, mask));
+  }
+  if (value !== null && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [mask(key), maskDeep(item, mask)]),
+    );
+  }
+  return value;
+}
+
 function describePathState(ctx: Context, state: PathState): string | undefined {
   switch (state.type) {
     case "absent":
@@ -256,6 +271,8 @@ export async function computePlan(
   };
   const mask = (text: string | undefined): string | undefined =>
     text === undefined ? undefined : resolver.mask(text);
+  const show = (value: unknown): string | undefined =>
+    mask(compact(maskDeep(value, (text) => resolver.mask(text))));
 
   const desiredKeys = new Set(desired.items.map((item) => item.key));
   for (const item of desired.items) {
@@ -433,8 +450,8 @@ export async function computePlan(
           action: decision.action,
           path: item.doc.path,
           ...(doc.realPath === path.resolve(item.doc.path) ? {} : { writesThrough: doc.realPath }),
-          ...(current === undefined ? {} : { before: mask(compact(current)) }),
-          ...(item.value === ABSENT ? {} : { after: mask(compact(item.value)) }),
+          ...(current === undefined ? {} : { before: show(current) }),
+          ...(item.value === ABSENT ? {} : { after: show(item.value) }),
           drift: decision.drift,
           notes: item.notes,
         },
@@ -571,7 +588,7 @@ export async function computePlan(
           label: labelFromKey(key),
           action,
           path: prior.path,
-          ...(current === undefined ? {} : { before: mask(compact(current)) }),
+          ...(current === undefined ? {} : { before: show(current) }),
           drift: current !== undefined && changedOutside,
           notes,
         },

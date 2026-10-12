@@ -24,6 +24,30 @@ export const RUNTIME_NAMES: readonly string[] = [
   "*[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]*",
 ];
 
+export const CREDENTIAL_NAMES: readonly string[] = [
+  ".env",
+  ".env.*",
+  "*.env",
+  ".netrc",
+  ".npmrc",
+  ".pypirc",
+  "*.pem",
+  "*.key",
+  "*.p12",
+  "*.pfx",
+  "*.keystore",
+  "id_rsa*",
+  "id_ecdsa*",
+  "id_ed25519*",
+  "*credential*",
+  "*secret*",
+  "*token*",
+  "*auth*.json",
+  "oauth*",
+  "Cookies*",
+  "Local State",
+];
+
 function globToRegExp(glob: string): RegExp {
   let source = "";
   for (let index = 0; index < glob.length; index += 1) {

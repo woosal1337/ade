@@ -100,7 +100,7 @@ description: Review a change before a merge.
 | `sha256` | Yes | The SHA-256 hash of the file bytes, in lowercase hex |
 | `encoding` | No | `utf8` or `base64`. The default is `utf8` |
 | `eol` | No | `none` when the file has no final newline |
-| `mode` | No | `755` for an executable file |
+| `mode` | No | `755` for an executable file, `600` for a private file, `700` for a private executable file. Without the attribute, the mode is `644` |
 
 Rules for a writer:
 

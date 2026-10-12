@@ -308,7 +308,7 @@ export class Journal {
     await atomicWrite(
       step.realPath,
       serializeDoc(data, step.format, doc.indent),
-      doc.mode ?? (step.secret ? 0o600 : 0o644),
+      step.secret ? (doc.mode ?? 0o600) & 0o700 : (doc.mode ?? 0o644),
     );
     this.ops.push({
       type: "doc",

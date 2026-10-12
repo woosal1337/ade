@@ -4,7 +4,7 @@ import { type Context, displayPath } from "../core/context.ts";
 import { isInside, listFiles, lstatOrUndefined, statOrUndefined } from "../core/fsx.ts";
 import { compareText } from "../core/hash.ts";
 import { PI_KNOWN_ENTRIES } from "../harness/adapters.ts";
-import { matchesAny, RUNTIME_NAMES } from "../harness/inventory-rules.ts";
+import { CREDENTIAL_NAMES, matchesAny, RUNTIME_NAMES } from "../harness/inventory-rules.ts";
 import { detectHarnesses, getAdapter, rootDir } from "../harness/registry.ts";
 import type { AssetRule, InventoryDir } from "../harness/types.ts";
 import { HARNESS_IDS, type HarnessId, type RootId } from "../profile/schema.ts";
@@ -163,7 +163,7 @@ async function classifyDir(
       status,
       ...(detail === undefined ? {} : { detail }),
     });
-    if (matchesAny(name, inv.private)) {
+    if (matchesAny(name, inv.private) || matchesAny(name, CREDENTIAL_NAMES)) {
       rows.push(row("private"));
       continue;
     }

@@ -3,7 +3,7 @@ import path from "node:path";
 import { statOrUndefined } from "../core/fsx.ts";
 
 export const TOKEN_PATTERN =
-  /(sk-ant-[A-Za-z0-9_-]{16,}|sk-[A-Za-z0-9_-]{20,}|crsr_[A-Za-z0-9]{16,}|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|xox[abpr]-[A-Za-z0-9-]{10,}|cos_pat_[A-Za-z0-9_-]{10,}|AKIA[0-9A-Z]{16}|-----BEGIN [A-Z ]*PRIVATE KEY-----|eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,})/;
+  /(AIza[0-9A-Za-z_-]{35}|glpat-[A-Za-z0-9_-]{20,}|npm_[A-Za-z0-9]{36}|hf_[A-Za-z0-9]{30,}|(?:sk|rk)_live_[A-Za-z0-9]{20,}|sk-ant-[A-Za-z0-9_-]{16,}|sk-[A-Za-z0-9_-]{20,}|crsr_[A-Za-z0-9]{16,}|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|xox[abpr]-[A-Za-z0-9-]{10,}|cos_pat_[A-Za-z0-9_-]{10,}|AKIA[0-9A-Z]{16}|-----BEGIN [A-Z ]*PRIVATE KEY-----|eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,})/;
 
 export const SENSITIVE_KEY =
   /(api[-_]?key|token|secret|password|passwd|credential|cookie|authorization|bearer|private[-_]?key|access[-_]?key)/i;
@@ -17,6 +17,11 @@ export interface TokenFinding {
 }
 
 const KINDS: readonly (readonly [RegExp, string])[] = [
+  [/^AIza/, "Google API key"],
+  [/^glpat-/, "GitLab token"],
+  [/^npm_/, "npm token"],
+  [/^hf_/, "Hugging Face token"],
+  [/^(sk|rk)_live_/, "Stripe key"],
   [/^sk-ant-/, "Anthropic key"],
   [/^sk-/, "API key"],
   [/^crsr_/, "Cursor key"],

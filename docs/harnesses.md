@@ -126,7 +126,7 @@ ade supports 10 harnesses. Run `ade harnesses` to show their paths on a machine.
 
 ## Rules for all harnesses
 
-- **Extra files.** `ade capture` takes each small text file that no rule covers in a harness home. `ade inventory` marks these files as `extra`.
+- **Extra files.** `ade capture` takes each small text file that no rule covers in a harness home. `ade inventory` marks these files as `extra`. Capture skips a file with a credential name, such as `.env`, `*.pem`, or a name with `token`, `secret`, or `credential`. It also skips an extra file that holds a token or a secret assignment, and prints a warning.
 - **Referenced files.** A setting that names a file under the home, such as a status line script, makes capture take that file.
 - **Linked files.** A file that is a link keeps its link target in the profile and its content as a fallback. Apply makes the link when the target exists, and copies the content when it does not.
 - **Plugin commands.** Apply runs the harness commands before it writes files. A revert runs the reverse commands. The harness program must be on the PATH.

@@ -182,6 +182,10 @@ export function createSecretResolver(
         .sort((left, right) => right[1].length - left[1].length);
       for (const [name, value] of entries) {
         result = result.replaceAll(value, `\${secret:${name}}`);
+        const escaped = JSON.stringify(value).slice(1, -1);
+        if (escaped !== value) {
+          result = result.replaceAll(escaped, `\${secret:${name}}`);
+        }
       }
       return result;
     },
