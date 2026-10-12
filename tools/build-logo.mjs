@@ -64,7 +64,7 @@ function strip(brands, theme, label) {
     );
     if (brand.provider) {
       parts.push(
-        `  <text x="${left + cellWidth / 2}" y="${top + 103}" fill="${colors.muted}" font-family="${font}" font-size="9.5" letter-spacing="0.6" text-anchor="middle">${escapeXml(brand.provider.toUpperCase())}</text>`,
+        `  <text x="${left + cellWidth / 2}" y="${top + 103}" fill="${colors.muted}" font-family="${font}" font-size="10" text-anchor="middle">${escapeXml(brand.provider)}</text>`,
       );
     }
   });

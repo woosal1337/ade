@@ -46,7 +46,7 @@ export function Button({ href, children, variant = "solid", external = false }: 
     <a
       href={href}
       {...(external ? { target: "_blank", rel: "noreferrer" } : {})}
-      className={`inline-flex h-8 items-center gap-2 border px-2.5 font-mono text-[12px] uppercase tracking-wide transition-colors ${look}`}
+      className={`inline-flex h-8 items-center gap-2 border px-2.5 font-mono text-[12px] transition-colors ${look}`}
     >
       {children}
       {external ? <ArrowUpRight /> : <Chevron />}
@@ -56,8 +56,8 @@ export function Button({ href, children, variant = "solid", external = false }: 
 
 export function Fig({ n, children }: { n: string; children?: ReactNode }) {
   return (
-    <div className="flex items-center justify-between font-mono text-[10px] uppercase tracking-widest text-faint">
-      <span>FIG.{n}</span>
+    <div className="flex items-center justify-between font-mono text-[10px] text-faint">
+      <span>Fig. {n}</span>
       {children}
     </div>
   );
@@ -79,12 +79,12 @@ export function SectionTitle({ lead, children, as = "h2" }: TitleProps) {
 }
 
 export function Eyebrow({ children }: { children: ReactNode }) {
-  return <p className="font-mono text-[12px] uppercase tracking-[0.12em] text-muted">{children}</p>;
+  return <p className="font-mono text-[12px] text-muted">{children}</p>;
 }
 
 export function Tag({ children }: { children: ReactNode }) {
   return (
-    <span className="inline-flex items-center gap-1 bg-tab px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider text-muted">
+    <span className="inline-flex items-center gap-1 bg-tab px-1.5 py-0.5 font-mono text-[10px] text-muted">
       {children}
     </span>
   );

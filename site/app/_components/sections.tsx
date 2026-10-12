@@ -147,9 +147,7 @@ function LogoCell({ href, brand, caption, tag }: LogoCellProps) {
       <span className="text-center leading-tight">
         <span className="block text-[14px]">{brand.name}</span>
         {caption === undefined ? null : (
-          <span className="block font-mono text-[10px] uppercase tracking-wider text-faint">
-            {caption}
-          </span>
+          <span className="block font-mono text-[10px] text-faint">{caption}</span>
         )}
       </span>
     </a>
@@ -308,7 +306,7 @@ export function Harnesses() {
         <div className="relative overflow-x-auto border border-line">
           <table className="w-full min-w-[820px] border-collapse text-left">
             <thead>
-              <tr className="font-mono text-[11px] uppercase tracking-wider text-faint">
+              <tr className="font-mono text-[11px] text-faint">
                 <th scope="col" className="border-b border-line px-4 py-3 font-normal">
                   Harness
                 </th>
@@ -402,7 +400,7 @@ export function Models() {
             <div className="overflow-x-auto p-6">
               <table className="w-full min-w-[560px] border-collapse whitespace-nowrap font-mono text-[12px]">
                 <thead>
-                  <tr className="text-left text-[10px] uppercase tracking-widest text-faint">
+                  <tr className="text-left text-[10px] text-faint">
                     <th scope="col" className="pb-3 font-normal">
                       Harness
                     </th>
@@ -600,9 +598,7 @@ export function Install() {
         </div>
         <div className="space-y-5 p-6 sm:p-8">
           <div className="flex items-center justify-between">
-            <h3 className="font-mono text-[12px] uppercase tracking-wider text-muted">
-              Quick start
-            </h3>
+            <h3 className="font-mono text-[12px] text-muted">Quick start</h3>
             <Fig n="8" />
           </div>
           <ol className="space-y-5">
@@ -635,9 +631,7 @@ export function Commands() {
               key={group.title}
               className={`border-line p-6 ${index < 2 ? "border-b md:border-r md:border-b-0" : ""}`}
             >
-              <h3 className="mb-4 font-mono text-[11px] uppercase tracking-wider text-faint">
-                {group.title}
-              </h3>
+              <h3 className="mb-4 font-mono text-[11px] text-faint">{group.title}</h3>
               <dl className="space-y-3">
                 {group.rows.map(([command, text]) => (
                   <div
@@ -711,16 +705,11 @@ export function Footer() {
         <div className="grid grid-cols-2 gap-8 sm:grid-cols-3">
           {FOOTER_LINKS.map((group) => (
             <div key={group.title} className="space-y-3">
-              <h3 className="font-mono text-[11px] uppercase tracking-wider text-faint">
-                {group.title}
-              </h3>
+              <h3 className="font-mono text-[11px] text-faint">{group.title}</h3>
               <ul className="space-y-2">
                 {group.links.map((link) => (
                   <li key={link.label}>
-                    <a
-                      href={link.href}
-                      className="font-mono text-[12px] uppercase tracking-wide text-muted hover:text-fg"
-                    >
+                    <a href={link.href} className="font-mono text-[12px] text-muted hover:text-fg">
                       {link.label}
                     </a>
                   </li>

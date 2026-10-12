@@ -115,7 +115,7 @@ export function LoopFigure() {
           className="pointer-events-none absolute inset-x-0 text-center font-mono text-[11px] leading-5"
           style={{ top: readoutTop ?? "60%" }}
         >
-          <span className="block uppercase tracking-[0.2em] text-fg">{step?.name}</span>
+          <span className="block text-fg">{step?.name}</span>
           <span className="block text-muted">
             <span className="text-accent">$</span> {step?.command}
           </span>
@@ -126,7 +126,7 @@ export function LoopFigure() {
           <li key={item.id} className="border-r border-b border-line">
             <a
               href={`#${item.id}`}
-              className="relative block px-3 py-2.5 font-mono text-[11px] uppercase tracking-wider transition-colors hover:bg-raised"
+              className="relative block px-3 py-2.5 font-mono text-[11px] transition-colors hover:bg-raised"
             >
               <span aria-hidden="true" className="absolute inset-x-0 -top-px h-[2px]">
                 <span

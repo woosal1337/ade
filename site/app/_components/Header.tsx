@@ -36,7 +36,7 @@ export function Header() {
             <li key={item.href}>
               <a
                 href={item.href}
-                className="flex w-36 items-center justify-between bg-tab px-2 py-1.5 font-mono text-[12px] uppercase tracking-wide text-fg transition-colors hover:bg-line-strong"
+                className="flex w-36 items-center justify-between bg-tab px-2 py-1.5 font-mono text-[12px] text-fg transition-colors hover:bg-line-strong"
               >
                 {item.label}
                 <span className="text-faint">{item.n}</span>
@@ -44,7 +44,7 @@ export function Header() {
             </li>
           ))}
         </ul>
-        <div className="ml-auto flex items-center gap-5 font-mono text-[12px] uppercase tracking-wide">
+        <div className="ml-auto flex items-center gap-5 font-mono text-[12px]">
           <a href="#harnesses" className="hidden text-muted hover:text-fg sm:inline">
             Harnesses
           </a>

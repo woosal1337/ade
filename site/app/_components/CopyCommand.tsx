@@ -33,7 +33,7 @@ export function CopyCommand({ command, prompt = "$", size = "md" }: CopyCommandP
       <button
         type="button"
         onClick={copy}
-        className="shrink-0 font-mono text-[10px] uppercase tracking-wider text-faint transition-colors hover:text-fg"
+        className="shrink-0 font-mono text-[10px] text-faint transition-colors hover:text-fg"
         aria-label={`Copy the command: ${command}`}
       >
         {copied ? "Copied" : "Copy"}

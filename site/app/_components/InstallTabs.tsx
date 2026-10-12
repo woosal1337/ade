@@ -46,7 +46,7 @@ export function InstallTabs() {
               aria-selected={selected}
               aria-controls={`${base}-panel`}
               onClick={() => setActive(item.id)}
-              className={`border-r border-line px-3 py-2 font-mono text-[11px] uppercase tracking-wider transition-colors ${
+              className={`border-r border-line px-3 py-2 font-mono text-[11px] transition-colors ${
                 selected ? "bg-raised text-fg" : "text-faint hover:text-muted"
               }`}
             >
