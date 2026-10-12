@@ -1144,6 +1144,7 @@ const commands: Command[] = [
         force: boolFlag(c.flags, "force"),
         offline: boolFlag(c.flags, "offline"),
         resolver: planResolver(c, gate),
+        fetchSkills: gate.trusted,
       });
       if (c.json) {
         c.emit({ ...computed.plan, source: gate.resolved.source, trust: gate.status.state });
@@ -1251,6 +1252,7 @@ const commands: Command[] = [
         harnesses: c.harnessFilter(),
         offline: boolFlag(c.flags, "offline"),
         resolver: planResolver(c, gate),
+        fetchSkills: gate.trusted,
       });
       if (c.json) {
         c.emit({ ...report, source: gate.resolved.source, trust: gate.status.state });
@@ -1861,7 +1863,12 @@ const commands: Command[] = [
           hint: "Add --force to write it again.",
         });
       }
-      const { loaded } = await c.resolve(c.args[0]);
+      const gate = await inspectSource(c, c.args[0]);
+      if (!(await requireTrust(c, gate))) {
+        c.out.line("Nothing changed.");
+        return EXIT.ok;
+      }
+      const { loaded } = gate.resolved;
       const repo = stringFlag(c.flags, "repo");
       const result = await shareProfile(loaded, c.context(), {
         source: repo,

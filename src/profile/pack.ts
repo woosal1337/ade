@@ -30,6 +30,7 @@ import { isGitSkill, isLinkSkill, type Lock, type Profile } from "./schema.ts";
 export interface BundleBuildOptions {
   readonly vendorGit: boolean;
   readonly vendorLinks: boolean;
+  readonly dropGitSkills?: boolean | undefined;
   readonly runner?: CommandRunner | undefined;
 }
 
@@ -58,6 +59,12 @@ export async function buildProfileBundle(
   const profile: Profile = structuredClone(loaded.profile);
   const lock: Lock = { version: 1, skills: { ...loaded.lock.skills } };
   for (const [name, skill] of Object.entries(loaded.profile.skills ?? {})) {
+    if (options.dropGitSkills === true && isGitSkill(skill)) {
+      delete profile.skills?.[name];
+      delete lock.skills[name];
+      notes.push(`ade sends the skill ${name} from ${skill.git} after you trust the source.`);
+      continue;
+    }
     const vendorGit = isGitSkill(skill) && (options.vendorGit || isLocalGitUrl(skill.git));
     const vendorLink = isLinkSkill(skill) && options.vendorLinks;
     if (!vendorGit && !vendorLink) {

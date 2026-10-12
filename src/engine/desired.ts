@@ -22,10 +22,12 @@ import {
   HARNESS_IDS,
   type HarnessId,
   type InstallMode,
+  isGitSkill,
   type McpServer,
   type RootId,
 } from "../profile/schema.ts";
 import { expandUserPath, runCommand, type SecretResolver } from "../secrets/resolve.ts";
+import { treeCacheDir } from "../skills/git.ts";
 import type { SkillResolver } from "../skills/source.ts";
 import type { DesiredItem, PathWant, Scope } from "./items.ts";
 
@@ -34,6 +36,7 @@ export interface DesiredOptions {
   readonly resolver: SecretResolver;
   readonly skills: SkillResolver;
   readonly copyFiles?: boolean | undefined;
+  readonly skipUnfetchedSkills?: boolean | undefined;
 }
 
 export interface DesiredState {
@@ -193,6 +196,25 @@ export async function buildDesired(
   }
 
   for (const [name, skill] of Object.entries(profile.skills ?? {})) {
+    const locked = isGitSkill(skill) ? loaded.lock.skills[name] : undefined;
+    if (
+      options.skipUnfetchedSkills === true &&
+      locked !== undefined &&
+      !(
+        await statOrUndefined(
+          path.join(treeCacheDir(ctx, locked.git, locked.commit, locked.subdir), "tree"),
+        )
+      )?.isDirectory()
+    ) {
+      warnings.push(
+        `ade fetches the skill ${name} from ${locked.git} after you trust the source. The plan leaves it out.`,
+      );
+      skipped.add(`skill:shared:${name}`);
+      for (const id of harnesses) {
+        skipped.add(`skill:${id}:${name}`);
+      }
+      continue;
+    }
     const source = await options.skills.resolve(name, skill);
     const sharedPath = path.join(sharedSkillsDir(ctx), name);
     if (source.missing) {

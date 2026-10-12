@@ -38,6 +38,7 @@ The first public version.
 - Output escapes invisible Unicode characters, such as zero-width spaces and line separators. Paths and Git URLs with such characters fail.
 - Child processes run in the home folder or the cache folder, not in the current folder. Git does not read the repository config of the current folder.
 - A secret command needs a program name on the PATH or an absolute path. A path part such as `.git.` or `GIT~1` fails, because Windows reads it as `.git`.
+- Before trust, `plan`, `status`, and `ade remote` do not fetch the Git skills of a source, so ade contacts no host that the author names. `ade share` of a Git source or a shared file needs trust, as `ade pack` does.
 - A source that names both a local path and a GitHub shorthand fails. Use `./<path>` or `github:<owner>/<repo>`.
 - A settings file name that differs only in case from a main settings file or an MCP file fails.
 - A Grok plugin install must come from the marketplace that the profile names. ade removes a plugin from another marketplace.

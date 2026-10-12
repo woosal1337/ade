@@ -26,7 +26,7 @@ A trusted profile can run programs as you. MCP servers, hooks, plugins, patches,
 
 `ade plan`, `ade status`, and `ade doctor` of an untrusted source do these things:
 
-- They fetch the source and its Git skills with Git.
+- They fetch the source with Git. They do not fetch the Git skills of the source, so ade contacts no host that the author names.
 - They run `git apply --check` for patches and read the plugin lists of the harness CLIs.
 - They use placeholder values for secrets. They run no secret command, and they read no secret file and no Keychain item.
 

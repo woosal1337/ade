@@ -64,6 +64,7 @@ export interface PlanOptions {
   readonly resolver?: SecretResolver | undefined;
   readonly runner?: CommandRunner | undefined;
   readonly copyFiles?: boolean | undefined;
+  readonly fetchSkills?: boolean | undefined;
 }
 
 export interface DocEdit {
@@ -217,7 +218,7 @@ export async function computePlan(
 ): Promise<ComputedPlan> {
   const resolver = options.resolver ?? createSecretResolver(loaded.profile, ctx, options.runner);
   const skills = createSkillResolver(loaded, ctx, {
-    allowFetch: options.offline !== true,
+    allowFetch: options.offline !== true && options.fetchSkills !== false,
     ...(options.runner === undefined ? {} : { runner: options.runner }),
   });
   const desired = await buildDesired(loaded, ctx, {
@@ -225,6 +226,7 @@ export async function computePlan(
     resolver,
     skills,
     copyFiles: options.copyFiles,
+    skipUnfetchedSkills: options.fetchSkills === false,
   });
   const state = await readState(ctx.stateDir);
   const now = ctx.now().toISOString();

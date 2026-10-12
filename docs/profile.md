@@ -179,7 +179,7 @@ Other `${VARIABLE}` text stays as it is, so harnesses that expand environment va
 |---|---|
 | `env` | `name`: the environment variable |
 | `file` | `path`: a file, with `~` or `${home}` |
-| `command` | `argv`: a command that prints the value. ade runs it without a shell |
+| `command` | `argv`: a command that prints the value. ade runs it without a shell, in the home folder. The program is a name on the PATH or an absolute path |
 | `keychain` | `service`, `account`: a macOS Keychain item |
 
 ade never writes a resolved secret into the profile, the state file, or command output. The harness files that need a secret get mode 600 when ade creates them.

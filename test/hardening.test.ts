@@ -1077,3 +1077,39 @@ describe("small input checks", () => {
     assert.equal(isSafeRelative("a/.github/workflows"), true);
   });
 });
+
+describe("network contact before trust", () => {
+  test("a plan of an untrusted source does not fetch its Git skills", async () => {
+    const profile = {
+      version: 1,
+      harnesses: ["pi"],
+      skills: { remote: { git: "https://ade-test.invalid/skills.git", ref: "main" } },
+    };
+    const lock = {
+      version: 1,
+      skills: {
+        remote: {
+          git: "https://ade-test.invalid/skills.git",
+          ref: "main",
+          commit: "a".repeat(40),
+          hash: "b".repeat(64),
+        },
+      },
+    };
+    const { url } = await repoWith({
+      "ade.json": `${JSON.stringify(profile, null, 2)}\n`,
+      "ade.lock.json": `${JSON.stringify(lock, null, 2)}\n`,
+    });
+    const root = await tempDir("ade-cli-");
+    const home = path.join(root, "home");
+    await fs.mkdir(home, { recursive: true });
+    const io = fakeIO(root);
+    const code = await runCli(["plan", url, "--home", home, "--json"], io);
+    assert.equal(code, EXIT.ok, io.errors());
+    const result = (JSON.parse(io.output()) as { result: { warnings: string[] } }).result;
+    assert.equal(
+      result.warnings.some((warning) => warning.includes("after you trust the source")),
+      true,
+    );
+  });
+});

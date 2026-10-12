@@ -254,8 +254,9 @@ export async function shipProfile(
     throw new AdeError("usage", "A preview cannot send secret values.");
   }
   const built = await buildProfileBundle(loaded, ctx, {
-    vendorGit: true,
+    vendorGit: options.previewSecrets !== true,
     vendorLinks: options.keepLinks !== true,
+    dropGitSkills: options.previewSecrets === true,
     runner: options.runner,
   });
   let secrets: Record<string, string> | undefined;
