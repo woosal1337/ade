@@ -26,7 +26,7 @@ describe("store on a real Postgres server", {
     target.pathname = `/${name}`;
     const db = postgresDb(target.toString());
     try {
-      assert.equal(await migrate(db), 2);
+      assert.equal(await migrate(db), 3);
       assert.equal(await migrate(db), 0);
       const user = await ensureUser(db, {
         workosUserId: "user_pg",

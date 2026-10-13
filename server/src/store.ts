@@ -9,6 +9,7 @@ export interface UserRow {
   readonly display_name: string;
   readonly avatar_url: string | null;
   readonly github_login: string | null;
+  readonly github_id: string | null;
   readonly created_at: Date;
   readonly updated_at: Date;
 }
@@ -36,6 +37,7 @@ export interface NewUser {
   readonly displayName: string;
   readonly avatarUrl: string | null;
   readonly githubLogin?: string | undefined;
+  readonly githubId?: string | undefined;
   readonly handleHints: readonly (string | undefined)[];
 }
 
@@ -95,8 +97,8 @@ export async function ensureUser(db: Db, user: NewUser): Promise<UserRow> {
     const handle = await pickHandle(db, user.handleHints);
     try {
       const [row] = await db.query<UserRow>(
-        `insert into users (id, workos_user_id, handle, display_name, avatar_url, github_login)
-         values ($1, $2, $3, $4, $5, $6)
+        `insert into users (id, workos_user_id, handle, display_name, avatar_url, github_login, github_id)
+         values ($1, $2, $3, $4, $5, $6, $7)
          on conflict (workos_user_id) do update set updated_at = users.updated_at
          returning *`,
         [
@@ -106,6 +108,7 @@ export async function ensureUser(db: Db, user: NewUser): Promise<UserRow> {
           user.displayName,
           user.avatarUrl,
           user.githubLogin ?? null,
+          user.githubId ?? null,
         ],
       );
       if (row !== undefined) {
@@ -118,6 +121,24 @@ export async function ensureUser(db: Db, user: NewUser): Promise<UserRow> {
     }
   }
   throw new Error("No free handle was found for the new account.");
+}
+
+export async function usersByGithubLogin(db: Db, login: string): Promise<UserRow[]> {
+  return db.query<UserRow>("select * from users where lower(github_login) = lower($1)", [login]);
+}
+
+export async function moveUser(
+  db: Db,
+  userId: string,
+  workosUserId: string,
+  githubId: string | undefined,
+): Promise<UserRow | undefined> {
+  const [row] = await db.query<UserRow>(
+    `update users set workos_user_id = $2, github_id = coalesce($3, github_id), updated_at = now()
+     where id = $1 returning *`,
+    [userId, workosUserId, githubId ?? null],
+  );
+  return row;
 }
 
 export async function renameUser(db: Db, userId: string, handle: string): Promise<UserRow> {

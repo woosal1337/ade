@@ -27,6 +27,7 @@ import {
   HandleTakenError,
   insertSnapshot,
   latestSnapshotMeta,
+  moveUser,
   renameUser,
   setApprovals,
   snapshotBundle,
@@ -34,6 +35,7 @@ import {
   updateProfile,
   userByHandle,
   userByWorkos,
+  usersByGithubLogin,
 } from "./store.ts";
 import {
   countStates,
@@ -191,10 +193,33 @@ export function createApp(options: AppOptions): Hono<{ Variables: Variables }> {
       displayName: identity.displayName.slice(0, DISPLAY_NAME_LIMIT),
       avatarUrl: identity.avatarUrl,
       githubLogin: identity.githubLogin,
+      githubId: identity.githubId,
       handleHints: identity.handleHints,
     });
-  const accountFor = async (userId: string): Promise<UserRow> =>
-    (await userByWorkos(db, userId)) ?? (await newAccount(await auth.identity(userId)));
+  const movedAccount = async (identity: Identity): Promise<UserRow | undefined> => {
+    if (identity.githubLogin === undefined) {
+      return undefined;
+    }
+    for (const row of await usersByGithubLogin(db, identity.githubLogin)) {
+      const sameGithub =
+        row.github_id === null
+          ? identity.githubId !== undefined
+          : row.github_id === identity.githubId;
+      if (sameGithub && !(await auth.userExists(row.workos_user_id))) {
+        log(`moved the account @${row.handle} to a new WorkOS user`);
+        return moveUser(db, row.id, identity.id, identity.githubId);
+      }
+    }
+    return undefined;
+  };
+  const accountFor = async (userId: string): Promise<UserRow> => {
+    const existing = await userByWorkos(db, userId);
+    if (existing !== undefined) {
+      return existing;
+    }
+    const identity = await auth.identity(userId);
+    return (await movedAccount(identity)) ?? (await newAccount(identity));
+  };
 
   app.use("*", async (c, next) => {
     const started = Date.now();

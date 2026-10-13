@@ -31,6 +31,7 @@ const MIGRATIONS: readonly (readonly string[])[] = [
     )`,
   ],
   [`alter table users add column github_login text`],
+  [`alter table users add column github_id text`],
 ];
 
 const LOCK_ID = 424_700_1;

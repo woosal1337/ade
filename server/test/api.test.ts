@@ -106,6 +106,31 @@ describe("accounts", () => {
     assert.equal(taken.status, 409);
   });
 
+  test("an account moves to a new WorkOS user only when the old user is gone and GitHub matches", async () => {
+    const { app, auth, db } = await testApp();
+    auth.addUser("user_old", "ege");
+    await app.request("/v1/me", bearer("ege"));
+    await app.request("/v1/me", bearer("ege", jsonBody("PATCH", { handle: "custom" })));
+    auth.githubIds.set("user_new", "4242");
+    auth.addUser("user_new", "ege");
+    const kept = await json(await app.request("/v1/me", bearer("ege")));
+    assert.equal((kept.account as Json).handle, "ege");
+    await db.query("delete from users where workos_user_id = $1", ["user_new"]);
+    auth.removedUsers.add("user_old");
+    const moved = await json(await app.request("/v1/me", bearer("ege")));
+    assert.equal((moved.account as Json).handle, "custom");
+    const [row] = await db.query<{ workos_user_id: string; github_id: string }>(
+      "select workos_user_id, github_id from users where handle = $1",
+      ["custom"],
+    );
+    assert.deepEqual(row, { workos_user_id: "user_new", github_id: "4242" });
+    auth.removedUsers.add("user_new");
+    auth.githubIds.set("user_other", "9999");
+    auth.addUser("user_other", "ege");
+    const other = await json(await app.request("/v1/me", bearer("ege")));
+    assert.notEqual((other.account as Json).handle, "custom");
+  });
+
   test("account deletion removes the public page", async () => {
     const { app, auth } = await testApp();
     auth.addUser("user_1", "gone");

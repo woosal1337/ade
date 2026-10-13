@@ -2,6 +2,7 @@ import {
   AuthenticationException,
   type AuthenticationResponse,
   GenericServerException,
+  NotFoundException,
   RateLimitExceededException,
   WorkOS,
 } from "@workos-inc/node";
@@ -12,6 +13,7 @@ export interface Identity {
   readonly displayName: string;
   readonly avatarUrl: string | null;
   readonly githubLogin?: string | undefined;
+  readonly githubId?: string | undefined;
   readonly handleHints: readonly (string | undefined)[];
 }
 
@@ -60,6 +62,7 @@ export interface AuthProvider {
   logout(sealed: string): Promise<void>;
   verifyBearer(token: string): Promise<string | undefined>;
   identity(userId: string): Promise<Identity>;
+  userExists(userId: string): Promise<boolean>;
 }
 
 export class AuthNotConfiguredError extends Error {}
@@ -80,6 +83,9 @@ export const notConfiguredAuth: AuthProvider = {
   logout: async () => undefined,
   verifyBearer: async () => undefined,
   async identity() {
+    throw new AuthNotConfiguredError("WorkOS is not configured.");
+  },
+  async userExists() {
     throw new AuthNotConfiguredError("WorkOS is not configured.");
   },
 };
@@ -205,10 +211,12 @@ export function workosAuth(options: WorkosOptions): AuthProvider {
 
   const toIdentity = async (user: WorkosUser): Promise<Identity> => {
     let login: string | undefined;
+    let githubId: string | undefined;
     try {
       const identities = await users.getUserIdentities(user.id);
       const github = identities.find((item) => item.provider === "GitHubOAuth");
       if (github !== undefined) {
+        githubId = /^\d+$/.test(github.idpId) ? github.idpId : undefined;
         login = await githubLogin(githubApi, github.idpId);
       }
     } catch {
@@ -221,6 +229,7 @@ export function workosAuth(options: WorkosOptions): AuthProvider {
       displayName: name || login || local || "",
       avatarUrl: httpsUrl(user.profilePictureUrl),
       githubLogin: login,
+      githubId,
       handleHints: [login, user.firstName ?? undefined, local],
     };
   };
@@ -322,6 +331,17 @@ export function workosAuth(options: WorkosOptions): AuthProvider {
     },
     async identity(userId) {
       return toIdentity(await users.getUser(userId));
+    },
+    async userExists(userId) {
+      try {
+        await users.getUser(userId);
+        return true;
+      } catch (error) {
+        if (error instanceof NotFoundException) {
+          return false;
+        }
+        throw error;
+      }
     },
   };
 }

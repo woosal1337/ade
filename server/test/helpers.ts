@@ -45,6 +45,8 @@ export class FakeAuth implements AuthProvider {
   readonly sessions = new Map<string, string>();
   readonly refreshes = new Map<string, string>();
   readonly loggedOut: string[] = [];
+  readonly githubIds = new Map<string, string>();
+  readonly removedUsers = new Set<string>();
   readonly unverified = new Set<string>();
   readonly pending = new Map<string, string>();
   readonly emailCode = "123456";
@@ -58,6 +60,7 @@ export class FakeAuth implements AuthProvider {
       displayName: name,
       avatarUrl: null,
       githubLogin: login,
+      githubId: this.githubIds.get(id),
       handleHints: [login],
     };
     this.identities.set(id, identity);
@@ -123,6 +126,9 @@ export class FakeAuth implements AuthProvider {
   }
   async verifyBearer(token: string) {
     return this.tokens.get(token);
+  }
+  async userExists(userId: string) {
+    return this.identities.has(userId) && !this.removedUsers.has(userId);
   }
   async identity(userId: string) {
     const identity = this.identities.get(userId);
