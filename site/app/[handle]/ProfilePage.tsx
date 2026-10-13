@@ -6,39 +6,12 @@ import { CopyCommand } from "../_components/CopyCommand";
 import { ArrowUpRight } from "../_components/primitives";
 import { SetupView } from "../_components/SetupView";
 import { SiteLink } from "../_components/SiteLink";
-import { useVisibility } from "../_components/useVisibility";
 import { VoteButtons } from "../_components/VoteButtons";
-import { getPerson, type Me, type PublicPage } from "../account";
-import { saveAccount, useAccount, withItems } from "../account-store";
+import { getPerson, type PublicPage } from "../account";
+import { useAccount } from "../account-store";
 import type { VoteTally } from "../people-query";
 
 const FRAME = "mx-auto max-w-[1100px] px-5";
-
-function OwnerView({ me }: { readonly me: Me }) {
-  const visibility = useVisibility(me.items, (items) => saveAccount(withItems(me, items)));
-  if (me.snapshot === null) {
-    return (
-      <p className="border border-line bg-panel p-5 text-[14px] text-muted">
-        This is your page. Run ade push on your machine to upload your setup.
-      </p>
-    );
-  }
-  return (
-    <div className="space-y-4">
-      <p className="border border-accent/30 bg-accent/5 px-4 py-3 text-[14px] leading-[1.6] text-muted">
-        <span className="text-fg">This is your page.</span> Others see only the items that you
-        switch on. An item that changes after your approval stays hidden until you switch it on
-        again.
-      </p>
-      {visibility.error === undefined ? null : (
-        <p className="border border-danger/40 bg-danger/10 px-3 py-2 font-mono text-[12px] text-danger">
-          {visibility.error}
-        </p>
-      )}
-      <SetupView items={visibility.items} editor={visibility} />
-    </div>
-  );
-}
 
 export function ProfilePage({
   page,
@@ -48,8 +21,7 @@ export function ProfilePage({
   readonly votes: VoteTally | undefined;
 }) {
   const account = useAccount();
-  const owner =
-    account.status === "in" && account.me.account.handle === page.handle ? account.me : undefined;
+  const owner = account.status === "in" && account.me.account.handle === page.handle;
   const [tally, setTally] = useState(votes);
   const signedIn = account.status === "in";
 
@@ -97,14 +69,14 @@ export function ProfilePage({
           {tally === undefined ? null : (
             <VoteButtons handle={page.handle} votes={tally} layout="row" />
           )}
-          {owner === undefined ? null : (
+          {owner ? (
             <SiteLink
               href="/dashboard"
               className="inline-flex h-8 items-center gap-2 border border-line-strong bg-raised px-2.5 font-mono text-[12px] text-fg hover:border-muted"
             >
-              Dashboard
+              Edit on the dashboard
             </SiteLink>
-          )}
+          ) : null}
         </div>
       </div>
       <div className="grid grid-cols-1 gap-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
@@ -116,9 +88,7 @@ export function ProfilePage({
           Download ADE.md <ArrowUpRight />
         </SiteLink>
       </div>
-      {owner !== undefined ? (
-        <OwnerView me={owner} />
-      ) : page.items.length === 0 ? (
+      {page.items.length === 0 ? (
         <p className="border border-line bg-panel p-5 text-[14px] text-muted">
           @{page.handle} shares no items yet.
         </p>

@@ -81,6 +81,8 @@ The source needs trust, like a Git source. ade shows what the setup runs and wri
 
 | Task | Where |
 |---|---|
+| Choose the items that others see | Dashboard, the switch of each item |
+| See the page as others see it | `ade.chele.bi/<name>`. The owner gets the same view, with a button that opens the dashboard |
 | Change the page name | Dashboard, Page name |
 | Show the linked account | `ade whoami` |
 | Remove the login of a machine | `ade logout` |

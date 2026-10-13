@@ -17,7 +17,8 @@ The first public version.
 - The site loads its fonts with `next/font/local`: preloaded, cached for a year, with a size-matched fallback. A page load no longer draws the text in a fallback font first. Internal links keep the page and do not load it again.
 - A long list on a setup page shows its first 5 entries, a fade, and an arrow button that shows the full list.
 - The Community page at `ade.chele.bi/community` lists each person with a public setup: search, harness and content filters, sort, the update date, and votes from logged-in users. Each public page also has the vote buttons.
-- The dashboard, the page header, and the owner view of a page show the cached account at once, then check it with the API. One request serves the header and the page.
+- The dashboard and the page header show the cached account at once, then check it with the API. One request serves the header and the page.
+- A public page shows the same items to its owner and to each visitor. The owner changes the page on the dashboard only.
 - The login uses the own WorkOS project `ade`. The GitHub screen and the login emails show "ade". An account moves to its new WorkOS user at the next login.
 - Install scripts for macOS, Linux, and Windows. They build a package file with `npm pack`, then install it, because `npm install -g` of a Git source fails in npm (npm/cli#8440).
 
