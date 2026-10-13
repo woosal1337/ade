@@ -75,9 +75,18 @@ function userJson(user: FakeUser) {
   };
 }
 
-export async function startFakeWorkos(clientId = "client_fake"): Promise<FakeWorkos> {
+export interface FakeWorkosOptions {
+  readonly clientId?: string;
+  readonly host?: string;
+  readonly port?: number;
+  readonly publicUrl?: string;
+}
+
+export async function startFakeWorkos(options: FakeWorkosOptions = {}): Promise<FakeWorkos> {
+  const clientId = options.clientId ?? "client_fake";
   const keys = await generateKeyPair("RS256");
-  const jwk = { ...(await exportJWK(keys.publicKey)), kid: "fake-1", alg: "RS256", use: "sig" };
+  const kid = `fake-${randomBytes(4).toString("hex")}`;
+  const jwk = { ...(await exportJWK(keys.publicKey)), kid, alg: "RS256", use: "sig" };
   const users = new Map<string, FakeUser>();
   const devices = new Map<string, DeviceGrant>();
   const codes = new Map<string, string>();
@@ -92,7 +101,7 @@ export async function startFakeWorkos(clientId = "client_fake"): Promise<FakeWor
     }
     const now = Math.floor(Date.now() / 1000);
     const access = await new SignJWT({ sid: sessionId })
-      .setProtectedHeader({ alg: "RS256", kid: "fake-1" })
+      .setProtectedHeader({ alg: "RS256", kid })
       .setSubject(userId)
       .setIssuedAt(now)
       .setExpirationTime(now + fake.accessTtl)
@@ -191,6 +200,11 @@ export async function startFakeWorkos(clientId = "client_fake"): Promise<FakeWor
       response.setHeader("location", target.toString());
       return response.end();
     }
+    if (request.method === "POST" && path === "/user_management/sessions/revoke") {
+      const form = await body(request);
+      revoked.push(form.session_id ?? "");
+      return send(response, 200, {});
+    }
     if (request.method === "GET" && path === "/user_management/sessions/logout") {
       revoked.push(url.searchParams.get("session_id") ?? "");
       response.statusCode = 302;
@@ -219,10 +233,12 @@ export async function startFakeWorkos(clientId = "client_fake"): Promise<FakeWor
       send(response, 500, { message: String(error) });
     });
   });
-  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  await new Promise<void>((resolve) =>
+    server.listen(options.port ?? 0, options.host ?? "127.0.0.1", resolve),
+  );
   const { port } = server.address() as AddressInfo;
   const fake: FakeWorkos = {
-    url: `http://127.0.0.1:${port}`,
+    url: options.publicUrl?.replace(/\/+$/, "") ?? `http://127.0.0.1:${port}`,
     clientId,
     users,
     accessTtl: 300,

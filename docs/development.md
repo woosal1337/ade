@@ -75,6 +75,33 @@ npm --prefix site run dev
 
 Without the three WorkOS variables, the API runs with the login off.
 
+## Run the accounts stack locally
+
+`server/dev/compose.yml` runs PostgreSQL, the API image, and a local WorkOS stand-in. The stand-in signs each login in as one demo user, so the stack needs no WorkOS keys. It uses OrbStack domains.
+
+1. Start the stack. Set `ADE_DEV_NAME` to choose the name of the demo user:
+
+   ```bash
+   ADE_DEV_NAME=Ege docker compose -f server/dev/compose.yml up -d --build
+   ```
+
+2. Start the site against the API:
+
+   ```bash
+   ADE_API_ORIGIN=http://127.0.0.1:8790 npm --prefix site run dev -- -p 3197
+   ```
+
+3. Open http://localhost:3197/dashboard and log in.
+4. Upload a profile from the CLI:
+
+   ```bash
+   export ADE_API_URL=http://127.0.0.1:8790 ADE_SITE_URL=http://localhost:3197
+   ade login
+   ade push
+   ```
+
+5. Stop the stack with `docker compose -f server/dev/compose.yml down`. Add `-v` to delete the database.
+
 ## Use the CLI from this clone
 
 Node.js runs the TypeScript source directly:

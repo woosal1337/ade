@@ -44,6 +44,7 @@ export class FakeAuth implements AuthProvider {
   readonly codes = new Map<string, string>();
   readonly sessions = new Map<string, string>();
   readonly refreshes = new Map<string, string>();
+  readonly loggedOut: string[] = [];
   constructor(configured = true) {
     this.configured = configured;
   }
@@ -89,8 +90,8 @@ export class FakeAuth implements AuthProvider {
     }
     return refreshed === undefined ? { userId: id } : { userId: id, sealed: refreshed };
   }
-  async logoutUrl(_sealed: string, returnTo: string) {
-    return `https://auth.test/logout?return_to=${encodeURIComponent(returnTo)}`;
+  async logout(sealed: string) {
+    this.loggedOut.push(sealed);
   }
   async verifyBearer(token: string) {
     return this.tokens.get(token);

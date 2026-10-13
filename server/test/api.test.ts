@@ -350,7 +350,8 @@ describe("web sessions", () => {
       headers: { cookie: "ade_session=sealed-old", origin: SITE },
     });
     const body = await json(logout);
-    assert.match(String(body.redirect), /^https:\/\/auth\.test\/logout/);
+    assert.equal(body.redirect, `${SITE}/`);
+    assert.deepEqual(auth.loggedOut, ["sealed-old"]);
     assert.match(logout.headers.getSetCookie().join("\n"), /ade_session=;/);
     assert.match(logout.headers.getSetCookie().join("\n"), /ade_hint=;/);
   });

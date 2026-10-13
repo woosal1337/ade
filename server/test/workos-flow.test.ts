@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { after, before, describe, test } from "node:test";
 import { createApp } from "../src/app.ts";
 import { workosAuth } from "../src/auth.ts";
-import { type FakeWorkos, startFakeWorkos } from "./fake-workos.ts";
+import { type FakeWorkos, startFakeWorkos } from "../dev/fake-workos.ts";
 import { API, memoryDb, SITE } from "./helpers.ts";
 
 type Json = Record<string, unknown>;
@@ -125,9 +125,8 @@ describe("WorkOS flows with the real SDK", () => {
       method: "POST",
       headers: { cookie: `ade_session=${renewed}`, origin: SITE },
     });
-    const redirect = String(((await logout.json()) as Json).redirect);
-    const ended = await fetch(redirect, { redirect: "manual" });
-    assert.equal(ended.headers.get("location"), `${SITE}/`);
+    assert.equal(((await logout.json()) as Json).redirect, `${SITE}/`);
     assert.equal(workos.revokedSessions().length, 1);
+    assert.match(workos.revokedSessions()[0] ?? "", /^session_/);
   });
 });

@@ -29,4 +29,5 @@ Ege asked for GitHub login on ade.chele.bi, a page for each user at `ade.chele.b
 - The site needs the API for `/dashboard` and `/<name>`. The home page stays static.
 - The API stores hidden items too. Only the owner can read them.
 - A WorkOS access token lives about 5 minutes. The CLI keeps the refresh token in the state folder with mode 600.
-- Ege configures the WorkOS dashboard: GitHub as the login provider, the redirect URI, and CLI Auth.
+- The first environment is WorkOS Staging. It uses the GitHub app of WorkOS. A move to Production needs a GitHub OAuth App and a new key.
+- The API key registers the redirect URIs. A logout revokes the session through the API key, so no sign-out redirect is necessary.

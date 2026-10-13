@@ -151,13 +151,19 @@ The API applies new database migrations when it starts.
 
 The API runs with the login off until it has the three WorkOS values.
 
-1. In the WorkOS dashboard, turn on GitHub as a login provider.
-2. Add the redirect URI `https://ade.chele.bi/api/auth/callback`.
-3. Add `https://ade.chele.bi/` as the sign-out redirect.
-4. Turn on CLI Auth.
-5. Set `WORKOS_API_KEY`, `WORKOS_CLIENT_ID`, and `WORKOS_COOKIE_PASSWORD` on the Coolify app, then redeploy. The cookie password needs 32 or more characters.
+1. Register the redirect URI with the WorkOS API key:
 
-Run `curl -s https://ade-api.chele.bi/health`. Make sure that it prints `"auth":true`.
+   ```bash
+   curl -s https://api.workos.com/user_management/redirect_uris \
+     -H "Authorization: Bearer $WORKOS_API_KEY" -H "Content-Type: application/json" \
+     -d '{"uri": "https://ade.chele.bi/api/auth/callback"}'
+   ```
+
+2. Set `WORKOS_API_KEY`, `WORKOS_CLIENT_ID`, and `WORKOS_COOKIE_PASSWORD` on the Coolify app. The cookie password needs 32 or more characters.
+3. Redeploy the app.
+4. Run `curl -s https://ade-api.chele.bi/health`. Make sure that it prints `"auth":true`.
+
+A WorkOS Staging environment uses the GitHub app of WorkOS, and the GitHub screen shows the WorkOS name. A Production environment needs your own GitHub OAuth App in the WorkOS dashboard. The logout ends the session through the API key, so it needs no sign-out redirect.
 
 ## Update the GitHub social preview
 

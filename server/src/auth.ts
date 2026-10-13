@@ -1,5 +1,5 @@
 import { WorkOS } from "@workos-inc/node";
-import { createRemoteJWKSet, type JWTVerifyGetKey, jwtVerify } from "jose";
+import { createRemoteJWKSet, decodeJwt, type JWTVerifyGetKey, jwtVerify } from "jose";
 
 export interface Identity {
   readonly id: string;
@@ -26,7 +26,7 @@ export interface AuthProvider {
   loginUrl(state: string, redirectUri: string): string;
   completeLogin(code: string): Promise<{ readonly userId: string; readonly sealed: string }>;
   readSession(sealed: string): Promise<WebSession | undefined>;
-  logoutUrl(sealed: string, returnTo: string): Promise<string | undefined>;
+  logout(sealed: string): Promise<void>;
   verifyBearer(token: string): Promise<string | undefined>;
   identity(userId: string): Promise<Identity>;
 }
@@ -43,7 +43,7 @@ export const notConfiguredAuth: AuthProvider = {
     throw new AuthNotConfiguredError("WorkOS is not configured.");
   },
   readSession: async () => undefined,
-  logoutUrl: async () => undefined,
+  logout: async () => undefined,
   verifyBearer: async () => undefined,
   async identity() {
     throw new AuthNotConfiguredError("WorkOS is not configured.");
@@ -197,15 +197,19 @@ export function workosAuth(options: WorkosOptions): AuthProvider {
       }
       return { userId: refreshed.user.id, sealed: refreshed.sealedSession };
     },
-    async logoutUrl(sealed, returnTo) {
+    async logout(sealed) {
+      let sessionId: unknown;
       try {
-        const session = users.loadSealedSession({
+        const session = await users.getSessionFromCookie({
           sessionData: sealed,
           cookiePassword: options.cookiePassword,
         });
-        return await session.getLogoutUrl({ returnTo });
+        sessionId = session === undefined ? undefined : decodeJwt(session.accessToken).sid;
       } catch {
-        return undefined;
+        return;
+      }
+      if (typeof sessionId === "string") {
+        await users.revokeSession({ sessionId }).catch(() => undefined);
       }
     },
     async verifyBearer(token) {

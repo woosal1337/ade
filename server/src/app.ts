@@ -165,10 +165,7 @@ export function createApp(options: AppOptions): Hono<{ Variables: Variables }> {
       const match = /^Bearer\s+(\S+)$/i.exec(header);
       const userId = match?.[1] === undefined ? undefined : await auth.verifyBearer(match[1]);
       if (userId === undefined) {
-        return c.json(
-          errorBody("unauthorized", "The access token is not valid. Run `ade login`."),
-          401,
-        );
+        return c.json(errorBody("unauthorized", "The access token is not valid."), 401);
       }
       const account = await accountFor(userId);
       if (!owners.hit(account.id)) {
@@ -298,10 +295,11 @@ export function createApp(options: AppOptions): Hono<{ Variables: Variables }> {
       return c.json(errorBody("forbidden", "The request did not come from the ade site."), 403);
     }
     const sealed = getCookie(c, SESSION_COOKIE);
-    const redirect =
-      sealed === undefined ? undefined : await auth.logoutUrl(sealed, `${options.siteUrl}/`);
+    if (sealed !== undefined) {
+      await auth.logout(sealed);
+    }
     clearSession(c);
-    return c.json({ redirect: redirect ?? `${options.siteUrl}/` });
+    return c.json({ redirect: `${options.siteUrl}/` });
   });
 
   app.get("/v1/me", requireAccount, async (c) => {
