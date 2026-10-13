@@ -76,14 +76,14 @@ A rename moves the page at once. The old name then shows 404.
 
 | Variable | Default | Use |
 |---|---|---|
-| `ADE_API_URL` | `https://api.ade.chele.bi` | The API for login, push, and `@name` sources |
+| `ADE_API_URL` | `https://ade-api.chele.bi` | The API for login, push, and `@name` sources |
 | `ADE_SITE_URL` | `https://ade.chele.bi` | The site for page links and `ade.chele.bi/<name>` sources |
 
 The CLI keeps its tokens in `account.json` in the state folder, with mode 600.
 
 ## API
 
-The API answers on `https://api.ade.chele.bi` and on `https://ade.chele.bi/api`.
+The API answers on `https://ade-api.chele.bi` and on `https://ade.chele.bi/api`.
 
 | Request | Access | Result |
 |---|---|---|

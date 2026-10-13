@@ -11,7 +11,7 @@ Ege asked for GitHub login on ade.chele.bi, a page for each user at `ade.chele.b
 ## Decision
 
 1. WorkOS AuthKit runs the GitHub login. The web uses the WorkOS redirect flow with a sealed session in an HttpOnly cookie. The CLI uses WorkOS CLI Auth, the OAuth device flow.
-2. The API in `server/` runs on Igris in Coolify, with a Coolify PostgreSQL database. The tunnel `igris-coolify` serves it at `api.ade.chele.bi`.
+2. The API in `server/` runs on Igris in Coolify, with a Coolify PostgreSQL database. The tunnel `igris-coolify` serves it at `ade-api.chele.bi`. The free Cloudflare certificate covers one level below `chele.bi` only, so the API cannot use `api.ade.chele.bi`.
 3. The site leaves static export. Vercel renders `/<name>` on the server, and it sends `/api/*` to the API. The session cookie stays first-party on ade.chele.bi.
 4. `ade push` uploads the same self-contained bundle as `ade share`. The CLI and the API both refuse token values and local paths.
 5. Each item of an upload has a key and a content hash. An item is public only when the owner approved that key with that hash. A new item starts hidden. A changed item is hidden again until the owner approves it again.

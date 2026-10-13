@@ -7,7 +7,7 @@ import { printable } from "../core/text.ts";
 import { VERSION } from "../version.ts";
 import { isHandle, normalizeHandle } from "./handles.ts";
 
-export const DEFAULT_API_URL = "https://api.ade.chele.bi";
+export const DEFAULT_API_URL = "https://ade-api.chele.bi";
 export const DEFAULT_SITE_URL = "https://ade.chele.bi";
 
 const CREDENTIALS_FILE = "account.json";

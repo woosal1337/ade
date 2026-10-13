@@ -66,7 +66,7 @@ The state directory is `$ADE_STATE_DIR`, or `$XDG_STATE_HOME/ade`, or `~/.local/
 
 ade runs on the machine that it configures, or it sends its engine to another machine over SSH. The engine needs no server. The npm package `@woosal1337/ade` stays private until a release decision. Node.js 22 or later runs the built package from `dist/`.
 
-The accounts API in `server/` runs on Igris in Coolify, with PostgreSQL. It serves `api.ade.chele.bi`. Vercel runs the site at ade.chele.bi and sends `/api/*` to the API. Read [the accounts guide](accounts.md) and [decision 0011](decisions/0011-accounts-and-public-pages.md).
+The accounts API in `server/` runs on Igris in Coolify, with PostgreSQL. It serves `ade-api.chele.bi`. Vercel runs the site at ade.chele.bi and sends `/api/*` to the API. Read [the accounts guide](accounts.md) and [decision 0011](decisions/0011-accounts-and-public-pages.md).
 
 ## Decisions
 

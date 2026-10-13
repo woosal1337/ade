@@ -101,7 +101,7 @@ ade reads these variables. All are optional.
 | `ADE_STATE_DIR` | State directory with `state.json` and the apply records |
 | `ADE_CACHE_DIR` | Cache directory for Git skill sources |
 | `CLAUDE_CONFIG_DIR`, `CODEX_HOME`, `GROK_HOME`, `PI_CODING_AGENT_DIR` | Harness home overrides |
-| `ADE_API_URL` | The accounts API. Default: `https://api.ade.chele.bi` |
+| `ADE_API_URL` | The accounts API. Default: `https://ade-api.chele.bi` |
 | `ADE_SITE_URL` | The site for page links and `ade.chele.bi/<name>` sources. Default: `https://ade.chele.bi` |
 | `NO_COLOR` | Plain output |
 

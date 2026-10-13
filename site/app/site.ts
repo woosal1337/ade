@@ -2,7 +2,7 @@ import { SOCIAL_ALT } from "./social-image";
 
 export const SITE_URL = "https://ade.chele.bi";
 
-export const API_ORIGIN = (process.env.ADE_API_ORIGIN ?? "https://api.ade.chele.bi").replace(
+export const API_ORIGIN = (process.env.ADE_API_ORIGIN ?? "https://ade-api.chele.bi").replace(
   /\/+$/,
   "",
 );
