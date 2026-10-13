@@ -24,7 +24,7 @@ const BUTTON =
 
 export function Preview({ open, me, items, unsaved, saving, onSave, onClose }: PreviewProps) {
   const dialog = useRef<HTMLDialogElement>(null);
-  const [tab, setTab] = useState<Tab>("card");
+  const [tab, setTab] = useState<Tab>("page");
   const [votes, setVotes] = useState<VoteTally>();
   const [now, setNow] = useState(() => new Date().toISOString());
   const { account } = me;
@@ -36,6 +36,7 @@ export function Preview({ open, me, items, unsaved, saving, onSave, onClose }: P
     }
     if (open && !element.open) {
       element.showModal();
+      setTab("page");
       setNow(new Date().toISOString());
       document.documentElement.style.overflow = "hidden";
     }
@@ -114,8 +115,8 @@ export function Preview({ open, me, items, unsaved, saving, onSave, onClose }: P
                 </p>
               </div>
               <div role="tablist" aria-label="Preview" className="flex gap-2">
-                {tabButton("card", "Community card")}
                 {tabButton("page", "Public page")}
+                {tabButton("card", "Community card")}
               </div>
               <div className="flex items-center gap-2">
                 {unsaved === 0 ? null : (
