@@ -5,6 +5,7 @@ import type { AddressInfo } from "node:net";
 import path from "node:path";
 import { after, before, describe, test } from "node:test";
 import { EXIT, runCli } from "../src/cli/main.ts";
+import { createContext } from "../src/core/context.ts";
 import { exportBundle } from "../src/profile/bundle.ts";
 import { loadProfile, saveProfile } from "../src/profile/load.ts";
 import { writeMarkdown } from "../src/profile/markdown.ts";
@@ -171,6 +172,10 @@ after(async () => {
   }
 });
 
+function accountFile(home: string): string {
+  return path.join(createContext({ home }).stateDir, "account.json");
+}
+
 async function cli(args: string[], home: string) {
   const io = fakeIO(home);
   const code = await runCli([...args, "--home", home], io);
@@ -207,7 +212,8 @@ describe("ade accounts", () => {
     assert.equal(logged.code, EXIT.ok, logged.err);
     assert.match(logged.out, /confirm the code ABCD-EFGH/);
     assert.match(logged.out, /Logged in as @ege\./);
-    const file = path.join(home, ".local", "state", "ade", "account.json");
+    const file = accountFile(home);
+    assert.equal(await exists(file), true);
     if (POSIX) {
       assert.equal((await fs.stat(file)).mode & 0o777, 0o600);
     }
@@ -256,9 +262,7 @@ describe("ade accounts", () => {
       "ade.json",
     ]);
     assert.equal(upload.client.version, "0.1.0");
-    const stored = JSON.parse(
-      await fs.readFile(path.join(home, ".local", "state", "ade", "account.json"), "utf8"),
-    );
+    const stored = JSON.parse(await fs.readFile(accountFile(home), "utf8"));
     assert.equal(stored.refreshToken, `refresh-${api.accessCount}`);
     api.rejected.add(stored.accessToken);
     const again = await cli(["push", "--profile", dir], home);
