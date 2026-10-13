@@ -144,6 +144,21 @@ export function logout(): Promise<{ readonly redirect: string }> {
   return call("/auth/logout", { method: "POST" });
 }
 
+export async function pendingLogin(): Promise<{ readonly email: string } | undefined> {
+  try {
+    return await call<{ readonly email: string }>("/auth/pending");
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) {
+      return undefined;
+    }
+    throw error;
+  }
+}
+
+export function verifyLogin(code: string): Promise<{ readonly redirect: string }> {
+  return call("/auth/verify", { method: "POST", body: JSON.stringify({ code }) });
+}
+
 export function loginUrl(returnTo: string): string {
   return `/api/auth/login?returnTo=${encodeURIComponent(returnTo)}`;
 }

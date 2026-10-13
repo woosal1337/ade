@@ -6,7 +6,7 @@ import { loadProfile, saveProfile } from "../../src/profile/load.ts";
 import type { Profile } from "../../src/profile/schema.ts";
 import { tempDir, writeText } from "../../test/helpers.ts";
 import { createApp } from "../src/app.ts";
-import type { AuthProvider, Identity } from "../src/auth.ts";
+import { type AuthProvider, type Identity, LoginCodeError, type LoginResult } from "../src/auth.ts";
 import type { Db } from "../src/db.ts";
 import { migrate } from "../src/migrate.ts";
 
@@ -45,6 +45,10 @@ export class FakeAuth implements AuthProvider {
   readonly sessions = new Map<string, string>();
   readonly refreshes = new Map<string, string>();
   readonly loggedOut: string[] = [];
+  readonly unverified = new Set<string>();
+  readonly pending = new Map<string, string>();
+  readonly emailCode = "123456";
+  logLines: string[] = [];
   constructor(configured = true) {
     this.configured = configured;
   }
@@ -73,14 +77,38 @@ export class FakeAuth implements AuthProvider {
   loginUrl(state: string, redirectUri: string): string {
     return `https://auth.test/authorize?state=${encodeURIComponent(state)}&redirect_uri=${encodeURIComponent(redirectUri)}`;
   }
-  async completeLogin(code: string) {
+  #session(id: string): LoginResult {
+    const sealed = `sealed-${id}-${this.sessions.size}`;
+    this.sessions.set(sealed, id);
+    return { kind: "done", userId: id, sealed };
+  }
+  async completeLogin(code: string): Promise<LoginResult> {
     const id = this.codes.get(code);
     if (id === undefined || !this.identities.has(id)) {
       throw new Error("bad code");
     }
-    const sealed = `sealed-${id}-${this.sessions.size}`;
-    this.sessions.set(sealed, id);
-    return { userId: id, sealed };
+    if (this.unverified.has(id)) {
+      const token = `pending-${id}-${this.pending.size}`;
+      this.pending.set(token, id);
+      return {
+        kind: "verify",
+        token,
+        email: `${this.identities.get(id)?.githubLogin}@example.org`,
+      };
+    }
+    return this.#session(id);
+  }
+  async verifyEmail(token: string, code: string): Promise<LoginResult> {
+    const id = this.pending.get(token);
+    if (id === undefined) {
+      throw new LoginCodeError("expired");
+    }
+    if (code !== this.emailCode) {
+      throw new LoginCodeError("invalid-code");
+    }
+    this.pending.delete(token);
+    this.unverified.delete(id);
+    return this.#session(id);
   }
   async readSession(sealed: string) {
     const refreshed = this.refreshes.get(sealed);
@@ -111,7 +139,13 @@ export const API = "https://ade.test/api";
 export async function testApp(options: { configured?: boolean } = {}) {
   const db = await memoryDb();
   const auth = new FakeAuth(options.configured ?? true);
-  const app = createApp({ db, auth, siteUrl: SITE, publicApiUrl: API });
+  const app = createApp({
+    db,
+    auth,
+    siteUrl: SITE,
+    publicApiUrl: API,
+    log: (line) => auth.logLines.push(line),
+  });
   return { app, db, auth };
 }
 

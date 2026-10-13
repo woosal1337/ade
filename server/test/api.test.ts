@@ -362,4 +362,112 @@ describe("web sessions", () => {
     assert.equal(response.status, 401);
     assert.match(response.headers.getSetCookie().join("\n"), /ade_session=;/);
   });
+
+  async function startLogin(
+    app: Awaited<ReturnType<typeof testApp>>["app"],
+    returnTo = "/dashboard",
+  ) {
+    const start = await app.request(`/auth/login?returnTo=${encodeURIComponent(returnTo)}`);
+    const state = new URL(start.headers.get("location") ?? "").searchParams.get("state") ?? "";
+    return { state, cookie: `ade_login=${cookieOf(start, "ade_login")}` };
+  }
+
+  test("a login that needs an email code waits for the code, and the code finishes it", async () => {
+    const { app, auth } = await testApp();
+    auth.addUser("user_1", "ege");
+    auth.unverified.add("user_1");
+    const { state, cookie } = await startLogin(app, "/ege");
+    const callback = await app.request(
+      `/auth/callback?code=code-ege&state=${encodeURIComponent(state)}`,
+      {
+        headers: { cookie },
+      },
+    );
+    assert.equal(callback.headers.get("location"), `${SITE}/dashboard?login=verify`);
+    assert.equal(cookieOf(callback, "ade_session"), undefined);
+    const pending = cookieOf(callback, "ade_pending");
+    assert.ok(pending);
+    assert.match(
+      callback.headers.getSetCookie().join("\n"),
+      /ade_pending=[^;]+; Max-Age=600; Path=\/api; HttpOnly; Secure; SameSite=Lax/,
+    );
+    const withPending = { cookie: `ade_pending=${pending}` };
+    const shown = await json(await app.request("/auth/pending", { headers: withPending }));
+    assert.equal(shown.email, "eg***@example.org");
+    const post = (code: string, origin = SITE) =>
+      app.request(
+        "/auth/verify",
+        jsonBody("POST", { code }, { headers: { ...withPending, origin } }),
+      );
+    assert.equal((await post("123456", "https://evil.test")).status, 403);
+    assert.equal((await post("12")).status, 400);
+    const wrong = await post("000000");
+    assert.equal(wrong.status, 400);
+    assert.equal(((await json(wrong)).error as Json).code, "code-invalid");
+    const right = await post("123456");
+    assert.equal(right.status, 200);
+    assert.deepEqual(await json(right), { redirect: "/ege" });
+    const session = cookieOf(right, "ade_session");
+    assert.ok(session);
+    assert.match(right.headers.getSetCookie().join("\n"), /ade_pending=;/);
+    const me = await app.request("/v1/me", { headers: { cookie: `ade_session=${session}` } });
+    assert.equal(((await json(me)).account as Json).handle, "ege");
+    const again = await post("123456");
+    assert.equal(((await json(again)).error as Json).code, "login-expired");
+  });
+
+  test("a code check without a pending login, and too many wrong codes, need a new login", async () => {
+    const { app, auth } = await testApp();
+    auth.addUser("user_1", "ege");
+    auth.unverified.add("user_1");
+    const none = await app.request(
+      "/auth/verify",
+      jsonBody("POST", { code: "123456" }, { headers: { origin: SITE } }),
+    );
+    assert.equal(((await json(none)).error as Json).code, "login-expired");
+    assert.equal((await app.request("/auth/pending")).status, 404);
+    const { state, cookie } = await startLogin(app);
+    const callback = await app.request(
+      `/auth/callback?code=code-ege&state=${encodeURIComponent(state)}`,
+      {
+        headers: { cookie },
+      },
+    );
+    const headers = { cookie: `ade_pending=${cookieOf(callback, "ade_pending")}`, origin: SITE };
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const wrong = await app.request(
+        "/auth/verify",
+        jsonBody("POST", { code: "000000" }, { headers }),
+      );
+      assert.equal(wrong.status, 400);
+    }
+    const blocked = await app.request(
+      "/auth/verify",
+      jsonBody("POST", { code: "123456" }, { headers }),
+    );
+    assert.equal(blocked.status, 429);
+    assert.match(blocked.headers.getSetCookie().join("\n"), /ade_pending=;/);
+  });
+
+  test("a second callback request keeps the login state, and a WorkOS error goes to the log", async () => {
+    const { app, auth } = await testApp();
+    auth.addUser("user_1", "ege");
+    auth.sessions.set("sealed-1", "user_1");
+    const pendingOnly = await app.request("/auth/callback?code=x&state=y", {
+      headers: {
+        cookie: `ade_pending=${Buffer.from(JSON.stringify({ token: "t", email: "e@x.org", returnTo: "/dashboard" })).toString("base64url")}`,
+      },
+    });
+    assert.equal(pendingOnly.headers.get("location"), `${SITE}/dashboard?login=verify`);
+    const sessionOnly = await app.request("/auth/callback?code=x&state=y", {
+      headers: { cookie: "ade_session=sealed-1" },
+    });
+    assert.equal(sessionOnly.headers.get("location"), `${SITE}/dashboard`);
+    const nothing = await app.request("/auth/callback?code=x&state=y");
+    assert.equal(nothing.headers.get("location"), `${SITE}/dashboard?login=failed`);
+    const denied = await app.request("/auth/callback?error=access_denied&state=y");
+    assert.equal(denied.headers.get("location"), `${SITE}/dashboard?login=failed`);
+    assert.ok(auth.logLines.some((line) => line.includes("WorkOS sent the error access_denied")));
+    assert.ok(auth.logLines.some((line) => line.includes("no matching state")));
+  });
 });

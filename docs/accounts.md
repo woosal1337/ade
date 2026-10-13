@@ -22,6 +22,8 @@ An ade account gives you a page at `ade.chele.bi/<name>`. You upload your setup 
 
 Run `ade push` again after a change on your machine. The dashboard shows the new upload.
 
+At the first login, WorkOS can ask for proof of the email address of your GitHub account. WorkOS then sends a 6-digit code to that address, and the dashboard asks for it. The login waits 10 minutes for the code. To get a new code, start the login again.
+
 ## What ade uploads
 
 `ade push` uploads the same bundle as `ade share`:

@@ -1,9 +1,10 @@
-import { randomBytes, timingSafeEqual } from "node:crypto";
+import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { type Context, Hono, type MiddlewareHandler } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { handleProblem, normalizeHandle } from "../../src/account/handles.ts";
 import { isAdeError } from "../../src/core/errors.ts";
+import { printable } from "../../src/core/text.ts";
 import { bundleDigest, isItemKey, profileItems, readBundle } from "../../src/profile/catalog.ts";
 import { scanBundle } from "../../src/profile/pack.ts";
 import { sharedProblems } from "../../src/profile/source.ts";
@@ -13,6 +14,9 @@ import {
   type AuthProvider,
   AuthUnavailableError,
   type Identity,
+  LoginCodeError,
+  type LoginResult,
+  LoginStepError,
 } from "./auth.ts";
 import type { Db } from "./db.ts";
 import { RateLimiter } from "./limits.ts";
@@ -57,6 +61,9 @@ type Variables = {
 const SESSION_COOKIE = "ade_session";
 const HINT_COOKIE = "ade_hint";
 const STATE_COOKIE = "ade_login";
+const PENDING_COOKIE = "ade_pending";
+const PENDING_MAX_AGE = 600;
+const LOGIN_CODE = /^\d{6}$/;
 const SESSION_MAX_AGE = 30 * 24 * 60 * 60;
 const MAX_UPLOAD_BYTES = 8 * 1024 * 1024;
 const MAX_JSON_BYTES = 256 * 1024;
@@ -89,6 +96,48 @@ function safeReturnPath(value: string | undefined): string {
   return /^[A-Za-z0-9/_\-.?=&%]*$/.test(value) ? value : "/dashboard";
 }
 
+interface PendingLogin {
+  readonly token: string;
+  readonly email: string;
+  readonly returnTo: string;
+}
+
+function encodePending(pending: PendingLogin): string {
+  return Buffer.from(JSON.stringify(pending)).toString("base64url");
+}
+
+function decodePending(value: string | undefined): PendingLogin | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  try {
+    const parsed: unknown = JSON.parse(Buffer.from(value, "base64url").toString("utf8"));
+    if (
+      typeof parsed === "object" &&
+      parsed !== null &&
+      typeof (parsed as PendingLogin).token === "string" &&
+      typeof (parsed as PendingLogin).email === "string" &&
+      typeof (parsed as PendingLogin).returnTo === "string"
+    ) {
+      const pending = parsed as PendingLogin;
+      return { ...pending, returnTo: safeReturnPath(pending.returnTo) };
+    }
+  } catch {
+    return undefined;
+  }
+  return undefined;
+}
+
+export function maskEmail(email: string): string {
+  const at = email.lastIndexOf("@");
+  if (at <= 0) {
+    return "your email address";
+  }
+  const name = email.slice(0, at);
+  const visible = name.length <= 2 ? name.slice(0, 1) : name.slice(0, 2);
+  return `${visible}***${email.slice(at)}`;
+}
+
 function clientIp(c: Context, fallback: ((c: Context) => string | undefined) | undefined): string {
   const forwarded = c.req.header("cf-connecting-ip") ?? c.req.header("x-forwarded-for");
   const first = forwarded?.split(",")[0]?.trim();
@@ -118,6 +167,7 @@ export function createApp(options: AppOptions): Hono<{ Variables: Variables }> {
   const logins = new RateLimiter(120, 60_000);
   const owners = new RateLimiter(300, 60_000);
   const uploads = new RateLimiter(30, 60 * 60_000);
+  const codeTries = new RateLimiter(5, PENDING_MAX_AGE * 1000);
   const log = options.log ?? (() => undefined);
 
   const sessionCookie = (c: Context, value: string): void => {
@@ -264,29 +314,120 @@ export function createApp(options: AppOptions): Hono<{ Variables: Variables }> {
     return c.redirect(auth.loginUrl(state, callbackUrl), 302);
   });
 
+  const pendingCookie = (c: Context, pending: PendingLogin): void => {
+    setCookie(c, PENDING_COOKIE, encodePending(pending), {
+      path: cookiePath,
+      httpOnly: true,
+      secure,
+      sameSite: "Lax",
+      maxAge: PENDING_MAX_AGE,
+    });
+  };
+  const clearPending = (c: Context): void => {
+    deleteCookie(c, PENDING_COOKIE, { path: cookiePath, secure });
+  };
+  const finishLogin = async (c: Context, result: LoginResult, returnTo: string) => {
+    if (result.kind === "verify") {
+      pendingCookie(c, { token: result.token, email: result.email, returnTo });
+      return `${options.siteUrl}/dashboard?login=verify`;
+    }
+    await accountFor(result.userId);
+    sessionCookie(c, result.sealed);
+    clearPending(c);
+    return `${options.siteUrl}${returnTo}`;
+  };
+  const failedLogin = `${options.siteUrl}/dashboard?login=failed`;
+
   app.get("/auth/callback", async (c) => {
     const stored = getCookie(c, STATE_COOKIE);
     deleteCookie(c, STATE_COOKIE, { path: cookiePath, secure });
     const [expected, returnTo] = stored?.split("|") ?? [];
     const state = c.req.query("state");
     const code = c.req.query("code");
+    const providerError = c.req.query("error");
+    if (providerError !== undefined) {
+      log(`login failed: WorkOS sent the error ${printable(providerError).slice(0, 80)}`);
+      return c.redirect(failedLogin, 302);
+    }
     if (
       expected === undefined ||
       state === undefined ||
       code === undefined ||
       !sameText(expected, state)
     ) {
-      return c.redirect(`${options.siteUrl}/dashboard?login=failed`, 302);
+      if (decodePending(getCookie(c, PENDING_COOKIE)) !== undefined) {
+        return c.redirect(`${options.siteUrl}/dashboard?login=verify`, 302);
+      }
+      const sealed = getCookie(c, SESSION_COOKIE);
+      if (sealed !== undefined && (await auth.readSession(sealed).catch(() => undefined))) {
+        return c.redirect(`${options.siteUrl}/dashboard`, 302);
+      }
+      log("login failed: the callback has no matching state");
+      return c.redirect(failedLogin, 302);
     }
     try {
-      const { userId, sealed } = await auth.completeLogin(code);
-      await accountFor(userId);
-      sessionCookie(c, sealed);
+      const result = await auth.completeLogin(code);
+      return c.redirect(await finishLogin(c, result, safeReturnPath(returnTo)), 302);
     } catch (error) {
       log(`login failed: ${error instanceof Error ? error.message : String(error)}`);
-      return c.redirect(`${options.siteUrl}/dashboard?login=failed`, 302);
+      return c.redirect(failedLogin, 302);
     }
-    return c.redirect(`${options.siteUrl}${safeReturnPath(returnTo)}`, 302);
+  });
+
+  app.get("/auth/pending", (c) => {
+    const pending = decodePending(getCookie(c, PENDING_COOKIE));
+    if (pending === undefined) {
+      return c.json(errorBody("not-found", "No login waits for an email code."), 404);
+    }
+    return c.json({ email: maskEmail(pending.email) });
+  });
+
+  app.post("/auth/verify", bodyLimit({ maxSize: 4096 }), async (c) => {
+    const origin = c.req.header("origin");
+    if (origin === undefined || origin !== siteOrigin) {
+      return c.json(errorBody("forbidden", "The request did not come from the ade site."), 403);
+    }
+    const pending = decodePending(getCookie(c, PENDING_COOKIE));
+    if (pending === undefined) {
+      return c.json(errorBody("login-expired", "The login expired. Start the login again."), 400);
+    }
+    const body = await readJson(c);
+    const code = isRecord(body) && typeof body.code === "string" ? body.code.trim() : "";
+    if (!LOGIN_CODE.test(code)) {
+      return c.json(errorBody("code-invalid", "Enter the 6-digit code from the email."), 400);
+    }
+    if (!codeTries.hit(createHash("sha256").update(pending.token).digest("hex"))) {
+      clearPending(c);
+      return c.json(
+        errorBody("login-expired", "Too many codes for this login. Start the login again."),
+        429,
+      );
+    }
+    try {
+      const result = await auth.verifyEmail(pending.token, code);
+      if (result.kind === "verify") {
+        pendingCookie(c, { token: result.token, email: result.email, returnTo: pending.returnTo });
+        return c.json(
+          errorBody("code-invalid", "WorkOS asked for a new code. Check the email."),
+          400,
+        );
+      }
+      const target = await finishLogin(c, result, pending.returnTo);
+      return c.json({ redirect: target.slice(options.siteUrl.length) || "/" });
+    } catch (error) {
+      if (error instanceof LoginCodeError && error.reason === "invalid-code") {
+        return c.json(
+          errorBody("code-invalid", "The code is not valid. Check the email, then try again."),
+          400,
+        );
+      }
+      if (error instanceof LoginCodeError || error instanceof LoginStepError) {
+        log(`login failed: ${error.message}`);
+        clearPending(c);
+        return c.json(errorBody("login-expired", "The login expired. Start the login again."), 400);
+      }
+      throw error;
+    }
   });
 
   app.post("/auth/logout", async (c) => {
@@ -299,6 +440,7 @@ export function createApp(options: AppOptions): Hono<{ Variables: Variables }> {
       await auth.logout(sealed);
     }
     clearSession(c);
+    clearPending(c);
     return c.json({ redirect: `${options.siteUrl}/` });
   });
 

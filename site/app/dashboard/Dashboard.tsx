@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { type FormEvent, useEffect, useState } from "react";
+import { type FormEvent, useEffect, useRef, useState } from "react";
 import { CopyCommand } from "../_components/CopyCommand";
 import { ArrowUpRight } from "../_components/primitives";
 import { SetupView } from "../_components/SetupView";
@@ -13,7 +13,9 @@ import {
   loginUrl,
   logout,
   type Me,
+  pendingLogin,
   updateAccount,
+  verifyLogin,
 } from "../account";
 import { INSTALL_COMMAND } from "../content";
 
@@ -24,6 +26,7 @@ const BUTTON =
 type View =
   | { readonly status: "loading" }
   | { readonly status: "out"; readonly failed: boolean }
+  | { readonly status: "verify"; readonly email: string }
   | { readonly status: "in"; readonly me: Me }
   | { readonly status: "error"; readonly message: string };
 
@@ -60,6 +63,86 @@ function LoggedOut({ failed }: { readonly failed: boolean }) {
         <li>2. Run ade login, then ade push, on your machine.</li>
         <li>3. Switch on the items that others can see and apply.</li>
       </ol>
+    </div>
+  );
+}
+
+function VerifyEmail({ email }: { readonly email: string }) {
+  const [code, setCode] = useState("");
+  const [error, setError] = useState<string>();
+  const [busy, setBusy] = useState(false);
+  const input = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    input.current?.focus();
+  }, []);
+
+  const submit = (event: FormEvent) => {
+    event.preventDefault();
+    setBusy(true);
+    verifyLogin(code)
+      .then((result) => {
+        window.location.href = result.redirect;
+      })
+      .catch((reason: unknown) => {
+        setError(
+          reason instanceof ApiError ? reason.message : "ade could not check the code. Try again.",
+        );
+        setBusy(false);
+      });
+  };
+
+  return (
+    <div className="max-w-[640px] space-y-8 py-16">
+      <div className="space-y-4">
+        <p className="font-mono text-[12px] text-muted">One more step</p>
+        <h1 className="text-[36px] leading-[1.1] tracking-[-0.02em] text-fg">Check your email</h1>
+        <p className="text-[16px] leading-[1.6] text-muted">
+          WorkOS sent a 6-digit code to <span className="text-fg">{email}</span>, the email address
+          of your GitHub account. Enter the code to finish the login. WorkOS asks for it at the
+          first login only.
+        </p>
+      </div>
+      <form onSubmit={submit} className="space-y-3">
+        <label htmlFor="login-code" className="block font-mono text-[11px] text-faint">
+          Code from the email
+        </label>
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            id="login-code"
+            ref={input}
+            value={code}
+            onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            spellCheck={false}
+            maxLength={6}
+            className="h-10 w-40 border border-line-strong bg-ink px-3 font-mono text-[18px] tracking-[0.3em] text-fg outline-none focus:border-muted"
+          />
+          <button
+            type="submit"
+            disabled={busy || code.length !== 6}
+            className="inline-flex h-10 items-center border border-fg bg-fg px-4 font-mono text-[12px] text-ink transition-colors hover:bg-white disabled:opacity-50"
+          >
+            Verify
+          </button>
+        </div>
+        {error === undefined ? null : (
+          <p role="alert" className="font-mono text-[12px] text-danger">
+            {error}
+          </p>
+        )}
+      </form>
+      <p className="font-mono text-[12px] leading-[1.7] text-muted">
+        No email? Look in the spam folder, or{" "}
+        <a
+          href={loginUrl("/dashboard")}
+          className="text-fg underline decoration-line-strong underline-offset-4 hover:decoration-muted"
+        >
+          start the login again
+        </a>{" "}
+        to get a new code.
+      </p>
     </div>
   );
 }
@@ -270,9 +353,21 @@ export function Dashboard() {
   const [view, setView] = useState<View>({ status: "loading" });
 
   useEffect(() => {
-    const failed = new URLSearchParams(window.location.search).get("login") === "failed";
-    getMe()
-      .then((me) => setView(me === undefined ? { status: "out", failed } : { status: "in", me }))
+    const login = new URLSearchParams(window.location.search).get("login");
+    const load = async (): Promise<View> => {
+      if (login === "verify") {
+        const pending = await pendingLogin();
+        if (pending !== undefined) {
+          return { status: "verify", email: pending.email };
+        }
+      }
+      const me = await getMe();
+      return me === undefined
+        ? { status: "out", failed: login === "failed" || login === "verify" }
+        : { status: "in", me };
+    };
+    load()
+      .then(setView)
       .catch((reason: unknown) =>
         setView({
           status: "error",
@@ -290,6 +385,7 @@ export function Dashboard() {
         <p className="py-24 font-mono text-[12px] text-faint">Loading your account...</p>
       ) : null}
       {view.status === "out" ? <LoggedOut failed={view.failed} /> : null}
+      {view.status === "verify" ? <VerifyEmail email={view.email} /> : null}
       {view.status === "in" ? <LoggedIn initial={view.me} /> : null}
       {view.status === "error" ? (
         <p className="py-24 font-mono text-[12px] text-danger">{view.message}</p>

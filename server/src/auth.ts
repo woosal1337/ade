@@ -1,4 +1,10 @@
-import { WorkOS } from "@workos-inc/node";
+import {
+  AuthenticationException,
+  type AuthenticationResponse,
+  GenericServerException,
+  RateLimitExceededException,
+  WorkOS,
+} from "@workos-inc/node";
 import { createRemoteJWKSet, decodeJwt, type JWTVerifyGetKey, jwtVerify } from "jose";
 
 export interface Identity {
@@ -20,11 +26,36 @@ export interface WebSession {
   readonly sealed?: string;
 }
 
+export type LoginResult =
+  | { readonly kind: "done"; readonly userId: string; readonly sealed: string }
+  | { readonly kind: "verify"; readonly token: string; readonly email: string };
+
+export type LoginCodeReason = "invalid-code" | "expired" | "too-many";
+
+export class LoginCodeError extends Error {
+  readonly reason: LoginCodeReason;
+
+  constructor(reason: LoginCodeReason) {
+    super(`The email code failed: ${reason}.`);
+    this.reason = reason;
+  }
+}
+
+export class LoginStepError extends Error {
+  readonly step: string;
+
+  constructor(step: string) {
+    super(`WorkOS asked for the login step ${step}.`);
+    this.step = step;
+  }
+}
+
 export interface AuthProvider {
   readonly configured: boolean;
   clientConfig(): ClientConfig | undefined;
   loginUrl(state: string, redirectUri: string): string;
-  completeLogin(code: string): Promise<{ readonly userId: string; readonly sealed: string }>;
+  completeLogin(code: string): Promise<LoginResult>;
+  verifyEmail(token: string, code: string): Promise<LoginResult>;
   readSession(sealed: string): Promise<WebSession | undefined>;
   logout(sealed: string): Promise<void>;
   verifyBearer(token: string): Promise<string | undefined>;
@@ -40,6 +71,9 @@ export const notConfiguredAuth: AuthProvider = {
     throw new AuthNotConfiguredError("WorkOS is not configured.");
   },
   async completeLogin() {
+    throw new AuthNotConfiguredError("WorkOS is not configured.");
+  },
+  async verifyEmail() {
     throw new AuthNotConfiguredError("WorkOS is not configured.");
   },
   readSession: async () => undefined,
@@ -124,6 +158,50 @@ export function workosAuth(options: WorkosOptions): AuthProvider {
     new URL(options.jwksUrl ?? users.getJwksUrl(options.clientId)),
   );
   const githubApi = options.githubApi ?? "https://api.github.com";
+  const sealing = { sealSession: true, cookiePassword: options.cookiePassword };
+
+  const finish = async (
+    attempt: () => Promise<AuthenticationResponse>,
+    selected = false,
+  ): Promise<LoginResult> => {
+    try {
+      const response = await attempt();
+      if (response.sealedSession === undefined) {
+        throw new Error("WorkOS returned no session.");
+      }
+      return { kind: "done", userId: response.user.id, sealed: response.sealedSession };
+    } catch (error) {
+      if (
+        !(error instanceof AuthenticationException) ||
+        error.pendingAuthenticationToken === undefined
+      ) {
+        throw error;
+      }
+      const token = error.pendingAuthenticationToken;
+      if (error.code === "email_verification_required") {
+        const email = error.rawData.email;
+        return { kind: "verify", token, email: typeof email === "string" ? email : "" };
+      }
+      const organization = error.rawData.organizations?.[0];
+      if (
+        error.code === "organization_selection_required" &&
+        organization !== undefined &&
+        !selected
+      ) {
+        return finish(
+          () =>
+            users.authenticateWithOrganizationSelection({
+              clientId: options.clientId,
+              organizationId: organization.id,
+              pendingAuthenticationToken: token,
+              session: sealing,
+            }),
+          true,
+        );
+      }
+      throw new LoginStepError(error.code);
+    }
+  };
 
   const toIdentity = async (user: WorkosUser): Promise<Identity> => {
     let login: string | undefined;
@@ -162,16 +240,36 @@ export function workosAuth(options: WorkosOptions): AuthProvider {
         state,
       });
     },
-    async completeLogin(code) {
-      const response = await users.authenticateWithCode({
-        clientId: options.clientId,
-        code,
-        session: { sealSession: true, cookiePassword: options.cookiePassword },
-      });
-      if (response.sealedSession === undefined) {
-        throw new Error("WorkOS returned no session.");
+    completeLogin(code) {
+      return finish(() =>
+        users.authenticateWithCode({ clientId: options.clientId, code, session: sealing }),
+      );
+    },
+    async verifyEmail(token, code) {
+      try {
+        return await finish(() =>
+          users.authenticateWithEmailVerification({
+            clientId: options.clientId,
+            code,
+            pendingAuthenticationToken: token,
+            session: sealing,
+          }),
+        );
+      } catch (error) {
+        if (error instanceof RateLimitExceededException) {
+          throw new LoginCodeError("too-many");
+        }
+        if (
+          error instanceof GenericServerException &&
+          !(error instanceof AuthenticationException) &&
+          error.status === 400
+        ) {
+          throw new LoginCodeError(
+            error.code === "invalid_one_time_code" ? "invalid-code" : "expired",
+          );
+        }
+        throw error;
       }
-      return { userId: response.user.id, sealed: response.sealedSession };
     },
     async readSession(sealed) {
       const session = users.loadSealedSession({

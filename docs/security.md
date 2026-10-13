@@ -69,6 +69,7 @@ ade accounts are optional. Read [the accounts guide](accounts.md).
 - `@<name>` sources need trust, like a Git source.
 - The CLI keeps its WorkOS tokens in `account.json` in the state folder, with mode 600. `ade logout` deletes the file.
 - The site session is a sealed WorkOS session in an HttpOnly cookie on `/api`. A request that changes data with this cookie must come from the site origin.
+- A login that waits for an email code keeps the WorkOS pending token in an HttpOnly cookie on `/api` for 10 minutes. The code check needs the site origin, and it allows 5 tries for each login.
 - A web logout revokes the WorkOS session. The access token in a copied cookie stays valid until it expires, about 5 minutes later.
 - Deleting the account deletes the account, the uploads, and the approvals.
 

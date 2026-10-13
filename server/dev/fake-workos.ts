@@ -8,6 +8,14 @@ export interface FakeUser {
   readonly email: string;
   readonly firstName: string;
   readonly githubId: string;
+  readonly emailVerified?: boolean;
+  readonly organizations?: readonly { readonly id: string; readonly name: string }[];
+}
+
+interface PendingAuthentication {
+  readonly userId: string;
+  readonly step: "email" | "organization";
+  readonly code: string;
 }
 
 interface DeviceGrant {
@@ -28,6 +36,8 @@ export interface FakeWorkos {
   readonly users: Map<string, FakeUser>;
   accessTtl: number;
   autoUser: string | undefined;
+  emailCode(email: string): string | undefined;
+  selectedOrganizations(): readonly string[];
   approve(userCode: string, userId: string): void;
   deny(userCode: string): void;
   loginAs(userId: string): void;
@@ -57,12 +67,12 @@ function send(response: ServerResponse, status: number, value: unknown): void {
   response.end(JSON.stringify(value));
 }
 
-function userJson(user: FakeUser) {
+function userJson(user: FakeUser, verified = true) {
   return {
     object: "user",
     id: user.id,
     email: user.email,
-    email_verified: true,
+    email_verified: verified,
     first_name: user.firstName,
     last_name: null,
     profile_picture_url: "https://avatars.example.com/u.png",
@@ -92,6 +102,42 @@ export async function startFakeWorkos(options: FakeWorkosOptions = {}): Promise<
   const codes = new Map<string, string>();
   const refreshes = new Map<string, Refresh>();
   const revoked: string[] = [];
+  const verified = new Set<string>();
+  const pendings = new Map<string, PendingAuthentication>();
+  const selected: string[] = [];
+  const emailCodes = new Map<string, string>();
+
+  const nextStep = async (response: ServerResponse, userId: string) => {
+    const user = users.get(userId);
+    if (user === undefined) {
+      return send(response, 400, { error: "invalid_grant" });
+    }
+    if (user.emailVerified === false && !verified.has(userId)) {
+      const pending = token();
+      const code = String(100_000 + (randomBytes(3).readUIntBE(0, 3) % 900_000));
+      pendings.set(pending, { userId, step: "email", code });
+      emailCodes.set(user.email, code);
+      return send(response, 403, {
+        code: "email_verification_required",
+        message: "Email ownership must be verified before authentication.",
+        pending_authentication_token: pending,
+        email: user.email,
+        email_verification_id: `email_verification_${token()}`,
+      });
+    }
+    if ((user.organizations?.length ?? 0) > 1) {
+      const pending = token();
+      pendings.set(pending, { userId, step: "organization", code: "" });
+      return send(response, 403, {
+        code: "organization_selection_required",
+        message: "The user must choose an organization.",
+        pending_authentication_token: pending,
+        user: userJson(user),
+        organizations: user.organizations,
+      });
+    }
+    return send(response, 200, await issue(userId));
+  };
   let pendingLogin: string | undefined;
 
   const issue = async (userId: string, sessionId = `session_${token()}`) => {
@@ -180,7 +226,42 @@ export async function startFakeWorkos(options: FakeWorkosOptions = {}): Promise<
           return send(response, 400, { error: "invalid_grant" });
         }
         codes.delete(form.code ?? "");
-        return send(response, 200, await issue(userId));
+        return nextStep(response, userId);
+      }
+      if (form.grant_type === "urn:workos:oauth:grant-type:email-verification:code") {
+        const pending = pendings.get(form.pending_authentication_token ?? "");
+        if (pending === undefined || pending.step !== "email") {
+          return send(response, 400, {
+            code: "invalid_pending_authentication_token",
+            message: "The pending_authentication_token has expired or is invalid.",
+          });
+        }
+        if (form.code !== pending.code) {
+          return send(response, 400, {
+            code: "invalid_one_time_code",
+            message: "Invalid one-time code",
+          });
+        }
+        pendings.delete(form.pending_authentication_token ?? "");
+        verified.add(pending.userId);
+        return nextStep(response, pending.userId);
+      }
+      if (form.grant_type === "urn:workos:oauth:grant-type:organization-selection") {
+        const pending = pendings.get(form.pending_authentication_token ?? "");
+        const user = pending === undefined ? undefined : users.get(pending.userId);
+        if (
+          pending === undefined ||
+          pending.step !== "organization" ||
+          !user?.organizations?.some((organization) => organization.id === form.organization_id)
+        ) {
+          return send(response, 400, {
+            code: "invalid_pending_authentication_token",
+            message: "Invalid.",
+          });
+        }
+        pendings.delete(form.pending_authentication_token ?? "");
+        selected.push(form.organization_id ?? "");
+        return send(response, 200, await issue(pending.userId));
       }
       return send(response, 400, { error: "unsupported_grant_type" });
     }
@@ -216,7 +297,7 @@ export async function startFakeWorkos(options: FakeWorkosOptions = {}): Promise<
       const user = users.get(identities[1] ?? "");
       return user === undefined
         ? send(response, 404, { message: "Not found" })
-        : send(response, 200, [{ idp_id: user.githubId, type: "OAuth", provider: "GitHubOAuth" }]);
+        : send(response, 200, [{ idp_id: user.githubId, type: "OAuth", provider: "GithubOAuth" }]);
     }
     const single = /^\/user_management\/users\/([^/]+)$/.exec(path);
     if (request.method === "GET" && single !== null) {
@@ -243,6 +324,8 @@ export async function startFakeWorkos(options: FakeWorkosOptions = {}): Promise<
     users,
     accessTtl: 300,
     autoUser: undefined,
+    emailCode: (email) => emailCodes.get(email),
+    selectedOrganizations: () => selected,
     approve(userCode, userId) {
       for (const grant of devices.values()) {
         if (grant.userCode === userCode) {
