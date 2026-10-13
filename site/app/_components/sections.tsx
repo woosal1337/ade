@@ -20,6 +20,7 @@ import { DotText } from "./DotText";
 import { InstallTabs } from "./InstallTabs";
 import { LoopFigure } from "./LoopFigure";
 import { Button, Chevron, Eyebrow, Fig, SectionTitle, Tag } from "./primitives";
+import { SiteLink } from "./SiteLink";
 import { Terminal } from "./Terminal";
 
 const FRAME = "mx-auto max-w-[1400px] px-5";
@@ -727,9 +728,12 @@ export function Footer() {
               <ul className="space-y-2">
                 {group.links.map((link) => (
                   <li key={link.label}>
-                    <a href={link.href} className="font-mono text-[12px] text-muted hover:text-fg">
+                    <SiteLink
+                      href={link.href}
+                      className="font-mono text-[12px] text-muted hover:text-fg"
+                    >
                       {link.label}
-                    </a>
+                    </SiteLink>
                   </li>
                 ))}
               </ul>

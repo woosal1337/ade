@@ -1,10 +1,11 @@
 "use client";
 
-import Image from "next/image";
 import { type FormEvent, type ReactNode, useEffect, useRef, useState } from "react";
+import { AvatarHeading } from "../_components/AvatarHeading";
 import { CopyCommand } from "../_components/CopyCommand";
 import { ArrowUpRight } from "../_components/primitives";
 import { SetupView } from "../_components/SetupView";
+import { SiteLink } from "../_components/SiteLink";
 import { useVisibility } from "../_components/useVisibility";
 import {
   ApiError,
@@ -45,12 +46,12 @@ function LoggedOut({ failed }: { readonly failed: boolean }) {
           The login did not finish. Try again.
         </p>
       ) : null}
-      <a
+      <SiteLink
         href={loginUrl("/dashboard")}
         className={`${BUTTON} border-fg bg-fg text-ink hover:bg-white`}
       >
         Log in with GitHub
-      </a>
+      </SiteLink>
       <ol className="space-y-2 font-mono text-[12px] text-muted">
         <li>1. Log in here with GitHub.</li>
         <li>2. Run ade login, then ade push, on your machine.</li>
@@ -128,12 +129,12 @@ function VerifyEmail({ email }: { readonly email: string }) {
       </form>
       <p className="font-mono text-[12px] leading-[1.7] text-muted">
         No email? Look in the spam folder, or{" "}
-        <a
+        <SiteLink
           href={loginUrl("/dashboard")}
           className="text-fg underline decoration-line-strong underline-offset-4 hover:decoration-muted"
         >
           start the login again
-        </a>{" "}
+        </SiteLink>{" "}
         to get a new code.
       </p>
     </div>
@@ -276,34 +277,22 @@ function LoggedIn({ me }: { readonly me: Me }) {
   return (
     <div className="space-y-10 py-12">
       <div className="flex flex-wrap items-center justify-between gap-4">
-        <div className="flex items-center gap-4">
-          {account.avatarUrl === null ? null : (
-            <Image
-              src={account.avatarUrl}
-              alt=""
-              width={48}
-              height={48}
-              unoptimized
-              className="size-12 border border-line"
-            />
+        <AvatarHeading src={account.avatarUrl}>
+          <h1 className="text-[24px] leading-[1.2] text-fg">
+            {account.displayName || `@${account.handle}`}
+          </h1>
+          <SiteLink
+            href={`/${account.handle}`}
+            className="mt-1 block font-mono text-[12px] leading-[1.5] text-muted hover:text-fg"
+          >
+            ade.chele.bi/{account.handle} <ArrowUpRight />
+          </SiteLink>
+          {account.github === null ? null : (
+            <p className="font-mono text-[11px] leading-[1.5] text-faint">
+              Your page shows your GitHub account: {account.github}
+            </p>
           )}
-          <div>
-            <h1 className="text-[24px] leading-[1.2] text-fg">
-              {account.displayName || `@${account.handle}`}
-            </h1>
-            <a
-              href={`/${account.handle}`}
-              className="font-mono text-[12px] text-muted hover:text-fg"
-            >
-              ade.chele.bi/{account.handle} <ArrowUpRight />
-            </a>
-            {account.github === null ? null : (
-              <p className="font-mono text-[11px] text-faint">
-                Your page shows your GitHub account: {account.github}
-              </p>
-            )}
-          </div>
-        </div>
+        </AvatarHeading>
         <button
           type="button"
           onClick={signOut}
@@ -352,7 +341,7 @@ function Pending({ text }: { readonly text: string }) {
     return () => window.clearTimeout(timer);
   }, []);
   return (
-    <p aria-live="polite" className="min-h-[60vh] py-24 font-mono text-[12px] text-faint">
+    <p aria-live="polite" className="py-24 font-mono text-[12px] text-faint">
       {shown ? text : null}
     </p>
   );
@@ -390,5 +379,5 @@ export function Dashboard() {
   } else {
     body = <Pending text="Loading your account..." />;
   }
-  return <div className={FRAME}>{body}</div>;
+  return <div className={`${FRAME} min-h-[100svh]`}>{body}</div>;
 }

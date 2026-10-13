@@ -1,10 +1,11 @@
 "use client";
 
-import Image from "next/image";
 import { useEffect, useState } from "react";
+import { AvatarHeading } from "../_components/AvatarHeading";
 import { CopyCommand } from "../_components/CopyCommand";
 import { ArrowUpRight } from "../_components/primitives";
 import { SetupView } from "../_components/SetupView";
+import { SiteLink } from "../_components/SiteLink";
 import { useVisibility } from "../_components/useVisibility";
 import { VoteButtons } from "../_components/VoteButtons";
 import { getPerson, type Me, type PublicPage } from "../account";
@@ -68,17 +69,7 @@ export function ProfilePage({
   return (
     <div className={`${FRAME} space-y-10 py-12`}>
       <div className="flex flex-wrap items-center justify-between gap-6">
-        <div className="flex items-center gap-4">
-          {page.avatarUrl === null ? null : (
-            <Image
-              src={page.avatarUrl}
-              alt=""
-              width={56}
-              height={56}
-              unoptimized
-              className="size-14 border border-line"
-            />
-          )}
+        <AvatarHeading src={page.avatarUrl}>
           <div className="space-y-1">
             <h1 className="text-[28px] leading-[1.15] tracking-[-0.01em] text-fg">
               {page.displayName || `@${page.handle}`}
@@ -88,42 +79,42 @@ export function ProfilePage({
               {page.github === null ? null : (
                 <>
                   {" · "}
-                  <a
+                  <SiteLink
                     href={`https://github.com/${page.github}`}
                     className="underline decoration-line-strong underline-offset-4 hover:text-fg"
                   >
                     GitHub {page.github}
-                  </a>
+                  </SiteLink>
                 </>
               )}
               {page.updatedAt === null
                 ? ""
-                : ` · updated ${new Date(page.updatedAt).toLocaleDateString(undefined, { dateStyle: "medium" })}`}
+                : ` · updated ${new Date(page.updatedAt).toLocaleDateString("en", { dateStyle: "medium", timeZone: "UTC" })}`}
             </p>
           </div>
-        </div>
+        </AvatarHeading>
         <div className="flex items-center gap-4">
           {tally === undefined ? null : (
             <VoteButtons handle={page.handle} votes={tally} layout="row" />
           )}
           {owner === undefined ? null : (
-            <a
+            <SiteLink
               href="/dashboard"
               className="inline-flex h-8 items-center gap-2 border border-line-strong bg-raised px-2.5 font-mono text-[12px] text-fg hover:border-muted"
             >
               Dashboard
-            </a>
+            </SiteLink>
           )}
         </div>
       </div>
       <div className="grid grid-cols-1 gap-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
         <CopyCommand command={page.apply} />
-        <a
+        <SiteLink
           href={`/api/v1/users/${page.handle}/ADE.md`}
           className="font-mono text-[12px] text-muted hover:text-fg"
         >
           Download ADE.md <ArrowUpRight />
-        </a>
+        </SiteLink>
       </div>
       {owner !== undefined ? (
         <OwnerView me={owner} />

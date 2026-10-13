@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import "./globals.css";
+import { fontVariables } from "./fonts";
 import { SITE_URL, SOCIAL_IMAGE } from "./site";
 
 const DESCRIPTION =
@@ -51,7 +52,7 @@ const ANALYTICS_KEY = "oa_pk_vpO6O7KTxdHEYsWq8BIr9wXQhNl6la3I";
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" data-scroll-behavior="smooth" className={fontVariables}>
       <head>
         <script
           async

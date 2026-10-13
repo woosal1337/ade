@@ -1,9 +1,10 @@
 "use client";
 
-import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { AvatarHeading } from "../_components/AvatarHeading";
 import { BrandIcon } from "../_components/BrandIcon";
+import { SiteLink } from "../_components/SiteLink";
 import { VoteButtons } from "../_components/VoteButtons";
 import { getPeople } from "../account";
 import { useAccount } from "../account-store";
@@ -121,37 +122,26 @@ function PersonCard({ person }: { readonly person: Person }) {
     <li className="flex gap-3 border border-line bg-panel p-4 transition-colors hover:border-line-strong">
       <VoteButtons handle={person.handle} votes={person.votes} />
       <div className="min-w-0 flex-1 space-y-3">
-        <div className="flex items-start gap-3">
-          {person.avatarUrl === null ? (
-            <span className="size-10 shrink-0 border border-line bg-raised" />
-          ) : (
-            <Image
-              src={person.avatarUrl}
-              alt=""
-              width={40}
-              height={40}
-              unoptimized
-              className="size-10 shrink-0 border border-line"
-            />
-          )}
+        <AvatarHeading src={person.avatarUrl} gap="gap-3">
           <div className="min-w-0">
-            <a
+            <SiteLink
+              prefetch={false}
               href={`/${person.handle}`}
               className="block truncate text-[16px] leading-[1.3] text-fg hover:underline hover:decoration-line-strong hover:underline-offset-4"
             >
               {person.displayName || `@${person.handle}`}
-            </a>
+            </SiteLink>
             <p className="truncate font-mono text-[11px] text-muted">
               @{person.handle}
               {person.github === null ? null : (
                 <span className="text-faint"> · GitHub {person.github}</span>
               )}
             </p>
-            <p className="font-mono text-[11px]">
+            <p className="min-h-[1.5em] font-mono text-[11px] leading-[1.5]">
               <Updated iso={person.updatedAt} />
             </p>
           </div>
-        </div>
+        </AvatarHeading>
         {person.harnesses.length === 0 ? null : (
           <ul className="flex flex-wrap gap-2" aria-label="Harnesses">
             {person.harnesses.map((id) => {
@@ -174,12 +164,13 @@ function PersonCard({ person }: { readonly person: Person }) {
         <Tags values={person.skills} total={person.skillCount} label="Skills" />
         <Tags values={person.mcp} total={person.mcpCount} label="MCP servers" />
         <Tags values={person.plugins} total={person.pluginCount} label="Plugins" />
-        <a
+        <SiteLink
+          prefetch={false}
           href={`/${person.handle}`}
           className="inline-block font-mono text-[11px] text-muted hover:text-fg"
         >
           {person.itemCount} shared items. Open the setup
-        </a>
+        </SiteLink>
       </div>
     </li>
   );
@@ -302,12 +293,12 @@ export function PeopleDirectory({ initial }: { readonly initial: PeoplePage | nu
             <code className="font-mono text-[14px] text-fg">ade apply @name</code>.
           </p>
         </div>
-        <a
+        <SiteLink
           href="/dashboard"
           className="inline-flex h-8 items-center border border-fg bg-fg px-2.5 font-mono text-[12px] text-ink transition-colors hover:bg-white"
         >
           Share your setup
-        </a>
+        </SiteLink>
       </div>
 
       <div className="space-y-4 border border-line bg-panel p-4">
@@ -420,12 +411,12 @@ export function PeopleDirectory({ initial }: { readonly initial: PeoplePage | nu
           </p>
           <p className="font-mono text-[12px] text-muted">
             {listed === 0 ? (
-              <a
+              <SiteLink
                 href="/dashboard"
                 className="text-fg underline decoration-line-strong underline-offset-4"
               >
                 Share yours first
-              </a>
+              </SiteLink>
             ) : (
               "Use fewer words, or clear the filters."
             )}

@@ -2,10 +2,11 @@ import { NAV, REPO_URL } from "../content";
 import { AccountButton } from "./AccountButton";
 import { DotText } from "./DotText";
 import { ArrowUpRight, Button } from "./primitives";
+import { SiteLink } from "./SiteLink";
 
 export function Logo() {
   return (
-    <a href="/#top" className="flex shrink-0 items-center" aria-label="ade home">
+    <SiteLink href="/#top" className="flex shrink-0 items-center" aria-label="ade home">
       <DotText
         id="logo-header"
         text="ade."
@@ -17,55 +18,55 @@ export function Logo() {
         off="#1f1f1f"
         className="block h-[35px] w-[95px]"
       />
-    </a>
+    </SiteLink>
   );
 }
 
 export function Header() {
   return (
     <header className="sticky top-0 z-40 border-b border-line bg-ink/85 backdrop-blur">
-      <a
+      <SiteLink
         href="/#share"
         className="block border-b border-line bg-panel py-1.5 text-center font-mono text-[12px] text-muted transition-colors hover:text-fg"
       >
         New: share and import a whole agent setup as one ADE.md file <ArrowUpRight />
-      </a>
+      </SiteLink>
       <nav aria-label="Main" className="mx-auto flex h-14 max-w-[1400px] items-center gap-4 px-5">
         <Logo />
         <ul className="ml-6 hidden items-center gap-1 xl:flex">
           {NAV.map((item) => (
             <li key={item.href}>
-              <a
+              <SiteLink
                 href={`/${item.href}`}
                 className="flex w-28 items-center justify-between bg-tab px-2 py-1.5 font-mono text-[12px] text-fg transition-colors hover:bg-line-strong"
               >
                 {item.label}
                 <span className="text-faint">{item.n}</span>
-              </a>
+              </SiteLink>
             </li>
           ))}
         </ul>
         <div className="ml-auto flex items-center gap-5 font-mono text-[12px]">
-          <a href="/community" className="text-muted hover:text-fg">
+          <SiteLink href="/community" className="text-muted hover:text-fg">
             Community
-          </a>
-          <a href="/#harnesses" className="hidden text-muted hover:text-fg sm:inline">
+          </SiteLink>
+          <SiteLink href="/#harnesses" className="hidden text-muted hover:text-fg sm:inline">
             Harnesses
-          </a>
-          <a href="/#models" className="hidden text-muted hover:text-fg md:inline">
+          </SiteLink>
+          <SiteLink href="/#models" className="hidden text-muted hover:text-fg md:inline">
             Models
-          </a>
-          <a href="/#commands" className="hidden text-muted hover:text-fg lg:inline">
+          </SiteLink>
+          <SiteLink href="/#commands" className="hidden text-muted hover:text-fg lg:inline">
             Commands
-          </a>
-          <a
+          </SiteLink>
+          <SiteLink
             href={REPO_URL}
             target="_blank"
             rel="noreferrer"
             className="hidden text-muted hover:text-fg md:inline"
           >
             GitHub
-          </a>
+          </SiteLink>
           <AccountButton />
           <Button href="/#install">Install</Button>
         </div>

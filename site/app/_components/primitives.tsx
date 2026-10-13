@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { SiteLink } from "./SiteLink";
 
 export function Chevron({ className = "" }: { className?: string }) {
   return (
@@ -43,14 +44,14 @@ export function Button({ href, children, variant = "solid", external = false }: 
       ? "border-fg bg-fg text-ink hover:bg-white"
       : "border-line-strong bg-raised text-fg hover:border-muted";
   return (
-    <a
+    <SiteLink
       href={href}
       {...(external ? { target: "_blank", rel: "noreferrer" } : {})}
       className={`inline-flex h-8 items-center gap-2 border px-2.5 font-mono text-[12px] transition-colors ${look}`}
     >
       {children}
       {external ? <ArrowUpRight /> : <Chevron />}
-    </a>
+    </SiteLink>
   );
 }
 
