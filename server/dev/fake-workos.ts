@@ -38,6 +38,7 @@ export interface FakeWorkos {
   autoUser: string | undefined;
   emailCode(email: string): string | undefined;
   selectedOrganizations(): readonly string[];
+  refreshCount(): number;
   approve(userCode: string, userId: string): void;
   deny(userCode: string): void;
   loginAs(userId: string): void;
@@ -102,6 +103,7 @@ export async function startFakeWorkos(options: FakeWorkosOptions = {}): Promise<
   const codes = new Map<string, string>();
   const refreshes = new Map<string, Refresh>();
   const revoked: string[] = [];
+  let refreshCalls = 0;
   const verified = new Set<string>();
   const pendings = new Map<string, PendingAuthentication>();
   const selected: string[] = [];
@@ -210,6 +212,7 @@ export async function startFakeWorkos(options: FakeWorkosOptions = {}): Promise<
         return send(response, 200, await issue(grant.userId));
       }
       if (form.grant_type === "refresh_token") {
+        refreshCalls += 1;
         const entry = refreshes.get(form.refresh_token ?? "");
         if (entry === undefined || revoked.includes(entry.sessionId)) {
           return send(response, 400, {
@@ -326,6 +329,7 @@ export async function startFakeWorkos(options: FakeWorkosOptions = {}): Promise<
     autoUser: undefined,
     emailCode: (email) => emailCodes.get(email),
     selectedOrganizations: () => selected,
+    refreshCount: () => refreshCalls,
     approve(userCode, userId) {
       for (const grant of devices.values()) {
         if (grant.userCode === userCode) {

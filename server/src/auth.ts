@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import {
   AuthenticationException,
   type AuthenticationResponse,
@@ -122,6 +123,8 @@ interface WorkosUser {
 }
 
 const USER_ID = /^user_[A-Za-z0-9]+$/;
+const REFRESH_REUSE_MS = 30_000;
+const REFRESH_CACHE_LIMIT = 1000;
 const FOREIGN_KEY_CODES = new Set(["ERR_JWKS_NO_MATCHING_KEY", "ERR_JWKS_MULTIPLE_MATCHING_KEYS"]);
 const KEY_FETCH_CODES = new Set(["ERR_JWKS_TIMEOUT", "ERR_JWKS_INVALID"]);
 
@@ -175,6 +178,44 @@ export function workosAuth(options: WorkosOptions): AuthProvider {
   );
   const githubApi = options.githubApi ?? "https://api.github.com";
   const sealing = { sealSession: true, cookiePassword: options.cookiePassword };
+  const refreshing = new Map<string, Promise<WebSession | undefined>>();
+  const refreshed = new Map<
+    string,
+    { readonly at: number; readonly session: WebSession | undefined }
+  >();
+
+  const refreshOnce = (
+    sealed: string,
+    run: () => Promise<WebSession | undefined>,
+  ): Promise<WebSession | undefined> => {
+    const key = createHash("sha256").update(sealed).digest("base64url");
+    const now = Date.now();
+    const recent = refreshed.get(key);
+    if (recent !== undefined && now - recent.at < REFRESH_REUSE_MS) {
+      return Promise.resolve(recent.session);
+    }
+    const running = refreshing.get(key);
+    if (running !== undefined) {
+      return running;
+    }
+    const started = run()
+      .then((session) => {
+        if (refreshed.size >= REFRESH_CACHE_LIMIT) {
+          for (const [entry, value] of refreshed) {
+            if (now - value.at >= REFRESH_REUSE_MS || refreshed.size >= REFRESH_CACHE_LIMIT) {
+              refreshed.delete(entry);
+            }
+          }
+        }
+        refreshed.set(key, { at: Date.now(), session });
+        return session;
+      })
+      .finally(() => {
+        refreshing.delete(key);
+      });
+    refreshing.set(key, started);
+    return started;
+  };
 
   const finish = async (
     attempt: () => Promise<AuthenticationResponse>,
@@ -314,17 +355,19 @@ export function workosAuth(options: WorkosOptions): AuthProvider {
       if (result.reason !== "invalid_jwt") {
         return undefined;
       }
-      const refreshed = await session.refresh({ cookiePassword: options.cookiePassword });
-      if (!refreshed.authenticated) {
-        if (refreshed.retryable) {
-          throw new AuthUnavailableError("WorkOS could not refresh the session.");
+      return refreshOnce(sealed, async () => {
+        const result = await session.refresh({ cookiePassword: options.cookiePassword });
+        if (!result.authenticated) {
+          if (result.retryable) {
+            throw new AuthUnavailableError("WorkOS could not refresh the session.");
+          }
+          return undefined;
         }
-        return undefined;
-      }
-      if (refreshed.sealedSession === undefined) {
-        return undefined;
-      }
-      return { userId: refreshed.user.id, sealed: refreshed.sealedSession };
+        if (result.sealedSession === undefined) {
+          return undefined;
+        }
+        return { userId: result.user.id, sealed: result.sealedSession };
+      });
     },
     async logout(sealed) {
       let sessionId: unknown;

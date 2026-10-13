@@ -74,6 +74,8 @@ The source needs trust, like a Git source. ade shows what the setup runs and wri
 
 A rename moves the page at once. The old name then shows 404.
 
+The browser keeps the login cookie for 30 days, and the API renews the WorkOS access token when it expires. WorkOS ends the login earlier when its session length or inactivity timeout passes. Set both in the WorkOS dashboard, under Applications, Sessions. The dashboard shows your last account view at once on each visit, then checks it with the API. Log out on a shared computer, because the browser keeps that view.
+
 ## Settings
 
 | Variable | Default | Use |

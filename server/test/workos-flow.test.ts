@@ -33,6 +33,12 @@ before(async () => {
     githubId: "4242",
     emailVerified: false,
   });
+  workos.users.set("user_plain", {
+    id: "user_plain",
+    email: "plain@example.org",
+    firstName: "Plain",
+    githubId: "not-numeric",
+  });
   workos.users.set("user_org", {
     id: "user_org",
     email: "org@example.org",
@@ -167,6 +173,30 @@ describe("WorkOS flows with the real SDK", () => {
     } finally {
       await other.close();
     }
+  });
+
+  test("parallel requests with one expired session share one WorkOS refresh", async () => {
+    const app = await realApp();
+    workos.accessTtl = -10;
+    const callback = await webLogin(app, "user_plain");
+    workos.accessTtl = 300;
+    const expired = cookieOf(callback, "ade_session");
+    assert.ok(expired);
+    const before = workos.refreshCount();
+    const responses = await Promise.all(
+      [1, 2, 3].map(() => app.request("/v1/me", { headers: { cookie: `ade_session=${expired}` } })),
+    );
+    assert.deepEqual(
+      responses.map((response) => response.status),
+      [200, 200, 200],
+    );
+    const renewed = new Set(responses.map((response) => cookieOf(response, "ade_session")));
+    assert.equal(renewed.size, 1);
+    assert.notEqual([...renewed][0], expired);
+    assert.equal(workos.refreshCount() - before, 1);
+    const later = await app.request("/v1/me", { headers: { cookie: `ade_session=${expired}` } });
+    assert.equal(later.status, 200);
+    assert.equal(workos.refreshCount() - before, 1);
   });
 
   test("a member of two organizations logs in without a choice", async () => {

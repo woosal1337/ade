@@ -1,17 +1,17 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useState } from "react";
 import { CopyCommand } from "../_components/CopyCommand";
 import { ArrowUpRight } from "../_components/primitives";
 import { SetupView } from "../_components/SetupView";
 import { useVisibility } from "../_components/useVisibility";
-import { getMe, hasLoginHint, type Me, type PublicPage } from "../account";
+import type { Me, PublicPage } from "../account";
+import { saveAccount, useAccount, withItems } from "../account-store";
 
 const FRAME = "mx-auto max-w-[1100px] px-5";
 
 function OwnerView({ me }: { readonly me: Me }) {
-  const visibility = useVisibility(me.items);
+  const visibility = useVisibility(me.items, (items) => saveAccount(withItems(me, items)));
   if (me.snapshot === null) {
     return (
       <p className="border border-line bg-panel p-5 text-[14px] text-muted">
@@ -37,20 +37,9 @@ function OwnerView({ me }: { readonly me: Me }) {
 }
 
 export function ProfilePage({ page }: { readonly page: PublicPage }) {
-  const [owner, setOwner] = useState<Me>();
-
-  useEffect(() => {
-    if (!hasLoginHint()) {
-      return;
-    }
-    getMe()
-      .then((me) => {
-        if (me?.account.handle === page.handle) {
-          setOwner(me);
-        }
-      })
-      .catch(() => setOwner(undefined));
-  }, [page.handle]);
+  const account = useAccount();
+  const owner =
+    account.status === "in" && account.me.account.handle === page.handle ? account.me : undefined;
 
   return (
     <div className={`${FRAME} space-y-10 py-12`}>

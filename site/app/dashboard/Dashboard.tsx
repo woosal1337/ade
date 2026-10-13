@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { type FormEvent, useEffect, useRef, useState } from "react";
+import { type FormEvent, type ReactNode, useEffect, useRef, useState } from "react";
 import { CopyCommand } from "../_components/CopyCommand";
 import { ArrowUpRight } from "../_components/primitives";
 import { SetupView } from "../_components/SetupView";
@@ -9,7 +9,6 @@ import { useVisibility } from "../_components/useVisibility";
 import {
   ApiError,
   deleteAccount,
-  getMe,
   loginUrl,
   logout,
   type Me,
@@ -17,18 +16,12 @@ import {
   updateAccount,
   verifyLogin,
 } from "../account";
+import { forgetAccount, saveAccount, useAccount, withItems } from "../account-store";
 import { INSTALL_COMMAND } from "../content";
 
 const FRAME = "mx-auto max-w-[1100px] px-5";
 const BUTTON =
   "inline-flex h-8 items-center gap-2 border px-2.5 font-mono text-[12px] transition-colors disabled:opacity-50";
-
-type View =
-  | { readonly status: "loading" }
-  | { readonly status: "out"; readonly failed: boolean }
-  | { readonly status: "verify"; readonly email: string }
-  | { readonly status: "in"; readonly me: Me }
-  | { readonly status: "error"; readonly message: string };
 
 function when(value: string): string {
   return new Date(value).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
@@ -196,7 +189,7 @@ function Rename({ me, onRenamed }: { readonly me: Me; readonly onRenamed: (me: M
 }
 
 function Setup({ me }: { readonly me: Me }) {
-  const visibility = useVisibility(me.items);
+  const visibility = useVisibility(me.items, (items) => saveAccount(withItems(me, items)));
   const counts = { public: 0, changed: 0, hidden: 0 };
   for (const item of visibility.items) {
     counts[item.state ?? "hidden"] += 1;
@@ -247,13 +240,13 @@ function FirstUpload() {
   );
 }
 
-function LoggedIn({ initial }: { readonly initial: Me }) {
-  const [me, setMe] = useState(initial);
+function LoggedIn({ me }: { readonly me: Me }) {
   const [leaving, setLeaving] = useState(false);
   const { account } = me;
 
   const signOut = () => {
     setLeaving(true);
+    forgetAccount();
     logout()
       .then((result) => {
         window.location.href = result.redirect;
@@ -274,6 +267,7 @@ function LoggedIn({ initial }: { readonly initial: Me }) {
     setLeaving(true);
     deleteAccount()
       .then(() => {
+        forgetAccount();
         window.location.href = "/";
       })
       .catch(() => setLeaving(false));
@@ -321,7 +315,7 @@ function LoggedIn({ initial }: { readonly initial: Me }) {
       </div>
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
         <div className="space-y-4 border border-line bg-panel p-5">
-          <Rename me={me} onRenamed={setMe} />
+          <Rename me={me} onRenamed={saveAccount} />
         </div>
         <div className="space-y-3 border border-line bg-panel p-5">
           <p className="font-mono text-[11px] text-faint">Others apply your shared items with</p>
@@ -349,47 +343,52 @@ function LoggedIn({ initial }: { readonly initial: Me }) {
   );
 }
 
+const PENDING_DELAY_MS = 400;
+
+function Pending({ text }: { readonly text: string }) {
+  const [shown, setShown] = useState(false);
+  useEffect(() => {
+    const timer = window.setTimeout(() => setShown(true), PENDING_DELAY_MS);
+    return () => window.clearTimeout(timer);
+  }, []);
+  return (
+    <p aria-live="polite" className="min-h-[60vh] py-24 font-mono text-[12px] text-faint">
+      {shown ? text : null}
+    </p>
+  );
+}
+
 export function Dashboard() {
-  const [view, setView] = useState<View>({ status: "loading" });
+  const account = useAccount();
+  const [login, setLogin] = useState<string | null>(null);
+  const [verify, setVerify] = useState<{ readonly email: string } | "checking">();
 
   useEffect(() => {
-    const login = new URLSearchParams(window.location.search).get("login");
-    const load = async (): Promise<View> => {
-      if (login === "verify") {
-        const pending = await pendingLogin();
-        if (pending !== undefined) {
-          return { status: "verify", email: pending.email };
-        }
-      }
-      const me = await getMe();
-      return me === undefined
-        ? { status: "out", failed: login === "failed" || login === "verify" }
-        : { status: "in", me };
-    };
-    load()
-      .then(setView)
-      .catch((reason: unknown) =>
-        setView({
-          status: "error",
-          message:
-            reason instanceof ApiError
-              ? reason.message
-              : "ade could not reach its server. Try again in a minute.",
-        }),
-      );
+    const param = new URLSearchParams(window.location.search).get("login");
+    setLogin(param);
+    if (param !== "verify") {
+      return;
+    }
+    setVerify("checking");
+    pendingLogin()
+      .then((pending) => setVerify(pending))
+      .catch(() => setVerify(undefined));
   }, []);
 
-  return (
-    <div className={FRAME}>
-      {view.status === "loading" ? (
-        <p className="py-24 font-mono text-[12px] text-faint">Loading your account...</p>
-      ) : null}
-      {view.status === "out" ? <LoggedOut failed={view.failed} /> : null}
-      {view.status === "verify" ? <VerifyEmail email={view.email} /> : null}
-      {view.status === "in" ? <LoggedIn initial={view.me} /> : null}
-      {view.status === "error" ? (
-        <p className="py-24 font-mono text-[12px] text-danger">{view.message}</p>
-      ) : null}
-    </div>
-  );
+  const failed = login === "failed" || login === "verify";
+  let body: ReactNode;
+  if (verify === "checking") {
+    body = <Pending text="Loading your login..." />;
+  } else if (verify !== undefined) {
+    body = <VerifyEmail email={verify.email} />;
+  } else if (account.status === "in") {
+    body = <LoggedIn me={account.me} />;
+  } else if (account.status === "out") {
+    body = <LoggedOut failed={failed} />;
+  } else if (account.status === "error") {
+    body = <p className="py-24 font-mono text-[12px] text-danger">{account.message}</p>;
+  } else {
+    body = <Pending text="Loading your account..." />;
+  }
+  return <div className={FRAME}>{body}</div>;
 }
