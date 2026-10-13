@@ -128,22 +128,22 @@ export function PersonCard({
     <li className="flex gap-3 border border-line bg-panel p-4 transition-colors hover:border-line-strong">
       <VoteButtons handle={person.handle} votes={person.votes} />
       <div className="min-w-0 flex-1 space-y-3">
-        <AvatarHeading src={person.avatarUrl} gap="gap-3" eager={eager}>
+        <AvatarHeading src={person.avatarUrl} size={52} gap="gap-3" eager={eager}>
           <div className="min-w-0">
             <SiteLink
               prefetch={false}
               href={`/${person.handle}`}
-              className="block truncate text-[16px] leading-[1.3] text-fg hover:underline hover:decoration-line-strong hover:underline-offset-4"
+              className="block truncate text-[16px] leading-[20px] text-fg hover:underline hover:decoration-line-strong hover:underline-offset-4"
             >
               {person.displayName || `@${person.handle}`}
             </SiteLink>
-            <p className="truncate font-mono text-[11px] text-muted">
+            <p className="truncate font-mono text-[11px] leading-[16px] text-muted">
               @{person.handle}
               {person.github === null ? null : (
                 <span className="text-faint"> · GitHub {person.github}</span>
               )}
             </p>
-            <p className="min-h-[1.5em] font-mono text-[11px] leading-[1.5]">
+            <p className="h-4 truncate font-mono text-[11px] leading-[16px]">
               <Updated iso={person.updatedAt} />
             </p>
           </div>

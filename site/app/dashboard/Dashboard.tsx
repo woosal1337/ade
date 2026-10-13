@@ -348,18 +348,18 @@ function LoggedIn({ me }: { readonly me: Me }) {
   return (
     <div className="space-y-10 py-12">
       <div className="flex flex-wrap items-center justify-between gap-4">
-        <AvatarHeading src={account.avatarUrl} eager>
-          <h1 className="text-[24px] leading-[1.2] text-fg">
+        <AvatarHeading src={account.avatarUrl} size={account.github === null ? 50 : 66} eager>
+          <h1 className="truncate text-[24px] leading-[28px] text-fg">
             {account.displayName || `@${account.handle}`}
           </h1>
           <SiteLink
             href={`/${account.handle}`}
-            className="mt-1 block font-mono text-[12px] leading-[1.5] text-muted hover:text-fg"
+            className="mt-1 block truncate font-mono text-[12px] leading-[18px] text-muted hover:text-fg"
           >
             ade.chele.bi/{account.handle} <ArrowUpRight />
           </SiteLink>
           {account.github === null ? null : (
-            <p className="font-mono text-[11px] leading-[1.5] text-faint">
+            <p className="truncate font-mono text-[11px] leading-[16px] text-faint">
               GitHub {account.github}
             </p>
           )}

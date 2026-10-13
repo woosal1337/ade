@@ -47,12 +47,12 @@ export function ProfilePage({
   return (
     <div className={`${FRAME} space-y-10 py-12`}>
       <div className="flex flex-wrap items-center justify-between gap-6">
-        <AvatarHeading src={page.avatarUrl} eager>
+        <AvatarHeading src={page.avatarUrl} size={54} eager>
           <div className="space-y-1">
-            <h1 className="text-[28px] leading-[1.15] tracking-[-0.01em] text-fg">
+            <h1 className="truncate text-[28px] leading-[32px] tracking-[-0.01em] text-fg">
               {page.displayName || `@${page.handle}`}
             </h1>
-            <p className="font-mono text-[12px] text-muted">
+            <p className="truncate font-mono text-[12px] leading-[18px] text-muted">
               @{page.handle}
               {page.github === null ? null : (
                 <>
