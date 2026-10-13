@@ -52,7 +52,7 @@
     "url": "https://ade-api.chele.bi",
     "host": "Coolify on Igris, with a Coolify PostgreSQL database",
     "root": "server",
-    "branch": "accounts",
+    "branch": "main",
     "dns": "Cloudflare CNAME to the igris-coolify tunnel, proxied"
   },
   "stack": {
