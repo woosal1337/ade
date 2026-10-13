@@ -112,7 +112,7 @@ ade login
 ade push
 ```
 
-Your page at `ade.chele.bi/<name>` shows only the items that you switch on in the dashboard. Others apply them with `ade apply @<name>`. Read [the accounts guide](docs/accounts.md).
+Your page at `ade.chele.bi/<name>` shows only the items that you switch on in the dashboard. Others apply them with `ade apply @<name>`. [ade.chele.bi/people](https://ade.chele.bi/people) lists each person with a public setup, with search, filters, and votes. Read [the accounts guide](docs/accounts.md).
 
 ## Supported harnesses
 
