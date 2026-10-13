@@ -163,7 +163,7 @@ The API runs with the login off until it has the three WorkOS values.
 3. Redeploy the app.
 4. Run `curl -s https://ade-api.chele.bi/health`. Make sure that it prints `"auth":true`.
 
-A WorkOS Staging environment uses the GitHub app of WorkOS, and the GitHub screen shows the WorkOS name. A Production environment needs your own GitHub OAuth App in the WorkOS dashboard. The logout ends the session through the API key, so it needs no sign-out redirect.
+ade uses the Production environment of the WorkOS project `ade`. Production accepts only `https://` redirect URIs, so a local run uses the WorkOS stand-in of `server/dev/compose.yml`. GitHub sign-in uses the GitHub OAuth App `ade`. Its callback URL is the Redirect URI on the WorkOS GitHub settings page. The logout ends the session through the API key, so it needs no sign-out redirect.
 
 ## Update the GitHub social preview
 
