@@ -131,6 +131,34 @@ Vercel deploys the `site` folder to https://ade.chele.bi on each push to `main`.
 
 4. If the site is broken, promote the last good deployment in Vercel.
 
+## Deploy the accounts API
+
+Coolify on Igris builds `server/Dockerfile` from GitHub. A GitHub push webhook starts each deploy.
+
+1. Push the commit to the branch that the Coolify app `ade-api` builds.
+2. Open the app in Coolify. Make sure that the new deployment shows Finished, and the app shows running:healthy.
+3. Run this command. Make sure that it prints `"ok":true`:
+
+   ```bash
+   curl -s https://ade-api.chele.bi/health
+   ```
+
+4. If the API is broken, redeploy the last good commit in Coolify.
+
+The API applies new database migrations when it starts.
+
+## Turn on the login
+
+The API runs with the login off until it has the three WorkOS values.
+
+1. In the WorkOS dashboard, turn on GitHub as a login provider.
+2. Add the redirect URI `https://ade.chele.bi/api/auth/callback`.
+3. Add `https://ade.chele.bi/` as the sign-out redirect.
+4. Turn on CLI Auth.
+5. Set `WORKOS_API_KEY`, `WORKOS_CLIENT_ID`, and `WORKOS_COOKIE_PASSWORD` on the Coolify app, then redeploy. The cookie password needs 32 or more characters.
+
+Run `curl -s https://ade-api.chele.bi/health`. Make sure that it prints `"auth":true`.
+
 ## Update the GitHub social preview
 
 GitHub has no API for this image. Do these steps after a change to the social card:
