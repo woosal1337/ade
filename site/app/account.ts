@@ -1,3 +1,11 @@
+import {
+  type PeoplePage,
+  type PeopleQuery,
+  type Person,
+  peopleSearch,
+  type VoteTally,
+  type VoteValue,
+} from "./people-query";
 export type ItemKind =
   | "harnesses"
   | "instructions"
@@ -157,6 +165,33 @@ export async function pendingLogin(): Promise<{ readonly email: string } | undef
 
 export function verifyLogin(code: string): Promise<{ readonly redirect: string }> {
   return call("/auth/verify", { method: "POST", body: JSON.stringify({ code }) });
+}
+
+export function getPeople(query: PeopleQuery, signal?: AbortSignal): Promise<PeoplePage> {
+  return call<PeoplePage>(
+    `/v1/people${peopleSearch(query)}`,
+    signal === undefined ? {} : { signal },
+  );
+}
+
+export async function getPerson(
+  handle: string,
+): Promise<{ readonly person: Person; readonly viewer: string | null } | undefined> {
+  try {
+    return await call(`/v1/people/${encodeURIComponent(handle)}`);
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) {
+      return undefined;
+    }
+    throw error;
+  }
+}
+
+export function castVote(handle: string, value: VoteValue): Promise<{ readonly votes: VoteTally }> {
+  return call(`/v1/people/${encodeURIComponent(handle)}/vote`, {
+    method: "PUT",
+    body: JSON.stringify({ value }),
+  });
 }
 
 export function loginUrl(returnTo: string): string {

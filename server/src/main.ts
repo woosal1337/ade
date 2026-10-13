@@ -4,6 +4,7 @@ import { createApp } from "./app.ts";
 import { notConfiguredAuth, workosAuth } from "./auth.ts";
 import { loadConfig } from "./config.ts";
 import { postgresDb } from "./db.ts";
+import { rebuildDirectory } from "./directory.ts";
 import { migrate } from "./migrate.ts";
 
 const log = (line: string): void => {
@@ -14,6 +15,10 @@ const config = loadConfig(process.env);
 const db = postgresDb(config.databaseUrl);
 const applied = await migrate(db);
 log(`database ready, ${applied} new migrations`);
+const listed = await rebuildDirectory(db);
+if (listed > 0) {
+  log(`directory rebuilt for ${listed} accounts`);
+}
 const auth = config.workos === undefined ? notConfiguredAuth : workosAuth(config.workos);
 if (!auth.configured) {
   log("WorkOS is not configured. Login is off.");

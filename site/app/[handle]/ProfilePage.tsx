@@ -1,12 +1,15 @@
 "use client";
 
 import Image from "next/image";
+import { useEffect, useState } from "react";
 import { CopyCommand } from "../_components/CopyCommand";
 import { ArrowUpRight } from "../_components/primitives";
 import { SetupView } from "../_components/SetupView";
 import { useVisibility } from "../_components/useVisibility";
-import type { Me, PublicPage } from "../account";
+import { VoteButtons } from "../_components/VoteButtons";
+import { getPerson, type Me, type PublicPage } from "../account";
 import { saveAccount, useAccount, withItems } from "../account-store";
+import type { VoteTally } from "../people-query";
 
 const FRAME = "mx-auto max-w-[1100px] px-5";
 
@@ -36,10 +39,31 @@ function OwnerView({ me }: { readonly me: Me }) {
   );
 }
 
-export function ProfilePage({ page }: { readonly page: PublicPage }) {
+export function ProfilePage({
+  page,
+  votes,
+}: {
+  readonly page: PublicPage;
+  readonly votes: VoteTally | undefined;
+}) {
   const account = useAccount();
   const owner =
     account.status === "in" && account.me.account.handle === page.handle ? account.me : undefined;
+  const [tally, setTally] = useState(votes);
+  const signedIn = account.status === "in";
+
+  useEffect(() => {
+    if (!signedIn || votes === undefined) {
+      return;
+    }
+    getPerson(page.handle)
+      .then((result) => {
+        if (result !== undefined) {
+          setTally(result.person.votes);
+        }
+      })
+      .catch(() => undefined);
+  }, [signedIn, page.handle, votes]);
 
   return (
     <div className={`${FRAME} space-y-10 py-12`}>
@@ -78,14 +102,19 @@ export function ProfilePage({ page }: { readonly page: PublicPage }) {
             </p>
           </div>
         </div>
-        {owner === undefined ? null : (
-          <a
-            href="/dashboard"
-            className="inline-flex h-8 items-center gap-2 border border-line-strong bg-raised px-2.5 font-mono text-[12px] text-fg hover:border-muted"
-          >
-            Dashboard
-          </a>
-        )}
+        <div className="flex items-center gap-4">
+          {tally === undefined ? null : (
+            <VoteButtons handle={page.handle} votes={tally} layout="row" />
+          )}
+          {owner === undefined ? null : (
+            <a
+              href="/dashboard"
+              className="inline-flex h-8 items-center gap-2 border border-line-strong bg-raised px-2.5 font-mono text-[12px] text-fg hover:border-muted"
+            >
+              Dashboard
+            </a>
+          )}
+        </div>
       </div>
       <div className="grid grid-cols-1 gap-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
         <CopyCommand command={page.apply} />

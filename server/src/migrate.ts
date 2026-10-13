@@ -32,6 +32,35 @@ const MIGRATIONS: readonly (readonly string[])[] = [
   ],
   [`alter table users add column github_login text`],
   [`alter table users add column github_id text`],
+  [
+    `create table directory (
+      user_id text primary key references users (id) on delete cascade,
+      version integer not null,
+      summary_hash text not null,
+      harnesses text[] not null default '{}',
+      skills text[] not null default '{}',
+      mcp text[] not null default '{}',
+      plugins text[] not null default '{}',
+      skill_count integer not null default 0,
+      mcp_count integer not null default 0,
+      plugin_count integer not null default 0,
+      setting_count integer not null default 0,
+      item_count integer not null default 0,
+      search_text text not null default '',
+      updated_at timestamptz not null
+    )`,
+    `create index directory_updated on directory (updated_at desc)`,
+    `create table votes (
+      voter_id text not null references users (id) on delete cascade,
+      target_id text not null references users (id) on delete cascade,
+      value smallint not null check (value in (-1, 1)),
+      created_at timestamptz not null default now(),
+      updated_at timestamptz not null default now(),
+      primary key (voter_id, target_id),
+      check (voter_id <> target_id)
+    )`,
+    `create index votes_target on votes (target_id)`,
+  ],
 ];
 
 const LOCK_ID = 424_700_1;

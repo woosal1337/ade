@@ -19,6 +19,16 @@ import {
   LoginStepError,
 } from "./auth.ts";
 import type { Db } from "./db.ts";
+import {
+  harnessFacets,
+  listedCount,
+  listPeople,
+  parsePeopleQuery,
+  personByUser,
+  refreshDirectory,
+  setVote,
+  type VoteValue,
+} from "./directory.ts";
 import { RateLimiter } from "./limits.ts";
 import {
   approvals,
@@ -170,6 +180,7 @@ export function createApp(options: AppOptions): Hono<{ Variables: Variables }> {
   const owners = new RateLimiter(300, 60_000);
   const uploads = new RateLimiter(30, 60 * 60_000);
   const codeTries = new RateLimiter(5, PENDING_MAX_AGE * 1000);
+  const voteLimiter = new RateLimiter(60, 60_000);
   const log = options.log ?? (() => undefined);
 
   const sessionCookie = (c: Context, value: string): void => {
@@ -277,6 +288,40 @@ export function createApp(options: AppOptions): Hono<{ Variables: Variables }> {
     c.set("mode", "cookie");
     await next();
     return undefined;
+  };
+
+  const viewerOf = async (c: Context): Promise<UserRow | undefined> => {
+    try {
+      const header = c.req.header("authorization");
+      if (header !== undefined) {
+        const match = /^Bearer\s+(\S+)$/i.exec(header);
+        const userId = match?.[1] === undefined ? undefined : await auth.verifyBearer(match[1]);
+        return userId === undefined ? undefined : await userByWorkos(db, userId);
+      }
+      const sealed = getCookie(c, SESSION_COOKIE);
+      if (sealed === undefined) {
+        return undefined;
+      }
+      const session = await auth.readSession(sealed);
+      if (session === undefined) {
+        clearSession(c);
+        return undefined;
+      }
+      if (session.sealed !== undefined) {
+        sessionCookie(c, session.sealed);
+      }
+      return await userByWorkos(db, session.userId);
+    } catch {
+      return undefined;
+    }
+  };
+
+  const refreshListing = async (userId: string): Promise<void> => {
+    try {
+      await refreshDirectory(db, userId, new Date());
+    } catch (error) {
+      log(`directory refresh failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
   };
 
   const accountBody = (account: UserRow) => ({
@@ -607,6 +652,7 @@ export function createApp(options: AppOptions): Hono<{ Variables: Variables }> {
           clientVersion: client,
           keys: items.map((item) => item.key),
         });
+        await refreshListing(account.id);
       }
       const counts = countStates(items, await approvals(db, account.id));
       return c.json({
@@ -660,6 +706,7 @@ export function createApp(options: AppOptions): Hono<{ Variables: Variables }> {
         );
       }
       await setApprovals(db, account.id, changes);
+      await refreshListing(account.id);
       const approved = await approvals(db, account.id);
       return c.json({
         ...countStates(current?.view.items ?? [], approved),
@@ -675,6 +722,56 @@ export function createApp(options: AppOptions): Hono<{ Variables: Variables }> {
     }
     return userByHandle(db, handle);
   };
+
+  app.get("/v1/people", async (c) => {
+    const query = parsePeopleQuery(c.req.query());
+    const viewer = await viewerOf(c);
+    const [page, harnesses, listed] = await Promise.all([
+      listPeople(db, query, viewer?.id),
+      harnessFacets(db),
+      listedCount(db),
+    ]);
+    return c.json({
+      ...page,
+      query: { ...query, has: [...query.has] },
+      facets: { harnesses, listed },
+      viewer: viewer === undefined ? null : viewer.handle,
+    });
+  });
+
+  app.get("/v1/people/:handle", async (c) => {
+    const account = await publicAccount(c);
+    const viewer = await viewerOf(c);
+    const person =
+      account === undefined ? undefined : await personByUser(db, account.id, viewer?.id);
+    if (person === undefined) {
+      return c.json(errorBody("not-found", "This person shares no items yet."), 404);
+    }
+    return c.json({ person, viewer: viewer === undefined ? null : viewer.handle });
+  });
+
+  app.put("/v1/people/:handle/vote", requireAccount, bodyLimit({ maxSize: 1024 }), async (c) => {
+    const voter = c.get("account");
+    if (!voteLimiter.hit(voter.id)) {
+      return c.json(errorBody("rate-limited", "Too many votes. Try again in a minute."), 429);
+    }
+    const body = await readJson(c);
+    const value = isRecord(body) ? body.value : undefined;
+    if (value !== 1 && value !== -1 && value !== 0) {
+      return c.json(errorBody("usage", "Send { value: 1 }, { value: -1 }, or { value: 0 }."), 400);
+    }
+    const target = await publicAccount(c);
+    const listed = target === undefined ? undefined : await personByUser(db, target.id, voter.id);
+    if (target === undefined || listed === undefined) {
+      return c.json(errorBody("not-found", "This person shares no items yet."), 404);
+    }
+    if (target.id === voter.id) {
+      return c.json(errorBody("own-page", "You cannot vote for your own page."), 400);
+    }
+    await setVote(db, voter.id, target.id, value as VoteValue);
+    const person = await personByUser(db, target.id, voter.id);
+    return c.json({ votes: person?.votes ?? listed.votes });
+  });
 
   app.get("/v1/users/:handle", async (c) => {
     const account = await publicAccount(c);

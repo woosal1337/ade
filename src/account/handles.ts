@@ -14,6 +14,7 @@ export const RESERVED_HANDLES: ReadonlySet<string> = new Set([
   "callback",
   "dashboard",
   "device",
+  "directory",
   "doc",
   "docs",
   "download",
@@ -34,6 +35,8 @@ export const RESERVED_HANDLES: ReadonlySet<string> = new Set([
   "null",
   "org",
   "orgs",
+  "people",
+  "person",
   "pricing",
   "privacy",
   "private",
@@ -58,6 +61,8 @@ export const RESERVED_HANDLES: ReadonlySet<string> = new Set([
   "undefined",
   "user",
   "users",
+  "vote",
+  "votes",
   "www",
 ]);
 

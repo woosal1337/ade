@@ -4,6 +4,7 @@ import { cache } from "react";
 import { Header } from "../_components/Header";
 import { Footer } from "../_components/sections";
 import { HANDLE_PATTERN, type PublicPage } from "../account";
+import type { VoteTally } from "../people-query";
 import { API_ORIGIN, SOCIAL_IMAGE } from "../site";
 import { ProfilePage } from "./ProfilePage";
 
@@ -68,17 +69,34 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
   };
 }
 
+async function loadVotes(handle: string): Promise<VoteTally | undefined> {
+  try {
+    const response = await fetch(`${API_ORIGIN}/v1/people/${handle}`, {
+      headers: { accept: "application/json" },
+      cache: "no-store",
+    });
+    if (!response.ok) {
+      return undefined;
+    }
+    const body = (await response.json()) as { readonly person?: { readonly votes?: VoteTally } };
+    return body.person?.votes;
+  } catch {
+    return undefined;
+  }
+}
+
 export default async function HandlePage({ params }: Params) {
   const { handle } = await params;
   const page = await loadPage(handle);
   if (page === undefined) {
     notFound();
   }
+  const votes = await loadVotes(page.handle);
   return (
     <>
       <Header />
       <main>
-        <ProfilePage page={page} />
+        <ProfilePage page={page} votes={votes} />
       </main>
       <Footer />
     </>
