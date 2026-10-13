@@ -48,6 +48,7 @@ To edit a setup before you apply it, import it first. `ade import woosal1337/ade
 | Ref | `acme/agents@v1.2`, `acme/agents@main` | A tag, a branch, or a full commit hash |
 | Explicit GitHub | `github:acme/agents` | The shorthand, even when a local folder has the same name |
 | Git URL | `https://git.example.com/team/agents.git//work#v1` | Any Git URL, with an optional `//subfolder` and `#ref` |
+| ade page | `@ege`, `ade.chele.bi/ege` | The items that the owner of the page shares. Read [the accounts guide](accounts.md) |
 
 If a local folder or file has the same name as a shorthand, ade stops. Use `./<path>` for the local path, or `github:<owner>/<repo>` for the repository. A repository root with only an `ADE.md` works as a source. Read [the ADE.md standard](ade-md.md).
 

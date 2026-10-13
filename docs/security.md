@@ -58,6 +58,19 @@ In text output, ade escapes control characters and line breaks that come from da
 
 `ade remote` runs `ssh` with your SSH configuration. It sends the engine and the profile on standard input. It sends secret values only with `--send-secrets`. ade checks the envelope of each remote result before it uses it.
 
+## Accounts
+
+ade accounts are optional. Read [the accounts guide](accounts.md).
+
+- `ade push` uploads the same bundle as `ade share`. The CLI and the API refuse token values, credential files, and local paths.
+- The API keeps the last 5 uploads of each account, hidden items included. Only the owner can read hidden items.
+- An item is public only after the owner approves it at its current content hash. A changed item is hidden again.
+- The public profile holds secret names only. Each secret source becomes an environment source with the same name.
+- `@<name>` sources need trust, like a Git source.
+- The CLI keeps its WorkOS tokens in `account.json` in the state folder, with mode 600. `ade logout` deletes the file.
+- The site session is a sealed WorkOS session in an HttpOnly cookie on `/api`. A request that changes data with this cookie must come from the site origin.
+- Deleting the account deletes the account, the uploads, and the approvals.
+
 ## Limits
 
 - ade does not control what a harness does with its configuration after the write.

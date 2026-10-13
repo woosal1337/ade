@@ -50,7 +50,30 @@ node src/cli.ts plan --profile <profile-dir> --home <scratch-home>
 npm --prefix site run dev
 ```
 
-`npm --prefix site run build` writes the static site to `site/out`. The site has no server code. Vercel builds the same folder for https://ade.chele.bi on each push to `main`.
+`npm --prefix site run build` builds the site. The home page is static. `/dashboard` and `/<name>` need the API: set `ADE_API_ORIGIN` to its URL. Vercel builds the same folder for https://ade.chele.bi on each push to `main`.
+
+## Run the accounts API
+
+1. Install the API dependencies:
+
+   ```bash
+   npm ci --prefix server
+   ```
+
+2. Run the API checks. The tests use PGlite, an in-memory PostgreSQL:
+
+   ```bash
+   npm --prefix server run check
+   ```
+
+3. To also test against a real PostgreSQL server, set `ADE_TEST_DATABASE_URL` to a database URL. The test makes and drops its own database.
+4. Start the API. It reads `PORT`, `DATABASE_URL`, `ADE_SITE_URL`, `ADE_PUBLIC_API_URL`, `WORKOS_API_KEY`, `WORKOS_CLIENT_ID`, and `WORKOS_COOKIE_PASSWORD`:
+
+   ```bash
+   node server/src/main.ts
+   ```
+
+Without the three WorkOS variables, the API runs with the login off.
 
 ## Use the CLI from this clone
 
@@ -78,6 +101,8 @@ ade reads these variables. All are optional.
 | `ADE_STATE_DIR` | State directory with `state.json` and the apply records |
 | `ADE_CACHE_DIR` | Cache directory for Git skill sources |
 | `CLAUDE_CONFIG_DIR`, `CODEX_HOME`, `GROK_HOME`, `PI_CODING_AGENT_DIR` | Harness home overrides |
+| `ADE_API_URL` | The accounts API. Default: `https://api.ade.chele.bi` |
+| `ADE_SITE_URL` | The site for page links and `ade.chele.bi/<name>` sources. Default: `https://ade.chele.bi` |
 | `NO_COLOR` | Plain output |
 
 A profile holds secret references only. Secret values come from the environment, a file, a command, or the macOS Keychain at apply time.

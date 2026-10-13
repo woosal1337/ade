@@ -101,7 +101,18 @@ GitHub shows `ADE.md` as a normal page: the install steps, what the setup runs a
 - run: npx -y github:woosal1337/ade verify ADE.md
 ```
 
-A source can be a local folder, an `ADE.md` file, `owner/repo[/subfolder][@ref]` on GitHub, or any Git URL. Read [the ADE.md standard](docs/ade-md.md) and [the sources guide](docs/sources.md).
+A source can be a local folder, an `ADE.md` file, `owner/repo[/subfolder][@ref]` on GitHub, any Git URL, or an ade page such as `@ege`. Read [the ADE.md standard](docs/ade-md.md) and [the sources guide](docs/sources.md).
+
+## Your ade page
+
+Log in at [ade.chele.bi/dashboard](https://ade.chele.bi/dashboard) with GitHub. Then link the CLI and upload your setup:
+
+```bash
+ade login
+ade push
+```
+
+Your page at `ade.chele.bi/<name>` shows only the items that you switch on in the dashboard. Others apply them with `ade apply @<name>`. Read [the accounts guide](docs/accounts.md).
 
 ## Supported harnesses
 
@@ -175,6 +186,7 @@ Read [the architecture](docs/architecture.md) for the modules and the data flow.
 | `ade share`, `ade verify`, `ade import` | Write and check `ADE.md`, import a shared setup into a profile |
 | `ade use`, `ade trust`, `ade update` | Set the default source, trust a Git source or a shared file, lock Git skills |
 | `ade remote <host> <command>` | Run plan, apply, status, revert, or capture on another machine over SSH |
+| `ade login`, `ade logout`, `ade whoami`, `ade push` | Link the CLI to your ade account, and upload your setup to your page |
 
 Every command takes `--json`. Run `ade help <command>` for its options.
 
@@ -218,6 +230,7 @@ The CLI uses the same engine. Read [the SDK guide](docs/sdk.md).
 | [Harness support](docs/harnesses.md) | Each file of each harness |
 | [Profile reference](docs/profile.md) | The `ade.json` format |
 | [Sources](docs/sources.md) | Git sources, trust, and publication |
+| [Accounts](docs/accounts.md) | Your ade page, uploads, approvals, and the API |
 | [Remote machines](docs/remote.md) | Commands over SSH |
 | [SDK](docs/sdk.md) | The TypeScript API |
 | [Security model](docs/security.md) | The trust gate, the secret handling, and the limits |

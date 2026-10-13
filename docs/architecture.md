@@ -29,8 +29,11 @@ ade reads a profile, builds the desired state for each harness, and compares it 
 | `src/remote/client.ts` | The profile shipment, the SSH transport, and the remote calls |
 | `src/remote/agent.ts` | The remote entry point. The build bundles it into `dist/remote-agent.mjs` |
 | `src/cli/` | Arguments, prompts, human output, and JSON envelopes |
+| `src/account/` | Page names, the API client, the WorkOS device login, and the token file |
+| `src/profile/catalog.ts` | The item list of an uploaded bundle, and the public profile of the approved items |
 | `src/index.ts` | The public SDK |
-| `site/` | The landing page, a separate Next.js package with its own lockfile |
+| `server/` | The accounts API: Hono, PostgreSQL, and WorkOS. A separate package with its own lockfile |
+| `site/` | The landing page, the dashboard, and the public pages. A separate Next.js package with its own lockfile |
 | `site/app/glyphs.ts`, `site/app/brands.ts`, `site/app/raster.ts` | The dot-matrix glyphs, the logo path data, and the renderer that turns a path into dots |
 | `site/app/loop-scene.ts` | The animated loop figure: one frame as a pure function of time |
 
@@ -61,10 +64,12 @@ The state directory is `$ADE_STATE_DIR`, or `$XDG_STATE_HOME/ade`, or `~/.local/
 
 ## Runtime and deployment
 
-ade runs on the machine that it configures, or it sends its engine to another machine over SSH. It has no server. The npm package `@woosal1337/ade` stays private until a release decision. Node.js 22 or later runs the built package from `dist/`.
+ade runs on the machine that it configures, or it sends its engine to another machine over SSH. The engine needs no server. The npm package `@woosal1337/ade` stays private until a release decision. Node.js 22 or later runs the built package from `dist/`.
+
+The accounts API in `server/` runs on Igris in Coolify, with PostgreSQL. It serves `api.ade.chele.bi`. Vercel runs the site at ade.chele.bi and sends `/api/*` to the API. Read [the accounts guide](accounts.md) and [decision 0011](decisions/0011-accounts-and-public-pages.md).
 
 ## Decisions
 
-Read [the foundation decision](decisions/0001-project-foundation.md), [the ownership decision](decisions/0002-entry-ownership.md), [the remote decision](decisions/0003-remote-agent.md), [the sources decision](decisions/0004-git-sources-and-trust.md), [the coverage decision](decisions/0005-full-coverage.md), [the ADE.md decision](decisions/0006-ade-md.md), [the site decision](decisions/0007-landing-page.md), [the logo decision](decisions/0008-brand-logos.md), [the trust decision](decisions/0009-trust-by-entry-hash.md), [the hosting decision](decisions/0010-site-hosting.md), and [the stack research](../research/stack.md).
+Read [the foundation decision](decisions/0001-project-foundation.md), [the ownership decision](decisions/0002-entry-ownership.md), [the remote decision](decisions/0003-remote-agent.md), [the sources decision](decisions/0004-git-sources-and-trust.md), [the coverage decision](decisions/0005-full-coverage.md), [the ADE.md decision](decisions/0006-ade-md.md), [the site decision](decisions/0007-landing-page.md), [the logo decision](decisions/0008-brand-logos.md), [the trust decision](decisions/0009-trust-by-entry-hash.md), [the hosting decision](decisions/0010-site-hosting.md), [the accounts decision](decisions/0011-accounts-and-public-pages.md), and [the stack research](../research/stack.md).
 Add a decision record when a choice changes a boundary or creates a lasting tradeoff.
 Keep operational steps in [the runbook](runbook.md).

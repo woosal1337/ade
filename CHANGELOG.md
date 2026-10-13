@@ -11,6 +11,8 @@ The first public version.
 - `ADE.md`: one Markdown file that holds a whole setup, with `share`, `verify`, and `import`.
 - `ade remote` to plan, apply, and capture over SSH.
 - A TypeScript SDK with the same operations.
+- Accounts with GitHub login through WorkOS: `ade login`, `ade logout`, `ade whoami`, and `ade push`. Each account has a page at `ade.chele.bi/<name>` that shows only the items that its owner approves.
+- `@<name>` and `ade.chele.bi/<name>` sources for plan, apply, and import, with the trust prompt.
 - Install scripts for macOS, Linux, and Windows. They build a package file with `npm pack`, then install it, because `npm install -g` of a Git source fails in npm (npm/cli#8440).
 
 ### Security
