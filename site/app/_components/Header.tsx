@@ -46,8 +46,8 @@ export function Header() {
           ))}
         </ul>
         <div className="ml-auto flex items-center gap-5 font-mono text-[12px]">
-          <a href="/people" className="text-muted hover:text-fg">
-            People
+          <a href="/community" className="text-muted hover:text-fg">
+            Community
           </a>
           <a href="/#harnesses" className="hidden text-muted hover:text-fg sm:inline">
             Harnesses

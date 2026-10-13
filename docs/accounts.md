@@ -47,9 +47,9 @@ Each item has a switch on the dashboard. An item is public only when you switch 
 
 The public page and `ade apply @<name>` show the same items. In the public profile, each secret becomes an environment variable with the same name. The user who applies it sets the variable.
 
-## The People page
+## The Community page
 
-https://ade.chele.bi/people lists each person with at least one public item. A person with no public item is not on the list.
+https://ade.chele.bi/community lists each person with at least one public item. A person with no public item is not on the list. The old address `/people` sends the browser to `/community`.
 
 | Part | Use |
 |---|---|
@@ -110,8 +110,8 @@ The API answers on `https://ade-api.chele.bi` and on `https://ade.chele.bi/api`.
 | `GET /v1/auth/config` | Public | The WorkOS client ID and the device flow URLs |
 | `GET /v1/users/<name>` | Public | The shared items of a page |
 | `GET /v1/users/<name>/ADE.md` | Public | The shared items as an `ADE.md` |
-| `GET /v1/people` | Public | The People list: `q`, `harness`, `has`, `sort`, and `page`. A logged-in request also gets its own votes |
-| `GET /v1/people/<name>` | Public | One person of the list, with the vote counts |
+| `GET /v1/people` | Public | The Community list: `q`, `harness`, `has`, `sort`, and `page`. A logged-in request also gets its own votes |
+| `GET /v1/people/<name>` | Public | One person of the Community list, with the vote counts |
 | `PUT /v1/people/<name>/vote` | Signed in | Vote: `{ "value": 1 }`, `{ "value": -1 }`, or `{ "value": 0 }` to remove the vote |
 | `GET /v1/me` | Owner | The account, the last upload, and every item with its state |
 | `PATCH /v1/me` | Owner | Change the page name or the display name |

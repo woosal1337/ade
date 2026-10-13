@@ -6,6 +6,9 @@ const config: NextConfig = {
   agentRules: false,
   images: { unoptimized: true },
   poweredByHeader: false,
+  async redirects() {
+    return [{ source: "/people", destination: "/community", permanent: true }];
+  },
   async rewrites() {
     return [{ source: "/api/:path*", destination: `${API_ORIGIN}/:path*` }];
   },

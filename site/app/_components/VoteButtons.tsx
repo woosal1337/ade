@@ -103,7 +103,7 @@ export function VoteButtons({ handle, votes, layout = "column" }: VoteButtonsPro
   const message =
     note === "login" ? (
       <a
-        href={loginUrl(typeof window === "undefined" ? "/people" : window.location.pathname)}
+        href={loginUrl(typeof window === "undefined" ? "/community" : window.location.pathname)}
         className="text-fg underline decoration-line-strong underline-offset-4"
       >
         Log in to vote

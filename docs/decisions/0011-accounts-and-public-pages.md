@@ -18,7 +18,7 @@ Ege asked for GitHub login on ade.chele.bi, a page for each user at `ade.chele.b
 6. The public profile turns each secret source into an environment source with the same name. It never holds a secret value or a secret command.
 7. `@name` and `ade.chele.bi/<name>` are profile sources. They need trust like a Git source, and the trust compares the entry hashes.
 8. ade has its own WorkOS project, `ade`, and uses its Production environment. The project has its own users, its own GitHub OAuth App named `ade`, and the display name `ade`. So the GitHub screen and the WorkOS emails show "ade", and the emails have no "[STAGING]" prefix.
-9. The People page reads a `directory` table with a summary of the public items of each person. The API writes the summary after each upload and each switch change, and fills it at start for accounts that have none. Votes live in a `votes` table, one row for each voter and person.
+9. The Community page at `/community` reads a `directory` table with a summary of the public items of each person. The API writes the summary after each upload and each switch change, and fills it at start for accounts that have none. Votes live in a `votes` table, one row for each voter and person.
 
 ## Alternatives
 

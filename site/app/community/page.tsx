@@ -5,19 +5,19 @@ import type { PeoplePage } from "../people-query";
 import { API_ORIGIN, SOCIAL_IMAGE } from "../site";
 import { PeopleDirectory } from "./PeopleDirectory";
 
-const TITLE = "People | ade";
+const TITLE = "Community | ade";
 const DESCRIPTION =
   "Agent setups that people share on ade: skills, MCP servers, and plugins. Search, filter, vote, and apply one with ade apply @name.";
 
 export const metadata: Metadata = {
   title: TITLE,
   description: DESCRIPTION,
-  alternates: { canonical: "/people" },
+  alternates: { canonical: "/community" },
   openGraph: {
     title: TITLE,
     description: DESCRIPTION,
     type: "website",
-    url: "/people",
+    url: "/community",
     siteName: "ade",
     images: [SOCIAL_IMAGE],
   },
@@ -55,7 +55,7 @@ async function loadPeople(
   }
 }
 
-export default async function People({ searchParams }: Props) {
+export default async function Community({ searchParams }: Props) {
   const initial = await loadPeople(await searchParams);
   return (
     <>

@@ -239,7 +239,7 @@ export function PeopleDirectory({ initial }: { readonly initial: PeoplePage | nu
   }, [query, viewer, account.status, load]);
 
   useEffect(() => {
-    const target = `/people${peopleSearch(query)}`;
+    const target = `/community${peopleSearch(query)}`;
     if (`${window.location.pathname}${window.location.search}` !== target) {
       router.replace(target, { scroll: false });
     }
@@ -292,7 +292,7 @@ export function PeopleDirectory({ initial }: { readonly initial: PeoplePage | nu
     <div className={`${FRAME} space-y-8 py-12`}>
       <div className="flex flex-wrap items-end justify-between gap-6">
         <div className="max-w-[640px] space-y-3">
-          <p className="font-mono text-[12px] text-muted">People</p>
+          <p className="font-mono text-[12px] text-muted">Community</p>
           <h1 className="text-[36px] leading-[1.1] tracking-[-0.02em] text-fg">
             Agent setups that people share
           </h1>
