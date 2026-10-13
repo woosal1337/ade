@@ -16,14 +16,20 @@ const FRAME = "mx-auto max-w-[1100px] px-5";
 export function ProfilePage({
   page,
   votes,
+  preview = false,
 }: {
   readonly page: PublicPage;
   readonly votes: VoteTally | undefined;
+  readonly preview?: boolean;
 }) {
   const account = useAccount();
-  const owner = account.status === "in" && account.me.account.handle === page.handle;
+  const owner = !preview && account.status === "in" && account.me.account.handle === page.handle;
   const [tally, setTally] = useState(votes);
   const signedIn = account.status === "in";
+
+  useEffect(() => {
+    setTally(votes);
+  }, [votes]);
 
   useEffect(() => {
     if (!signedIn || votes === undefined) {
@@ -41,7 +47,7 @@ export function ProfilePage({
   return (
     <div className={`${FRAME} space-y-10 py-12`}>
       <div className="flex flex-wrap items-center justify-between gap-6">
-        <AvatarHeading src={page.avatarUrl}>
+        <AvatarHeading src={page.avatarUrl} eager>
           <div className="space-y-1">
             <h1 className="text-[28px] leading-[1.15] tracking-[-0.01em] text-fg">
               {page.displayName || `@${page.handle}`}

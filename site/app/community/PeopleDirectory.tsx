@@ -117,12 +117,18 @@ function Updated({ iso }: { readonly iso: string }) {
   );
 }
 
-function PersonCard({ person }: { readonly person: Person }) {
+export function PersonCard({
+  person,
+  eager = false,
+}: {
+  readonly person: Person;
+  readonly eager?: boolean;
+}) {
   return (
     <li className="flex gap-3 border border-line bg-panel p-4 transition-colors hover:border-line-strong">
       <VoteButtons handle={person.handle} votes={person.votes} />
       <div className="min-w-0 flex-1 space-y-3">
-        <AvatarHeading src={person.avatarUrl} gap="gap-3">
+        <AvatarHeading src={person.avatarUrl} gap="gap-3" eager={eager}>
           <div className="min-w-0">
             <SiteLink
               prefetch={false}

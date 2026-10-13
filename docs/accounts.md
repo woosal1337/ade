@@ -17,7 +17,7 @@ An ade account gives you a page at `ade.chele.bi/<name>`. You upload your setup 
    ade push
    ```
 
-4. Open the dashboard. Switch on each item that others can see.
+4. Open the dashboard. Switch on each item that others can see. Select Preview to see your Community card and your public page with these changes. Then select Save changes.
 5. Share the link `ade.chele.bi/<name>`, or the command `ade apply @<name>`.
 
 Run `ade push` again after a change on your machine. The dashboard shows the new upload.
@@ -41,7 +41,7 @@ Each item has a switch on the dashboard. An item is public only when you switch 
 | Event | Result |
 |---|---|
 | A new item in an upload | Hidden |
-| You switch an item on | Public, at this version |
+| You switch an item on and select Save changes | Public, at this version |
 | The item changes in a later upload | Hidden again. The dashboard marks it as changed until you switch it on again |
 | The item leaves a later upload | Gone, and its approval ends |
 
@@ -81,7 +81,8 @@ The source needs trust, like a Git source. ade shows what the setup runs and wri
 
 | Task | Where |
 |---|---|
-| Choose the items that others see | Dashboard, the switch of each item |
+| Choose the items that others see | Dashboard, the switch of each item, then Save changes. A switch changes a draft only. The draft stays in the browser tab until you save or discard it |
+| See the result before a save | Dashboard, Preview: the Community card and the public page with the draft |
 | See the page as others see it | `ade.chele.bi/<name>`. The owner gets the same view, with a button that opens the dashboard |
 | Change the page name | Dashboard, Page name |
 | Show the linked account | `ade whoami` |

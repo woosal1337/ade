@@ -31,6 +31,7 @@ const VALUE_LIMIT = 280;
 
 export interface Editor {
   readonly busy: ReadonlySet<string>;
+  readonly pending?: ReadonlySet<string>;
   readonly onChange: (keys: readonly string[], visible: boolean) => void;
 }
 
@@ -276,7 +277,9 @@ function ItemRow({
       </div>
       {editor === undefined ? null : (
         <div className="flex shrink-0 items-center gap-3 pt-0.5">
-          {item.state === "changed" ? (
+          {editor.pending?.has(item.key) === true ? (
+            <span className="font-mono text-[11px] text-accent">Not saved</span>
+          ) : item.state === "changed" ? (
             <span className="font-mono text-[11px] text-warn">Changed since you approved it</span>
           ) : null}
           <Switch

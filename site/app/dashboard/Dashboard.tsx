@@ -6,7 +6,6 @@ import { CopyCommand } from "../_components/CopyCommand";
 import { ArrowUpRight } from "../_components/primitives";
 import { SetupView } from "../_components/SetupView";
 import { SiteLink } from "../_components/SiteLink";
-import { useVisibility } from "../_components/useVisibility";
 import {
   ApiError,
   deleteAccount,
@@ -17,8 +16,10 @@ import {
   updateAccount,
   verifyLogin,
 } from "../account";
-import { forgetAccount, saveAccount, useAccount, withItems } from "../account-store";
+import { forgetAccount, saveAccount, useAccount } from "../account-store";
 import { INSTALL_COMMAND } from "../content";
+import { Preview } from "./Preview";
+import { type DraftEditor, useDraft } from "./useDraft";
 
 const FRAME = "mx-auto max-w-[1100px] px-5";
 const BUTTON =
@@ -189,14 +190,67 @@ function Rename({ me, onRenamed }: { readonly me: Me; readonly onRenamed: (me: M
   );
 }
 
+function SaveBar({
+  draft,
+  onPreview,
+}: {
+  readonly draft: DraftEditor;
+  readonly onPreview: () => void;
+}) {
+  return (
+    <section
+      aria-label="Unsaved changes"
+      className="fixed inset-x-0 bottom-0 z-40 border-t border-line-strong bg-panel/95 backdrop-blur"
+    >
+      <div className="mx-auto flex max-w-[1100px] flex-wrap items-center justify-between gap-3 px-5 py-3">
+        <p className="font-mono text-[12px] text-fg">
+          {draft.count} unsaved {draft.count === 1 ? "change" : "changes"}
+          <span className="text-faint"> · others see them after you save</span>
+        </p>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={draft.discard}
+            disabled={draft.saving}
+            className={`${BUTTON} border-transparent text-muted hover:text-fg`}
+          >
+            Discard
+          </button>
+          <button
+            type="button"
+            onClick={onPreview}
+            className={`${BUTTON} border-line-strong bg-raised text-fg hover:border-muted`}
+          >
+            Preview
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              draft.save().catch(() => undefined);
+            }}
+            disabled={draft.saving}
+            className={`${BUTTON} border-fg bg-fg text-ink hover:bg-white`}
+          >
+            {draft.saving ? "Saving..." : "Save changes"}
+          </button>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function Setup({ me }: { readonly me: Me }) {
-  const visibility = useVisibility(me.items, (items) => saveAccount(withItems(me, items)));
+  const draft = useDraft(me);
+  const [previewing, setPreviewing] = useState(false);
   const counts = { public: 0, changed: 0, hidden: 0 };
-  for (const item of visibility.items) {
+  for (const item of draft.items) {
     counts[item.state ?? "hidden"] += 1;
   }
   return (
-    <section aria-labelledby="setup-title" className="space-y-4">
+    <section
+      aria-labelledby="setup-title"
+      className={`space-y-4 ${draft.count > 0 ? "pb-20" : ""}`}
+    >
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="space-y-1">
           <h2 id="setup-title" className="text-[20px] text-fg">
@@ -204,20 +258,44 @@ function Setup({ me }: { readonly me: Me }) {
           </h2>
           <p className="font-mono text-[12px] text-faint">
             Last upload {me.snapshot === null ? "" : when(me.snapshot.createdAt)}.{" "}
-            {visibility.items.length} items: {counts.public} shown, {counts.changed} changed,{" "}
+            {draft.items.length} items: {counts.public} shown, {counts.changed} changed,{" "}
             {counts.hidden} hidden.
           </p>
         </div>
-        <p className="font-mono text-[12px] text-muted">
-          Run ade push again after a change on your machine.
-        </p>
+        <div className="flex flex-wrap items-center gap-3">
+          <p className="font-mono text-[12px] text-muted">
+            Run ade push again after a change on your machine.
+          </p>
+          <button
+            type="button"
+            onClick={() => setPreviewing(true)}
+            className={`${BUTTON} border-line-strong bg-raised text-fg hover:border-muted`}
+          >
+            Preview
+          </button>
+        </div>
       </div>
-      {visibility.error === undefined ? null : (
+      <p className="font-mono text-[12px] text-muted">
+        A switch changes a draft. Others see your changes after you select Save changes.
+      </p>
+      {draft.error === undefined ? null : (
         <p className="border border-danger/40 bg-danger/10 px-3 py-2 font-mono text-[12px] text-danger">
-          {visibility.error}
+          {draft.error}
         </p>
       )}
-      <SetupView items={visibility.items} editor={visibility} />
+      <SetupView items={draft.items} editor={draft} />
+      {draft.count > 0 ? <SaveBar draft={draft} onPreview={() => setPreviewing(true)} /> : null}
+      <Preview
+        open={previewing}
+        me={me}
+        items={draft.items}
+        unsaved={draft.count}
+        saving={draft.saving}
+        onSave={() => {
+          draft.save().catch(() => undefined);
+        }}
+        onClose={() => setPreviewing(false)}
+      />
     </section>
   );
 }
@@ -277,7 +355,7 @@ function LoggedIn({ me }: { readonly me: Me }) {
   return (
     <div className="space-y-10 py-12">
       <div className="flex flex-wrap items-center justify-between gap-4">
-        <AvatarHeading src={account.avatarUrl}>
+        <AvatarHeading src={account.avatarUrl} eager>
           <h1 className="text-[24px] leading-[1.2] text-fg">
             {account.displayName || `@${account.handle}`}
           </h1>
