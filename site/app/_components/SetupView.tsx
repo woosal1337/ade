@@ -278,9 +278,14 @@ function ItemRow({
       {editor === undefined ? null : (
         <div className="flex shrink-0 items-center gap-3 pt-0.5">
           {editor.pending?.has(item.key) === true ? (
-            <span className="font-mono text-[11px] text-accent">Not saved</span>
+            <span className="font-mono text-[11px] text-accent">Unsaved</span>
           ) : item.state === "changed" ? (
-            <span className="font-mono text-[11px] text-warn">Changed since you approved it</span>
+            <span
+              title="This item changed after you switched it on. Switch it on again to show it."
+              className="font-mono text-[11px] text-warn"
+            >
+              Changed
+            </span>
           ) : null}
           <Switch
             checked={item.state === "public"}
@@ -303,36 +308,26 @@ function settingGroups(items: readonly SetupItem[]): [string, SetupItem[]][] {
   return [...groups.entries()];
 }
 
-function SectionActions({
+function SectionSwitch({
+  title,
   items,
   editor,
 }: {
+  readonly title: string;
   readonly items: readonly SetupItem[];
   readonly editor: Editor;
 }) {
   const keys = items.map((item) => item.key);
-  const busy = keys.some((key) => editor.busy.has(key));
-  const button =
-    "font-mono text-[11px] text-muted hover:text-fg disabled:opacity-50 disabled:hover:text-muted";
+  const shown = items.filter((item) => item.state === "public").length;
+  const all = shown === items.length;
   return (
-    <div className="flex items-center gap-3">
-      <button
-        type="button"
-        className={button}
-        disabled={busy || items.every((item) => item.state === "public")}
-        onClick={() => editor.onChange(keys, true)}
-      >
-        Show all
-      </button>
-      <button
-        type="button"
-        className={button}
-        disabled={busy || items.every((item) => item.state !== "public")}
-        onClick={() => editor.onChange(keys, false)}
-      >
-        Hide all
-      </button>
-    </div>
+    <Switch
+      checked={all}
+      mixed={shown > 0 && !all}
+      label={`Show all ${title}`}
+      disabled={keys.some((key) => editor.busy.has(key))}
+      onChange={() => editor.onChange(keys, !all)}
+    />
   );
 }
 
@@ -361,13 +356,11 @@ export function SetupView({
               <h2 id={`setup-${section.id}`} className="font-mono text-[13px] text-fg">
                 {section.title}
                 <span className="ml-2 text-faint">
-                  {editor === undefined
-                    ? section.items.length
-                    : `${shown} of ${section.items.length} shown`}
+                  {editor === undefined ? section.items.length : `${shown}/${section.items.length}`}
                 </span>
               </h2>
               {editor === undefined ? null : (
-                <SectionActions items={section.items} editor={editor} />
+                <SectionSwitch title={section.noun} items={section.items} editor={editor} />
               )}
             </div>
             <div className="px-4">

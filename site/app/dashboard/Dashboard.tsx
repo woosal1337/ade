@@ -35,12 +35,8 @@ function LoggedOut({ failed }: { readonly failed: boolean }) {
       <div className="space-y-4">
         <p className="font-mono text-[12px] text-muted">Your ade page</p>
         <h1 className="text-[36px] leading-[1.1] tracking-[-0.02em] text-fg">
-          Share your agent setup at ade.chele.bi/your-name
+          Share your agent setup
         </h1>
-        <p className="text-[16px] leading-[1.6] text-muted">
-          Log in with GitHub. Then upload your setup from the CLI, and choose each item that others
-          see. Nothing shows on your page until you switch it on.
-        </p>
       </div>
       {failed ? (
         <p className="border border-danger/40 bg-danger/10 px-3 py-2 font-mono text-[12px] text-danger">
@@ -54,9 +50,9 @@ function LoggedOut({ failed }: { readonly failed: boolean }) {
         Log in with GitHub
       </SiteLink>
       <ol className="space-y-2 font-mono text-[12px] text-muted">
-        <li>1. Log in here with GitHub.</li>
-        <li>2. Run ade login, then ade push, on your machine.</li>
-        <li>3. Switch on the items that others can see and apply.</li>
+        <li>1. Log in with GitHub.</li>
+        <li>2. Run ade login and ade push.</li>
+        <li>3. Choose what others see.</li>
       </ol>
     </div>
   );
@@ -205,7 +201,6 @@ function SaveBar({
       <div className="mx-auto flex max-w-[1100px] flex-wrap items-center justify-between gap-3 px-5 py-3">
         <p className="font-mono text-[12px] text-fg">
           {draft.count} unsaved {draft.count === 1 ? "change" : "changes"}
-          <span className="text-faint"> · others see them after you save</span>
         </p>
         <div className="flex items-center gap-2">
           <button
@@ -255,29 +250,28 @@ function Setup({ me }: { readonly me: Me }) {
         <div className="space-y-1">
           <h2 id="setup-title" className="text-[20px] text-fg">
             Your setup
+            <span className="ml-3 font-mono text-[13px] text-faint">
+              {counts.public} of {draft.items.length} shown
+            </span>
           </h2>
-          <p className="font-mono text-[12px] text-faint">
-            Last upload {me.snapshot === null ? "" : when(me.snapshot.createdAt)}.{" "}
-            {draft.items.length} items: {counts.public} shown, {counts.changed} changed,{" "}
-            {counts.hidden} hidden.
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-3">
-          <p className="font-mono text-[12px] text-muted">
-            Run ade push again after a change on your machine.
-          </p>
-          <button
-            type="button"
-            onClick={() => setPreviewing(true)}
-            className={`${BUTTON} border-line-strong bg-raised text-fg hover:border-muted`}
+          <p
+            className="font-mono text-[12px] text-faint"
+            title="Run ade push on your machine to upload a new version."
           >
-            Preview
-          </button>
+            Updated {me.snapshot === null ? "" : when(me.snapshot.createdAt)}
+            {counts.changed > 0 ? (
+              <span className="text-warn"> · {counts.changed} changed</span>
+            ) : null}
+          </p>
         </div>
+        <button
+          type="button"
+          onClick={() => setPreviewing(true)}
+          className={`${BUTTON} border-line-strong bg-raised text-fg hover:border-muted`}
+        >
+          Preview
+        </button>
       </div>
-      <p className="font-mono text-[12px] text-muted">
-        A switch changes a draft. Others see your changes after you select Save changes.
-      </p>
       {draft.error === undefined ? null : (
         <p className="border border-danger/40 bg-danger/10 px-3 py-2 font-mono text-[12px] text-danger">
           {draft.error}
@@ -307,8 +301,7 @@ function FirstUpload() {
         Upload your setup
       </h2>
       <p className="text-[14px] leading-[1.6] text-muted">
-        Run these commands on the machine with your setup. The upload holds secret names only, never
-        secret values. Nothing shows on your page until you switch it on here.
+        Run these on your machine. ade uploads secret names, never secret values.
       </p>
       <div className="space-y-2">
         <CopyCommand command={INSTALL_COMMAND} size="sm" />
@@ -367,7 +360,7 @@ function LoggedIn({ me }: { readonly me: Me }) {
           </SiteLink>
           {account.github === null ? null : (
             <p className="font-mono text-[11px] leading-[1.5] text-faint">
-              Your page shows your GitHub account: {account.github}
+              GitHub {account.github}
             </p>
           )}
         </AvatarHeading>
@@ -385,17 +378,14 @@ function LoggedIn({ me }: { readonly me: Me }) {
           <Rename me={me} onRenamed={saveAccount} />
         </div>
         <div className="space-y-3 border border-line bg-panel p-5">
-          <p className="font-mono text-[11px] text-faint">Others apply your shared items with</p>
+          <p className="font-mono text-[11px] text-faint">Apply command</p>
           <CopyCommand command={`ade apply @${account.handle}`} size="sm" />
         </div>
       </div>
       {me.snapshot === null ? <FirstUpload /> : <Setup key={me.snapshot.digest} me={me} />}
-      <section aria-labelledby="danger-title" className="space-y-3 border border-danger/30 p-5">
-        <h2 id="danger-title" className="font-mono text-[13px] text-danger">
-          Delete the account
-        </h2>
-        <p className="text-[14px] text-muted">
-          ade deletes the account, every upload, and the page. Your machine keeps its setup.
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line pt-6">
+        <p className="font-mono text-[12px] text-faint">
+          Deletes the account, its uploads, and its page.
         </p>
         <button
           type="button"
@@ -403,9 +393,9 @@ function LoggedIn({ me }: { readonly me: Me }) {
           disabled={leaving}
           className={`${BUTTON} border-danger/50 text-danger hover:border-danger`}
         >
-          Delete the account
+          Delete account
         </button>
-      </section>
+      </div>
     </div>
   );
 }

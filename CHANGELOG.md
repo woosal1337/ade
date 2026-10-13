@@ -18,6 +18,7 @@ The first public version.
 - A long list on a setup page shows its first 5 entries, a fade, and an arrow button that shows the full list.
 - The Community page at `ade.chele.bi/community` lists each person with a public setup: search, harness and content filters, sort, the update date, and votes from logged-in users. Each public page also has the vote buttons.
 - The dashboard and the page header show the cached account at once, then check it with the API. One request serves the header and the page.
+- The dashboard uses short labels, and one switch for each section turns all its items on or off.
 - The dashboard switches change a draft. A bar shows the unsaved changes with Discard, Preview, and Save changes. Preview shows the Community card and the public page with the draft. The draft stays in the browser tab, and the browser asks before a reload with unsaved changes.
 - A public page shows the same items to its owner and to each visitor. The owner changes the page on the dashboard only.
 - The login uses the own WorkOS project `ade`. The GitHub screen and the login emails show "ade". An account moves to its new WorkOS user at the next login.
