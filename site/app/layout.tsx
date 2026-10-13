@@ -56,9 +56,20 @@ export const viewport: Viewport = {
   colorScheme: "dark",
 };
 
+const ANALYTICS_COLLECTOR = "https://oa-c.chele.bi";
+const ANALYTICS_KEY = "oa_pk_vpO6O7KTxdHEYsWq8BIr9wXQhNl6la3I";
+
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
+      <head>
+        <script
+          async
+          src={`${ANALYTICS_COLLECTOR}/oa.js`}
+          data-key={ANALYTICS_KEY}
+          data-collector={ANALYTICS_COLLECTOR}
+        />
+      </head>
       <body className="min-h-screen bg-ink text-fg">{children}</body>
     </html>
   );
