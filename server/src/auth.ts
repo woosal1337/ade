@@ -122,6 +122,16 @@ interface WorkosUser {
 }
 
 const USER_ID = /^user_[A-Za-z0-9]+$/;
+const FOREIGN_KEY_CODES = new Set(["ERR_JWKS_NO_MATCHING_KEY", "ERR_JWKS_MULTIPLE_MATCHING_KEYS"]);
+const KEY_FETCH_CODES = new Set(["ERR_JWKS_TIMEOUT", "ERR_JWKS_INVALID"]);
+
+function errorCode(error: unknown): string | undefined {
+  if (typeof error !== "object" || error === null) {
+    return undefined;
+  }
+  const code = (error as { code?: unknown }).code;
+  return typeof code === "string" ? code : undefined;
+}
 
 function httpsUrl(value: string | null): string | null {
   if (value === null) {
@@ -285,7 +295,19 @@ export function workosAuth(options: WorkosOptions): AuthProvider {
         sessionData: sealed,
         cookiePassword: options.cookiePassword,
       });
-      const result = await session.authenticate();
+      let result: Awaited<ReturnType<typeof session.authenticate>>;
+      try {
+        result = await session.authenticate();
+      } catch (error) {
+        const code = errorCode(error);
+        if (code !== undefined && FOREIGN_KEY_CODES.has(code)) {
+          return undefined;
+        }
+        if (code !== undefined && KEY_FETCH_CODES.has(code)) {
+          throw new AuthUnavailableError("WorkOS did not give its signing keys.");
+        }
+        throw error;
+      }
       if (result.authenticated) {
         return { userId: result.user.id };
       }

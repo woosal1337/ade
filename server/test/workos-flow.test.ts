@@ -130,6 +130,45 @@ describe("WorkOS flows with the real SDK", () => {
     assert.equal(reused.status, 400);
   });
 
+  test("a session from another WorkOS environment ends with a new login", async () => {
+    const other = await startFakeWorkos({ clientId: "client_other" });
+    try {
+      other.users.set("user_old", {
+        id: "user_old",
+        email: "old@example.org",
+        firstName: "Old",
+        githubId: "not-numeric",
+      });
+      const oldApp = createApp({
+        db: await memoryDb(),
+        auth: workosAuth({
+          apiKey: "sk_test_fake",
+          clientId: other.clientId,
+          cookiePassword: "c".repeat(40),
+          apiUrl: other.url,
+          githubApi: githubUrl,
+        }),
+        siteUrl: SITE,
+        publicApiUrl: API,
+      });
+      other.loginAs("user_old");
+      const start = await oldApp.request("/auth/login?returnTo=/dashboard");
+      const authorize = await fetch(start.headers.get("location") ?? "", { redirect: "manual" });
+      const callback = new URL(authorize.headers.get("location") ?? "");
+      const done = await oldApp.request(`/auth/callback${callback.search}`, {
+        headers: { cookie: `ade_login=${cookieOf(start, "ade_login")}` },
+      });
+      const sealed = cookieOf(done, "ade_session");
+      assert.ok(sealed);
+      const app = await realApp();
+      const me = await app.request("/v1/me", { headers: { cookie: `ade_session=${sealed}` } });
+      assert.equal(me.status, 401);
+      assert.match(me.headers.getSetCookie().join("\n"), /ade_session=;/);
+    } finally {
+      await other.close();
+    }
+  });
+
   test("a member of two organizations logs in without a choice", async () => {
     const app = await realApp();
     const callback = await webLogin(app, "user_org");
