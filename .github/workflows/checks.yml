@@ -22,10 +22,12 @@ jobs:
           cache-dependency-path: |
             package-lock.json
             site/package-lock.json
+            server/package-lock.json
       - name: Install dependencies
         run: |
           npm ci
           npm ci --prefix site
+          npm ci --prefix server
       - name: Project checks
         env:
           NEXT_TELEMETRY_DISABLED: "1"
@@ -48,6 +50,43 @@ jobs:
           sh scripts/install.sh
           test "$(command -v ade)" = "$npm_config_prefix/bin/ade"
           ade --version
+  server:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: ade
+          POSTGRES_PASSWORD: ade-ci
+          POSTGRES_DB: ade
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ade -d ade"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            server/package-lock.json
+      - name: Install dependencies
+        run: |
+          npm ci
+          npm ci --prefix server
+      - name: Server checks with Postgres
+        env:
+          ADE_TEST_DATABASE_URL: postgres://ade:ade-ci@127.0.0.1:5432/ade
+        run: npm --prefix server run check
+      - name: Server image
+        run: docker build -f server/Dockerfile -t ade-api:ci .
   platforms:
     if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
     strategy:

@@ -10,7 +10,13 @@ const skipped = new Set(["package-lock.json"]);
 const scriptExtensions = new Set([".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs"]);
 const binaryExtensions = new Set([".woff2", ".ttf", ".png", ".ico", ".jpg", ".webp"]);
 const thirdPartyTexts = /^site\/public\/fonts\/OFL-[A-Za-z]+\.txt$/;
-const lineRuleNames = new Set([".gitignore", ".gitattributes", ".editorconfig"]);
+const lineRuleNames = new Set([
+  ".gitignore",
+  ".gitattributes",
+  ".editorconfig",
+  ".dockerignore",
+  "Dockerfile",
+]);
 const errors = [];
 
 function authoredFiles() {

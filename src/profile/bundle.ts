@@ -150,7 +150,7 @@ export async function exportBundle(loaded: LoadedProfile, now: Date = new Date()
   };
 }
 
-function parseBundle(input: unknown): Bundle {
+export function parseBundle(input: unknown): Bundle {
   if (!isPlainObject(input) || input.format !== "ade-bundle" || input.version !== 1) {
     throw new AdeError("bundle-invalid", "The file is not an ade bundle of version 1.");
   }

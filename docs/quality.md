@@ -39,7 +39,7 @@ Keep the exclusions narrow. Do not exclude a source directory merely because it 
 | `.svg` | A search for `<!--` |
 | `.json` | `JSON.parse` |
 | `.yml`, `.yaml` | The `yaml` lexer |
-| `.gitignore`, `.gitattributes`, `.editorconfig` | A line rule: a line that starts with `#` or `;` |
+| `.gitignore`, `.gitattributes`, `.editorconfig`, `.dockerignore`, `Dockerfile` | A line rule: a line that starts with `#` or `;` |
 | `.sh`, `.ps1` | A line rule: a line that starts with `#`, or `<#` in PowerShell. The first `#!` line of a script is a required directive |
 | `.py` | The Python tokenizer, through `python3` |
 

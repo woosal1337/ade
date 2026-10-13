@@ -1,4 +1,5 @@
 import path from "node:path";
+import { handleProblem, normalizeHandle } from "../account/handles.ts";
 import { AdeError } from "../core/errors.ts";
 import { isSafeRelative } from "../core/fsx.ts";
 
@@ -16,12 +17,43 @@ export type ProfileSpec =
       readonly subdir: string | undefined;
       readonly display: string;
       readonly canonical: string;
+    }
+  | {
+      readonly kind: "web";
+      readonly handle: string;
+      readonly display: string;
+      readonly canonical: string;
     };
 
 export interface SpecContext {
   readonly cwd: string;
   readonly home: string;
   readonly exists: (target: string) => boolean;
+  readonly siteUrl?: string;
+}
+
+const DEFAULT_SITE_URL = "https://ade.chele.bi";
+
+function webHandle(value: string, site: string): string | undefined {
+  let name: string | undefined;
+  if (value.startsWith("@")) {
+    name = value.slice(1);
+  } else {
+    const host = new URL(site).host;
+    const match = /^(?:https?:\/\/)?([^/\s]+)\/([^/\s?#]+)\/?$/.exec(value);
+    if (match?.[1]?.toLowerCase() === host.toLowerCase()) {
+      name = match[2];
+    }
+  }
+  if (name === undefined) {
+    return undefined;
+  }
+  const handle = normalizeHandle(name);
+  const problem = handleProblem(handle);
+  if (problem !== undefined) {
+    throw new AdeError("usage", `The ade name in ${value} is not valid.`, { hint: problem });
+  }
+  return handle;
 }
 
 const GITHUB_SHORTHAND =
@@ -86,6 +118,16 @@ export function parseProfileSpec(input: string, context: SpecContext): ProfileSp
   if (value === "") {
     throw new AdeError("usage", "The profile source is empty.");
   }
+  const site = (context.siteUrl ?? DEFAULT_SITE_URL).replace(/\/+$/, "");
+  const handle = webHandle(value, site);
+  if (handle !== undefined) {
+    if (value.startsWith("@") && context.exists(path.resolve(context.cwd, value))) {
+      throw new AdeError("usage", `The source ${value} names a local path and an ade page.`, {
+        hint: `Use ./${value} for the local path, or ${site}/${handle} for the ade page.`,
+      });
+    }
+    return { kind: "web", handle, display: `@${handle}`, canonical: `${site}/${handle}` };
+  }
   if (value === "~" || value.startsWith("~/") || value.startsWith("~\\")) {
     const dir = path.join(context.home, value.slice(2));
     return { kind: "local", dir, display: dir, canonical: dir };
@@ -147,7 +189,11 @@ export function parseProfileSpec(input: string, context: SpecContext): ProfileSp
 }
 
 export function specKey(spec: ProfileSpec): string {
-  return spec.kind === "local"
-    ? spec.dir
-    : `${spec.url}#${spec.ref ?? "HEAD"}#${spec.subdir ?? ""}`;
+  if (spec.kind === "local") {
+    return spec.dir;
+  }
+  if (spec.kind === "web") {
+    return spec.canonical;
+  }
+  return `${spec.url}#${spec.ref ?? "HEAD"}#${spec.subdir ?? ""}`;
 }

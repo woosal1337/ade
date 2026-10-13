@@ -66,11 +66,12 @@
   "commands": {
     "test": ["npm", "test", "--silent"],
     "build": ["npm", "run", "--silent", "build"],
-    "start": ["node", "src/cli.ts", "--help"]
+    "start": ["node", "src/cli.ts", "--help"],
+    "server": ["node", "server/src/main.ts"]
   },
   "quality": {
     "pre_commit_version": "4.6.2",
-    "required": ["build", "site", "typecheck"],
+    "required": ["build", "site", "typecheck", "server"],
     "checks": [
       {
         "id": "format",
@@ -99,6 +100,10 @@
       {
         "id": "site",
         "argv": ["npm", "--prefix", "site", "run", "--silent", "check"]
+      },
+      {
+        "id": "server",
+        "argv": ["npm", "--prefix", "server", "run", "--silent", "check"]
       }
     ]
   },

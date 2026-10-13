@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { createInterface } from "node:readline/promises";
 import { type ParseArgsConfig, parseArgs } from "node:util";
+import { login, pushBundle, removeCredentials, whoami } from "../account/client.ts";
 import { type Context, createContext, defaultProfileDir } from "../core/context.ts";
 import { docFormatFor, parseKeyPath } from "../core/doc.ts";
 import { AdeError, errorMessage, isAdeError } from "../core/errors.ts";
@@ -57,7 +58,7 @@ import {
   writeSchemaFile,
 } from "../profile/load.ts";
 import { ADE_MD_FILE, parseMarkdown } from "../profile/markdown.ts";
-import { packProfile, scanBundle, shareProfile } from "../profile/pack.ts";
+import { packProfile, scanBundle, sharedBundle, shareProfile } from "../profile/pack.ts";
 import { type RiskItem, riskSummary } from "../profile/risk.ts";
 import {
   type HarnessId,
@@ -164,7 +165,7 @@ interface Command {
   readonly summary: string;
   readonly usage: readonly string[];
   readonly options?: OptionSpec;
-  readonly group: "Profile" | "Machine" | "Remote" | "Share";
+  readonly group: "Profile" | "Machine" | "Remote" | "Share" | "Account";
   run(c: CommandContext): Promise<number>;
 }
 
@@ -1768,6 +1769,8 @@ const commands: Command[] = [
             url: spec.url,
             ...(spec.subdir === undefined ? {} : { subdir: spec.subdir }),
           };
+        } else if (spec.kind === "web") {
+          source = { kind: "web", display: spec.display, canonical: spec.canonical };
         } else {
           const stat = await statOrUndefined(spec.dir);
           const file = stat?.isDirectory() ? path.join(spec.dir, ADE_MD_FILE) : spec.dir;
@@ -1893,6 +1896,109 @@ const commands: Command[] = [
       c.out.line("Next: commit the file. Others can then run:");
       c.out.line(`  ade plan ${repo ?? out}`);
       c.out.line(`  ade apply ${repo ?? out}`);
+      return EXIT.ok;
+    },
+  },
+  {
+    name: "login",
+    group: "Account",
+    summary: "Link this machine to your ade account with GitHub.",
+    usage: ["ade login", "ade prints a link and a code. Open the link and confirm the code."],
+    async run(c) {
+      const ctx = c.context();
+      const account = await login(ctx, {
+        onCode(code) {
+          const show = (text = ""): void => (c.json ? c.out.error(text) : c.out.line(text));
+          show(`Open this page, and confirm the code ${c.out.style("bold", code.userCode)}:`);
+          show(`  ${code.verificationUriComplete}`);
+          show(
+            c.out.style(
+              "dim",
+              `ade waits for the confirmation. The code expires in ${Math.round(code.expiresIn / 60)} minutes.`,
+            ),
+          );
+        },
+      });
+      if (c.json) {
+        c.emit(account);
+        return EXIT.ok;
+      }
+      c.out.line();
+      c.out.line(c.out.style("green", `Logged in as @${account.handle}.`));
+      c.out.line(`Your page: ${account.page}`);
+      c.out.line("Next: run `ade push` to upload your profile.");
+      return EXIT.ok;
+    },
+  },
+  {
+    name: "logout",
+    group: "Account",
+    summary: "Remove the login of this machine.",
+    usage: ["ade logout"],
+    async run(c) {
+      const removed = await removeCredentials(c.context());
+      if (c.json) {
+        c.emit({ removed });
+      } else {
+        c.out.line(removed ? "Logged out." : "You are not logged in.");
+      }
+      return EXIT.ok;
+    },
+  },
+  {
+    name: "whoami",
+    group: "Account",
+    summary: "Show the ade account of this machine.",
+    usage: ["ade whoami"],
+    async run(c) {
+      const account = await whoami(c.context());
+      if (c.json) {
+        c.emit(account);
+        return EXIT.ok;
+      }
+      c.out.line(
+        `@${account.handle}${account.displayName === "" ? "" : ` (${account.displayName})`}`,
+      );
+      c.out.line(`Your page: ${account.page}`);
+      return EXIT.ok;
+    },
+  },
+  {
+    name: "push",
+    group: "Account",
+    summary: "Upload the profile to your ade account. Your page shows only the items you approve.",
+    usage: [
+      "ade push [source] [--vendor-git]",
+      "Then choose what others see on the dashboard. Others run: ade apply @<name>",
+    ],
+    options: { "vendor-git": { type: "boolean" } },
+    async run(c) {
+      const gate = await inspectSource(c, c.args[0]);
+      if (!(await requireTrust(c, gate))) {
+        c.out.line("Nothing changed.");
+        return EXIT.ok;
+      }
+      const ctx = c.context();
+      const shared = await sharedBundle(gate.resolved.loaded, ctx, {
+        vendorGit: boolFlag(c.flags, "vendor-git"),
+      });
+      const result = await pushBundle(ctx, shared.bundle);
+      if (c.json) {
+        c.emit({ ...result, notes: shared.notes });
+        return EXIT.ok;
+      }
+      c.out.line(
+        result.unchanged
+          ? `The profile did not change since the last upload: ${result.items} items.`
+          : `Uploaded the profile: ${result.items} items.`,
+      );
+      c.out.line(`  ${padEnd("public", 9)}${result.public}`);
+      c.out.line(`  ${padEnd("changed", 9)}${result.changed}`);
+      c.out.line(`  ${padEnd("hidden", 9)}${result.hidden}`);
+      renderWarnings(c.out, shared.notes);
+      c.out.line();
+      c.out.line(`Choose what others see: ${result.dashboard}`);
+      c.out.line(`Your page: ${result.page}`);
       return EXIT.ok;
     },
   },
@@ -2069,7 +2175,7 @@ function globalHelp(out: Output): void {
   out.line(`ade ${VERSION}: manage one agent development environment from one profile.`);
   out.line();
   out.line("Usage: ade <command> [options]");
-  for (const group of ["Profile", "Machine", "Remote", "Share"] as const) {
+  for (const group of ["Profile", "Machine", "Remote", "Share", "Account"] as const) {
     out.line();
     out.line(out.style("bold", group));
     for (const command of commands.filter((item) => item.group === group)) {
@@ -2300,10 +2406,10 @@ export async function runCli(argv: readonly string[], io: CliIO = processIO()): 
     async load() {
       const input = await commandContext.profileInput();
       const spec = specFor(input, commandContext.context(), io.cwd);
-      if (spec.kind === "git") {
+      if (spec.kind === "git" || spec.kind === "web") {
         throw new AdeError(
           "usage",
-          `The profile comes from Git: ${spec.display}. ade cannot edit it.`,
+          `The profile comes from ${spec.kind === "git" ? "Git" : "an ade page"}: ${spec.display}. ade cannot edit it.`,
           {
             hint: "Copy it with `ade import <source> --out <dir>`, then edit the copy.",
           },

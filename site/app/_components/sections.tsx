@@ -673,11 +673,11 @@ const FOOTER_LINKS = [
   {
     title: "Product",
     links: [
-      { label: "Install", href: "#install" },
-      { label: "Harnesses", href: "#harnesses" },
-      { label: "Models", href: "#models" },
-      { label: "Commands", href: "#commands" },
-      { label: "ADE.md", href: "#ade-md" },
+      { label: "Install", href: "/#install" },
+      { label: "Harnesses", href: "/#harnesses" },
+      { label: "Models", href: "/#models" },
+      { label: "Commands", href: "/#commands" },
+      { label: "ADE.md", href: "/#ade-md" },
     ],
   },
   {

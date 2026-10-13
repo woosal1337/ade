@@ -1,0 +1,299 @@
+"use client";
+
+import Image from "next/image";
+import { type FormEvent, useEffect, useState } from "react";
+import { CopyCommand } from "../_components/CopyCommand";
+import { ArrowUpRight } from "../_components/primitives";
+import { SetupView } from "../_components/SetupView";
+import { useVisibility } from "../_components/useVisibility";
+import {
+  ApiError,
+  deleteAccount,
+  getMe,
+  loginUrl,
+  logout,
+  type Me,
+  updateAccount,
+} from "../account";
+import { INSTALL_COMMAND } from "../content";
+
+const FRAME = "mx-auto max-w-[1100px] px-5";
+const BUTTON =
+  "inline-flex h-8 items-center gap-2 border px-2.5 font-mono text-[12px] transition-colors disabled:opacity-50";
+
+type View =
+  | { readonly status: "loading" }
+  | { readonly status: "out"; readonly failed: boolean }
+  | { readonly status: "in"; readonly me: Me }
+  | { readonly status: "error"; readonly message: string };
+
+function when(value: string): string {
+  return new Date(value).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+}
+
+function LoggedOut({ failed }: { readonly failed: boolean }) {
+  return (
+    <div className="max-w-[640px] space-y-8 py-16">
+      <div className="space-y-4">
+        <p className="font-mono text-[12px] text-muted">Your ade page</p>
+        <h1 className="text-[36px] leading-[1.1] tracking-[-0.02em] text-fg">
+          Share your agent setup at ade.chele.bi/your-name
+        </h1>
+        <p className="text-[16px] leading-[1.6] text-muted">
+          Log in with GitHub. Then upload your setup from the CLI, and choose each item that others
+          see. Nothing shows on your page until you switch it on.
+        </p>
+      </div>
+      {failed ? (
+        <p className="border border-danger/40 bg-danger/10 px-3 py-2 font-mono text-[12px] text-danger">
+          The login did not finish. Try again.
+        </p>
+      ) : null}
+      <a
+        href={loginUrl("/dashboard")}
+        className={`${BUTTON} border-fg bg-fg text-ink hover:bg-white`}
+      >
+        Log in with GitHub
+      </a>
+      <ol className="space-y-2 font-mono text-[12px] text-muted">
+        <li>1. Log in here with GitHub.</li>
+        <li>2. Run ade login, then ade push, on your machine.</li>
+        <li>3. Switch on the items that others can see and apply.</li>
+      </ol>
+    </div>
+  );
+}
+
+function Rename({ me, onRenamed }: { readonly me: Me; readonly onRenamed: (me: Me) => void }) {
+  const [value, setValue] = useState(me.account.handle);
+  const [error, setError] = useState<string>();
+  const [saving, setSaving] = useState(false);
+
+  const submit = (event: FormEvent) => {
+    event.preventDefault();
+    setSaving(true);
+    updateAccount({ handle: value })
+      .then((result) => {
+        setError(undefined);
+        onRenamed({ ...me, account: result.account });
+      })
+      .catch((reason: unknown) =>
+        setError(reason instanceof ApiError ? reason.message : "ade could not save the name."),
+      )
+      .finally(() => setSaving(false));
+  };
+
+  return (
+    <form onSubmit={submit} className="space-y-2">
+      <label htmlFor="handle" className="block font-mono text-[11px] text-faint">
+        Page name
+      </label>
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="font-mono text-[13px] text-muted">ade.chele.bi/</span>
+        <input
+          id="handle"
+          value={value}
+          onChange={(event) => setValue(event.target.value)}
+          autoComplete="off"
+          spellCheck={false}
+          maxLength={39}
+          className="h-8 w-48 border border-line-strong bg-ink px-2 font-mono text-[13px] text-fg outline-none focus:border-muted"
+        />
+        <button
+          type="submit"
+          disabled={saving || value === me.account.handle}
+          className={`${BUTTON} border-line-strong bg-raised text-fg hover:border-muted`}
+        >
+          Save
+        </button>
+      </div>
+      {error === undefined ? null : <p className="font-mono text-[12px] text-danger">{error}</p>}
+    </form>
+  );
+}
+
+function Setup({ me }: { readonly me: Me }) {
+  const visibility = useVisibility(me.items);
+  const counts = { public: 0, changed: 0, hidden: 0 };
+  for (const item of visibility.items) {
+    counts[item.state ?? "hidden"] += 1;
+  }
+  return (
+    <section aria-labelledby="setup-title" className="space-y-4">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div className="space-y-1">
+          <h2 id="setup-title" className="text-[20px] text-fg">
+            Your setup
+          </h2>
+          <p className="font-mono text-[12px] text-faint">
+            Last upload {me.snapshot === null ? "" : when(me.snapshot.createdAt)}.{" "}
+            {visibility.items.length} items: {counts.public} shown, {counts.changed} changed,{" "}
+            {counts.hidden} hidden.
+          </p>
+        </div>
+        <p className="font-mono text-[12px] text-muted">
+          Run ade push again after a change on your machine.
+        </p>
+      </div>
+      {visibility.error === undefined ? null : (
+        <p className="border border-danger/40 bg-danger/10 px-3 py-2 font-mono text-[12px] text-danger">
+          {visibility.error}
+        </p>
+      )}
+      <SetupView items={visibility.items} editor={visibility} />
+    </section>
+  );
+}
+
+function FirstUpload() {
+  return (
+    <section aria-labelledby="upload-title" className="space-y-4 border border-line bg-panel p-5">
+      <h2 id="upload-title" className="text-[20px] text-fg">
+        Upload your setup
+      </h2>
+      <p className="text-[14px] leading-[1.6] text-muted">
+        Run these commands on the machine with your setup. The upload holds secret names only, never
+        secret values. Nothing shows on your page until you switch it on here.
+      </p>
+      <div className="space-y-2">
+        <CopyCommand command={INSTALL_COMMAND} size="sm" />
+        <CopyCommand command="ade login" size="sm" />
+        <CopyCommand command="ade push" size="sm" />
+      </div>
+    </section>
+  );
+}
+
+function LoggedIn({ initial }: { readonly initial: Me }) {
+  const [me, setMe] = useState(initial);
+  const [leaving, setLeaving] = useState(false);
+  const { account } = me;
+
+  const signOut = () => {
+    setLeaving(true);
+    logout()
+      .then((result) => {
+        window.location.href = result.redirect;
+      })
+      .catch(() => {
+        window.location.href = "/";
+      });
+  };
+
+  const remove = () => {
+    if (
+      !window.confirm(
+        `Delete the ade account @${account.handle} and its page? ade cannot undo this.`,
+      )
+    ) {
+      return;
+    }
+    setLeaving(true);
+    deleteAccount()
+      .then(() => {
+        window.location.href = "/";
+      })
+      .catch(() => setLeaving(false));
+  };
+
+  return (
+    <div className="space-y-10 py-12">
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="flex items-center gap-4">
+          {account.avatarUrl === null ? null : (
+            <Image
+              src={account.avatarUrl}
+              alt=""
+              width={48}
+              height={48}
+              unoptimized
+              className="size-12 border border-line"
+            />
+          )}
+          <div>
+            <h1 className="text-[24px] leading-[1.2] text-fg">
+              {account.displayName || `@${account.handle}`}
+            </h1>
+            <a
+              href={`/${account.handle}`}
+              className="font-mono text-[12px] text-muted hover:text-fg"
+            >
+              ade.chele.bi/{account.handle} <ArrowUpRight />
+            </a>
+            {account.github === null ? null : (
+              <p className="font-mono text-[11px] text-faint">
+                Your page shows your GitHub account: {account.github}
+              </p>
+            )}
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={signOut}
+          disabled={leaving}
+          className={`${BUTTON} border-line-strong bg-raised text-fg hover:border-muted`}
+        >
+          Log out
+        </button>
+      </div>
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+        <div className="space-y-4 border border-line bg-panel p-5">
+          <Rename me={me} onRenamed={setMe} />
+        </div>
+        <div className="space-y-3 border border-line bg-panel p-5">
+          <p className="font-mono text-[11px] text-faint">Others apply your shared items with</p>
+          <CopyCommand command={`ade apply @${account.handle}`} size="sm" />
+        </div>
+      </div>
+      {me.snapshot === null ? <FirstUpload /> : <Setup key={me.snapshot.digest} me={me} />}
+      <section aria-labelledby="danger-title" className="space-y-3 border border-danger/30 p-5">
+        <h2 id="danger-title" className="font-mono text-[13px] text-danger">
+          Delete the account
+        </h2>
+        <p className="text-[14px] text-muted">
+          ade deletes the account, every upload, and the page. Your machine keeps its setup.
+        </p>
+        <button
+          type="button"
+          onClick={remove}
+          disabled={leaving}
+          className={`${BUTTON} border-danger/50 text-danger hover:border-danger`}
+        >
+          Delete the account
+        </button>
+      </section>
+    </div>
+  );
+}
+
+export function Dashboard() {
+  const [view, setView] = useState<View>({ status: "loading" });
+
+  useEffect(() => {
+    const failed = new URLSearchParams(window.location.search).get("login") === "failed";
+    getMe()
+      .then((me) => setView(me === undefined ? { status: "out", failed } : { status: "in", me }))
+      .catch((reason: unknown) =>
+        setView({
+          status: "error",
+          message:
+            reason instanceof ApiError
+              ? reason.message
+              : "ade could not reach its server. Try again in a minute.",
+        }),
+      );
+  }, []);
+
+  return (
+    <div className={FRAME}>
+      {view.status === "loading" ? (
+        <p className="py-24 font-mono text-[12px] text-faint">Loading your account...</p>
+      ) : null}
+      {view.status === "out" ? <LoggedOut failed={view.failed} /> : null}
+      {view.status === "in" ? <LoggedIn initial={view.me} /> : null}
+      {view.status === "error" ? (
+        <p className="py-24 font-mono text-[12px] text-danger">{view.message}</p>
+      ) : null}
+    </div>
+  );
+}

@@ -17,6 +17,8 @@ export const ERROR_CODES = [
   "bundle-invalid",
   "remote-failed",
   "untrusted",
+  "auth-required",
+  "api-failed",
 ] as const;
 
 export type ErrorCode = (typeof ERROR_CODES)[number];

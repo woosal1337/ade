@@ -1,0 +1,27 @@
+{
+  "name": "ade-server",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The ade accounts API: GitHub login through WorkOS, profile uploads, and public pages.",
+  "type": "module",
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "start": "node src/main.ts",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "node --test --test-reporter=dot \"test/**/*.test.ts\"",
+    "check": "npm run typecheck && npm test"
+  },
+  "dependencies": {
+    "@hono/node-server": "2.1.5",
+    "@workos-inc/node": "11.0.0",
+    "hono": "4.13.13",
+    "jose": "6.2.12",
+    "postgres": "3.4.9",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "0.5.9"
+  }
+}

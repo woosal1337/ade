@@ -326,11 +326,17 @@ export interface ShareResult {
   readonly notes: readonly string[];
 }
 
-export async function shareProfile(
+export interface SharedBundle {
+  readonly bundle: Bundle;
+  readonly profile: Profile;
+  readonly notes: readonly string[];
+}
+
+export async function sharedBundle(
   loaded: LoadedProfile,
   ctx: Context,
-  options: ShareOptions = {},
-): Promise<ShareResult> {
+  options: Pick<ShareOptions, "vendorGit" | "runner"> = {},
+): Promise<SharedBundle> {
   const built = await buildProfileBundle(loaded, ctx, {
     vendorGit: options.vendorGit === true,
     vendorLinks: true,
@@ -356,6 +362,15 @@ export async function shareProfile(
       },
     );
   }
+  return { bundle, profile, notes: built.notes };
+}
+
+export async function shareProfile(
+  loaded: LoadedProfile,
+  ctx: Context,
+  options: ShareOptions = {},
+): Promise<ShareResult> {
+  const { bundle, profile, notes } = await sharedBundle(loaded, ctx, options);
   let markdown = writeMarkdown(bundle, profile, {
     source: options.source,
     createdAt: ctx.now(),
@@ -379,6 +394,6 @@ export async function shareProfile(
     files: parsed.bundle.files.length,
     digest: parsed.digest,
     warnings: portabilityWarnings(profile, ctx),
-    notes: built.notes,
+    notes,
   };
 }

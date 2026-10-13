@@ -1,10 +1,13 @@
 import type { NextConfig } from "next";
 
+const API_ORIGIN = (process.env.ADE_API_ORIGIN ?? "https://api.ade.chele.bi").replace(/\/+$/, "");
+
 const config: NextConfig = {
-  output: "export",
-  trailingSlash: true,
   images: { unoptimized: true },
   poweredByHeader: false,
+  async rewrites() {
+    return [{ source: "/api/:path*", destination: `${API_ORIGIN}/:path*` }];
+  },
 };
 
 export default config;

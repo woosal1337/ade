@@ -1,6 +1,7 @@
 import { existsSync } from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
+import { fetchPublicMarkdown, siteUrl } from "../account/client.ts";
 import type { Context } from "../core/context.ts";
 import { AdeError, errnoCode, errorMessage } from "../core/errors.ts";
 import {
@@ -21,7 +22,7 @@ import { type FileEntry, isGitSkill, isLinkSkill, type Lock, type Profile } from
 import { type ProfileSpec, parseProfileSpec } from "./spec.ts";
 
 export interface ProfileSource {
-  readonly kind: "local" | "git" | "file";
+  readonly kind: "local" | "git" | "file" | "web";
   readonly display: string;
   readonly canonical: string;
   readonly url?: string;
@@ -81,7 +82,64 @@ export function sourceLabel(source: ProfileSource): string {
 }
 
 export function specFor(input: string, ctx: Context, cwd = process.cwd()): ProfileSpec {
-  return parseProfileSpec(input, { cwd, home: ctx.home, exists: existsSync });
+  return parseProfileSpec(input, {
+    cwd,
+    home: ctx.home,
+    exists: existsSync,
+    siteUrl: siteUrl(ctx),
+  });
+}
+
+async function resolveWeb(
+  spec: Extract<ProfileSpec, { kind: "web" }>,
+  ctx: Context,
+  options: ResolveOptions,
+): Promise<ResolvedProfile> {
+  const file = path.join(ctx.stateDir, SOURCES_FILE);
+  const records = await readJsonFile<SourceRecords>(file, { version: 1, fetched: {} });
+  const key = `web:${spec.canonical}`;
+  let loaded: LoadedProfile;
+  let digest: string;
+  if (options.offline === true) {
+    const record = records.fetched[key];
+    const dir = record === undefined ? undefined : path.join(ctx.cacheDir, "md", record.commit);
+    if (
+      record === undefined ||
+      dir === undefined ||
+      !(await statOrUndefined(path.join(dir, PROFILE_FILE)))?.isFile()
+    ) {
+      throw new AdeError("not-found", `ade has not fetched ${spec.display} yet.`, {
+        hint: "Run the command without --offline one time.",
+      });
+    }
+    digest = record.commit;
+    loaded = await loadProfile(dir);
+  } else {
+    const parsed = parseMarkdown(await fetchPublicMarkdown(ctx, spec.handle), spec.display);
+    digest = parsed.digest.replace(/^sha256:/, "");
+    loaded = await cacheBundle(ctx, "md", digest, parsed.bundle);
+    await ensureDir(ctx.stateDir, 0o700);
+    await atomicWrite(
+      file,
+      `${JSON.stringify(
+        {
+          ...records,
+          fetched: {
+            ...records.fetched,
+            [key]: { commit: digest, fetchedAt: ctx.now().toISOString() },
+          },
+        },
+        null,
+        2,
+      )}\n`,
+      0o600,
+    );
+  }
+  checkShared(loaded, spec.display);
+  return {
+    loaded,
+    source: { kind: "web", display: spec.display, canonical: spec.canonical, commit: digest },
+  };
 }
 
 async function cacheBundle(
@@ -274,6 +332,9 @@ export async function resolveProfile(
   options: ResolveOptions = {},
 ): Promise<ResolvedProfile> {
   const spec = specFor(input, ctx, options.cwd);
+  if (spec.kind === "web") {
+    return resolveWeb(spec, ctx, options);
+  }
   if (spec.kind === "local") {
     const located = await loadLocation(spec.dir, ctx, spec.dir);
     if (located.file === undefined) {

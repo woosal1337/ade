@@ -228,6 +228,7 @@ export const COMMANDS: readonly CommandGroup[] = [
       ["ade trust", "Trust a Git source"],
       ["ade use", "Set the default source"],
       ["ade remote", "Run a command over SSH"],
+      ["ade login, push", "Upload your setup to your ade page"],
     ],
   },
 ];
