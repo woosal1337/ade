@@ -3,25 +3,27 @@
 import type { ReactNode } from "react";
 import type { ItemFile, ItemKind, SetupItem } from "../account";
 import { HARNESSES } from "../content";
+import { CollapsibleList } from "./CollapsibleList";
 import { Tag } from "./primitives";
 import { Switch } from "./Switch";
 
 interface SectionSpec {
   readonly id: string;
   readonly title: string;
+  readonly noun: string;
   readonly kinds: readonly ItemKind[];
 }
 
 const SECTIONS: readonly SectionSpec[] = [
-  { id: "harnesses", title: "Harnesses", kinds: ["harnesses"] },
-  { id: "instructions", title: "Instructions", kinds: ["instructions"] },
-  { id: "skills", title: "Skills", kinds: ["skill"] },
-  { id: "mcp", title: "MCP servers", kinds: ["mcp"] },
-  { id: "settings", title: "Settings", kinds: ["setting"] },
-  { id: "plugins", title: "Plugins", kinds: ["marketplace", "plugin"] },
-  { id: "files", title: "Files", kinds: ["file"] },
-  { id: "patches", title: "Patches", kinds: ["patch"] },
-  { id: "secrets", title: "Secret names", kinds: ["secret"] },
+  { id: "harnesses", title: "Harnesses", noun: "harness lists", kinds: ["harnesses"] },
+  { id: "instructions", title: "Instructions", noun: "instructions", kinds: ["instructions"] },
+  { id: "skills", title: "Skills", noun: "skills", kinds: ["skill"] },
+  { id: "mcp", title: "MCP servers", noun: "MCP servers", kinds: ["mcp"] },
+  { id: "settings", title: "Settings", noun: "settings", kinds: ["setting"] },
+  { id: "plugins", title: "Plugins", noun: "plugins", kinds: ["marketplace", "plugin"] },
+  { id: "files", title: "Files", noun: "files", kinds: ["file"] },
+  { id: "patches", title: "Patches", noun: "patches", kinds: ["patch"] },
+  { id: "secrets", title: "Secret names", noun: "secret names", kinds: ["secret"] },
 ];
 
 const HARNESS_NAMES = new Map(HARNESSES.map((harness) => [harness.id, harness.name]));
@@ -87,9 +89,16 @@ function FileList({ items }: { readonly items: readonly ItemFile[] }) {
     return null;
   }
   return (
-    <ul className="mt-2 space-y-1">
-      {items.map((file) => (
-        <li key={file.path} className="font-mono text-[11px] text-faint">
+    <CollapsibleList
+      items={items}
+      noun="files"
+      className="mt-2 space-y-1"
+      fade="h-12"
+      render={(file, _index, revealed) => (
+        <li
+          key={file.path}
+          className={`font-mono text-[11px] text-faint ${revealed ? "ade-reveal" : ""}`}
+        >
           {file.text === undefined ? (
             <span>
               {file.path} <span className="text-faint">({bytes(file.size)})</span>
@@ -101,8 +110,8 @@ function FileList({ items }: { readonly items: readonly ItemFile[] }) {
             />
           )}
         </li>
-      ))}
-    </ul>
+      )}
+    />
   );
 }
 
@@ -249,9 +258,19 @@ function ItemBody({ item }: { readonly item: SetupItem }) {
   }
 }
 
-function ItemRow({ item, editor }: { readonly item: SetupItem; readonly editor?: Editor }) {
+function ItemRow({
+  item,
+  editor,
+  revealed = false,
+}: {
+  readonly item: SetupItem;
+  readonly editor?: Editor;
+  readonly revealed?: boolean;
+}) {
   return (
-    <li className="flex items-start gap-4 border-t border-line py-3 first:border-t-0">
+    <li
+      className={`flex items-start gap-4 border-t border-line py-3 first:border-t-0 ${revealed ? "ade-reveal" : ""}`}
+    >
       <div className="min-w-0 flex-1">
         <ItemBody item={item} />
       </div>
@@ -353,19 +372,25 @@ export function SetupView({
                 settingGroups(section.items).map(([document, group]) => (
                   <div key={document} className="border-t border-line py-2 first:border-t-0">
                     <p className="pt-2 font-mono text-[11px] text-faint">{document}</p>
-                    <ul>
-                      {group.map((item) => (
-                        <ItemRow key={item.key} item={item} editor={editor} />
-                      ))}
-                    </ul>
+                    <CollapsibleList
+                      items={group}
+                      noun="settings"
+                      fade="h-20"
+                      render={(item, _index, revealed) => (
+                        <ItemRow key={item.key} item={item} editor={editor} revealed={revealed} />
+                      )}
+                    />
                   </div>
                 ))
               ) : (
-                <ul>
-                  {section.items.map((item) => (
-                    <ItemRow key={item.key} item={item} editor={editor} />
-                  ))}
-                </ul>
+                <CollapsibleList
+                  items={section.items}
+                  noun={section.noun}
+                  fade="h-24"
+                  render={(item, _index, revealed) => (
+                    <ItemRow key={item.key} item={item} editor={editor} revealed={revealed} />
+                  )}
+                />
               )}
             </div>
           </section>

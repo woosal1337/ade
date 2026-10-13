@@ -48,8 +48,44 @@ body {
   background-size: 14px 14px;
 }
 
+@keyframes ade-nudge {
+  0%,
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  50% {
+    opacity: 0.25;
+    transform: translateY(2px);
+  }
+}
+
+@keyframes ade-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.ade-nudge {
+  animation: ade-nudge 1.6s ease-in-out infinite;
+}
+
+.ade-reveal {
+  animation: ade-reveal 180ms ease-out both;
+}
+
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;
+  }
+
+  .ade-nudge,
+  .ade-reveal {
+    animation: none;
   }
 }
