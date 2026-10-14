@@ -50,7 +50,10 @@
   },
   "overrides": [
     {
-      "includes": ["site/app/_components/SocialCard.tsx"],
+      "includes": [
+        "site/app/_components/SocialCard.tsx",
+        "site/app/_components/UserSocialCard.tsx"
+      ],
       "linter": {
         "rules": {
           "performance": {

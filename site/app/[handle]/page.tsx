@@ -5,7 +5,8 @@ import { Header } from "../_components/Header";
 import { Footer } from "../_components/sections";
 import { HANDLE_PATTERN, type PublicPage } from "../account";
 import type { VoteTally } from "../people-query";
-import { API_ORIGIN, SOCIAL_IMAGE } from "../site";
+import { API_ORIGIN } from "../site";
+import { cardPath } from "../user-card";
 import { ProfilePage } from "./ProfilePage";
 
 interface Params {
@@ -53,6 +54,13 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
   }
   const title = `@${page.handle} on ade`;
   const description = summary(page);
+  const image = {
+    url: cardPath(page),
+    width: 1200,
+    height: 630,
+    alt: `${page.displayName || `@${page.handle}`} on ade: ${description}`,
+    type: "image/png",
+  };
   return {
     title,
     description,
@@ -63,9 +71,9 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
       type: "profile",
       url: `/${page.handle}`,
       siteName: "ade",
-      images: [SOCIAL_IMAGE],
+      images: [image],
     },
-    twitter: { card: "summary_large_image", title, description, images: [SOCIAL_IMAGE] },
+    twitter: { card: "summary_large_image", title, description, images: [image] },
   };
 }
 

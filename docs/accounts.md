@@ -47,6 +47,12 @@ Each item has a switch on the dashboard. An item is public only when you switch 
 
 The public page and `ade apply @<name>` show the same items. In the public profile, each secret becomes an environment variable with the same name. The user who applies it sets the variable.
 
+## Link previews
+
+Each public page has its own preview image at `ade.chele.bi/<name>/og.png`. The image shows the avatar, the display name, the page name, the GitHub login, the counts of the shared items, the first skills, the harness logos, and `ade apply @<name>`. It uses only the public items.
+
+The page gives the image address with a version value. A change of the name, the avatar, or the public items gives a new address, so a link preview gets the new image. `ade.chele.bi/community/<name>` sends the browser to `ade.chele.bi/<name>`.
+
 ## The Community page
 
 https://ade.chele.bi/community lists each person with at least one public item. A person with no public item is not on the list. The old address `/people` sends the browser to `/community`.

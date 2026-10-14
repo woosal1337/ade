@@ -1,8 +1,8 @@
-import { HARNESS_BRANDS } from "../brands";
+import { type Brand, HARNESS_BRANDS } from "../brands";
 import { dotSvg, matrixRuns } from "../glyphs";
 import { dotRuns, LOGO_LAYOUT } from "../raster";
 
-const COLORS = {
+export const COLORS = {
   ink: "#0b0b0b",
   line: "#222222",
   fg: "#ededed",
@@ -14,21 +14,25 @@ const COLORS = {
 const LOGO = { sub: 3, pitch: 4.2, size: 3 };
 const STRIP_GAP = 24;
 
-function dataUri(svg: string): string {
+export function dataUri(svg: string): string {
   return `data:image/svg+xml;base64,${Buffer.from(svg).toString("base64")}`;
 }
 
-function harnessStrip(): { readonly svg: string; readonly width: number; readonly height: number } {
+export function harnessStrip(brands: readonly Brand[] = HARNESS_BRANDS): {
+  readonly svg: string;
+  readonly width: number;
+  readonly height: number;
+} {
   const cell = LOGO_LAYOUT.size * LOGO_LAYOUT.pitch;
   let offArea = "";
   let onRuns = "";
-  HARNESS_BRANDS.forEach((brand, index) => {
+  brands.forEach((brand, index) => {
     const x = index * (cell + STRIP_GAP);
     const grid = dotRuns(brand.paths, { ...LOGO_LAYOUT, x, y: 0 });
     offArea += `M${x} 0h${grid.width}v${grid.width}h-${grid.width}z`;
     onRuns += grid.runs;
   });
-  const width = HARNESS_BRANDS.length * cell + (HARNESS_BRANDS.length - 1) * STRIP_GAP;
+  const width = brands.length * cell + (brands.length - 1) * STRIP_GAP;
   const pattern = (id: string, fill: string): string =>
     `<pattern id="${id}" width="${LOGO_LAYOUT.pitch}" height="${LOGO_LAYOUT.pitch}" patternUnits="userSpaceOnUse"><rect width="${LOGO_LAYOUT.dot}" height="${LOGO_LAYOUT.dot}" fill="${fill}"/></pattern>`;
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${cell}" width="${width}" height="${cell}"><defs>${pattern("off", COLORS.off)}${pattern("on", COLORS.muted)}</defs><path fill="url(#off)" d="${offArea}"/><path fill="url(#on)" d="${onRuns}"/></svg>`;

@@ -15,6 +15,7 @@ The first public version.
 - `@<name>` and `ade.chele.bi/<name>` sources for plan, apply, and import, with the trust prompt.
 - The dashboard asks for the WorkOS email code when the first login needs it.
 - The site loads its fonts with `next/font/local`: preloaded, cached for a year, with a size-matched fallback. A page load no longer draws the text in a fallback font first. Internal links keep the page and do not load it again.
+- Each public page has its own link preview image with the avatar, the name, and a summary of the shared setup. `/community/<name>` sends the browser to `/<name>`.
 - A long list on a setup page shows its first 5 entries, a fade, and an arrow button that shows the full list.
 - The Community page at `ade.chele.bi/community` lists each person with a public setup: search, harness and content filters, sort, the update date, and votes from logged-in users. Each public page also has the vote buttons.
 - The dashboard and the page header show the cached account at once, then check it with the API. One request serves the header and the page.

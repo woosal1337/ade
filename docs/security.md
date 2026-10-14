@@ -72,6 +72,7 @@ ade accounts are optional. Read [the accounts guide](accounts.md).
 - A login that waits for an email code keeps the WorkOS pending token in an HttpOnly cookie on `/api` for 10 minutes. The code check needs the site origin, and it allows 5 tries for each login.
 - The site keeps the last account view, with hidden items, in the local storage of the browser for 30 days. It shows this view at once, then checks it with the API. A logout, an account deletion, and an ended session delete it. On a shared computer, log out after use.
 - The Community page shows only public items: the names of skills, MCP servers, and plugins, the harness list, and the counts. A new or changed item does not show until the owner switches it on.
+- The preview image of a page loads the avatar only from `workoscdn.com`, `avatars.githubusercontent.com`, and `github.com`, over HTTPS, with up to 3 redirects to the same hosts, a 3-second limit, and a 2 MB limit. It accepts PNG and JPEG data only. Any other case shows the first letter of the name.
 - Votes need a login. Each user has one vote for each person, and no vote for their own page. The API shows the counts, not the voters, and allows 60 votes for each user in a minute.
 - Parallel requests with one expired session share one WorkOS refresh. The API keeps the result for 30 seconds.
 - A web logout revokes the WorkOS session. The access token in a copied cookie stays valid until it expires, about 5 minutes later.
